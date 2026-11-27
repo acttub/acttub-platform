@@ -2,8 +2,9 @@ import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { BackHandler, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
@@ -11,7 +12,6 @@ import { ChallengeOthersRow } from '@/components/challenge-others-row';
 import { MASCOT } from '@/components/ui/mascot';
 import { LoadingText } from '@/components/ui/loading-text';
 import { PrimaryButton } from '@/components/ui/buttons';
-import { Chip } from '@/components/ui/chip';
 import { CtaBar } from '@/components/ui/cta-bar';
 import { FLOATING_ADD_HEIGHT, FloatingAdd, useTabFloatingAddBottom } from '@/components/ui/floating-add';
 import { UserAvatar } from '@/components/ui/default-avatar';
@@ -19,8 +19,10 @@ import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { SelectCard } from '@/components/ui/select-card';
 import { SkeletonRows } from '@/components/ui/skeleton';
+import { NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { heroCard } from '@/constants/hero-card';
+import { easing, motion } from '@/constants/motion';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
@@ -65,13 +67,26 @@ import { translate as t } from '@/lib/i18n';
  *
  * SOMA-1121: 게시판은 커뮤니티 탭(app/(tabs)/community)으로 나가 이 탭은 다시 「챌린지」 하나다. 라우트 이름(challenges)은
  * 그대로 두어 챌린지 탭으로 오는 딥링크·푸시가 계속 열린다. 예전 `?section=board` 주소로 오면 커뮤니티 탭으로 넘긴다.
+ *
+ * SOMA-1122: 칩(인기·최신·종료·내 챌린지)을 없애고 세 구역으로 둔다 — ① 이번 주 공식 대사(바로 연기하기) ② 공식 챌린지
+ * (진행 중 + 지난주 결과 + 「지난 챌린지」) ③ 배우들이 연 챌린지(연 사람·참여 수·남은 날). 공식/배우는 ChallengeCard.origin
+ * (team/member)으로 나눈다. 목록은 인기 탭 하나를 받고, 「지난 챌린지」는 같은 화면에서 종료 탭을 받아 보인다.
+ * 내 참여작은 프로필 「참여작」에서 본다.
  */
-const TABS: { key: ChallengeTab; label: string }[] = [
-  { key: 'popular', label: 'challenges.tabPopular' },
-  { key: 'latest', label: 'challenges.tabLatest' },
-  { key: 'ended', label: 'challenges.tabEnded' },
-  { key: 'mine', label: 'challenges.tabMineShort' },
-];
+
+/** 구역이 처음 보일 때 살짝 떠오른다 — 구역마다 조금씩 늦게. 「동작 줄이기」면 움직이지 않는다. */
+const RISE_STAGGER_MS = 60;
+function Rise({ index, testID, children }: { index: number; testID: string; children: ReactNode }) {
+  const reduceMotion = useReducedMotion();
+  return (
+    <Animated.View
+      testID={testID}
+      style={styles.section}
+      entering={reduceMotion ? undefined : FadeInDown.delay(index * RISE_STAGGER_MS).duration(motion.standard).easing(easing.enter)}>
+      {children}
+    </Animated.View>
+  );
+}
 
 /**
  * 목록 맨 위에 고정할 오늘의 챌린지와 나머지 목록. 진행 중인 공식(팀) 챌린지가 늘 맨 위다 — 같은 무리 안의 순서는 서버 순서를 지킨다.
@@ -203,6 +218,19 @@ export default function ChallengesScreen() {
     }, [load, tab]),
   );
 
+  // 「지난 챌린지」를 보는 중이면 안드로이드 뒤로가기는 세 구역 화면으로 돌아간다(탭 밖으로 나가지 않는다).
+  useFocusEffect(
+    useCallback(() => {
+      if (tab !== 'ended') return;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        setTab('popular');
+        setChallenges(null);
+        return true;
+      });
+      return () => sub.remove();
+    }, [tab]),
+  );
+
   useFocusEffect(
     useCallback(() => {
       // 첫 고르기 화면은 기기 기록으로 정하는데, 앱을 다시 깐 기존 사용자에게도 다시 떴다(10/26). 기기 기록이 비었으면
@@ -280,19 +308,46 @@ export default function ChallengesScreen() {
   const tapCard = (challenge: ChallengeCard) => openDetail(challenge);
 
   /** 첫 챌린지 참여를 끝내기 전에는 이번 주 대사 하나만 보여 주고 둘 중 하나를 고르게 한다. */
-  const selectMode = pickDecided && showGuide && !browsed && !!featured && canPerform(featured) && tab !== 'ended' && tab !== 'mine';
+  const selectMode = pickDecided && showGuide && !browsed && !!featured && canPerform(featured) && tab !== 'ended';
 
   // 첫 고르기를 띄울지 정하기 전에는 기본 챌린지 홈을 그리지 않는다 — 첫 사용자에게 홈이 먼저 보였다가 고르기로 바뀌었다(SOMA-932).
   const deciding = !pickDecided || !firstLoadDone;
 
-  const emptyText =
-    tab === 'ended' ? t('challenges.emptyEnded') : tab === 'mine' ? t('challenges.emptyMine') : t('challenges.emptyRunning');
+  // 「지난 챌린지」 — 끝난 챌린지 목록을 같은 화면에서 본다. 머리 꺾쇠로 돌아온다.
+  const showingPast = tab === 'ended';
+  const switchList = (next: ChallengeTab) => {
+    setTab(next);
+    setChallenges(null);
+  };
+  const openPast = () => {
+    logEvent('challenge_past_open');
+    switchList('ended');
+  };
+  // 공식(origin team)·배우가 연(member) 진행 중 챌린지로 나눈다(서버 ChallengeCard.origin). 고정한 이번 주 대사는 이미 빠져 있다.
+  const running = (challenges ?? []).filter((c) => Date.parse(c.ends_at) > Date.now());
+  const official = running.filter((c) => c.origin === 'team');
+  const actors = running.filter((c) => c.origin !== 'team');
+  const listStatus = (
+    <>
+      {error && !canRetryBrowse(error) && <InlineEmpty title={browseFailureMessage(error)} />}
+      {error && canRetryBrowse(error) && <InlineError message={browseFailureMessage(error)} onRetry={() => void load(tab)} />}
+      {challenges === null && !error && <SkeletonRows count={3} avatar={false} style={styles.flush} />}
+    </>
+  );
+  const moreButton = cursor ? (
+    <Pressable style={styles.moreBtn} onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
+      {loadingMore ? <LoadingText label={t('loadingText.loading')} /> : <Text style={styles.moreText}>{t('challenges.moreLines')}</Text>}
+    </Pressable>
+  ) : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* 머리 — 「챌린지」 제목(게시판은 SOMA-1121에서 커뮤니티 탭으로 나갔다)과 검색·알림함. */}
+      {/* 머리 — 「챌린지」 제목(게시판은 SOMA-1121에서 커뮤니티 탭으로 나갔다)과 검색·알림함. 지난 챌린지를 볼 때는 꺾쇠와 그 제목. */}
       <View style={styles.header}>
-        <Text style={styles.title} accessibilityRole="header">{t('tabs.challenge')}</Text>
+        {showingPast && (
+          <NavIconButton icon="chevron-left" label={t('common.back')} phLabel="challenges_past_back" onPress={() => switchList('popular')} />
+        )}
+        <Text style={styles.title} accessibilityRole="header">{showingPast ? t('challenges.pastTitle') : t('tabs.challenge')}</Text>
         {!selectMode && !deciding && (
         <View style={styles.headerRight}>
           <Pressable
@@ -351,99 +406,91 @@ export default function ChallengesScreen() {
         </>
       ) : (
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: tabBarSpace + FLOATING_ADD_HEIGHT + space[6] }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
-        {lastWeek && (
-          <Pressable
-            style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
-            onPress={() => {
-              logEvent('challenge_last_week_open', { id: lastWeek.id });
-              router.push({ pathname: '/challenge-result', params: { id: lastWeek.id, nextId: featured?.id ?? '' } });
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={t('challenges.resultBanner')}>
-            <Feather name="award" size={20} color={palette.flame} />
-            <View style={styles.flex}>
-              <Text style={styles.bannerTitle}>{t('challenges.resultBanner')}</Text>
-              <Text style={styles.bannerSub}>
-                {t('challenges.resultBannerSub', { count: Math.min(3, lastWeek.entry_count) })}
-              </Text>
-            </View>
-            <Feather name="chevron-right" size={20} color={palette.iconFaint} />
-          </Pressable>
-        )}
-
-        {featured && (
-          <WeekHero
-            challenge={featured}
-            showGuide={firstTime}
-            onOpen={() => tapCard(featured)}
-            onPerform={canPerform(featured) ? () => perform(featured) : undefined}
-            entered={enteredIds.has(featured.id)}
-          />
-        )}
-
-        {featured && (
-          <ChallengeOthersRow
-            challenge={featured}
-            onOpenAll={() => {
-              logEvent('challenge_others_row_all', { id: featured.id });
-              openDetail(featured);
-            }}
-            onOpenEntry={(entry) => {
-              logEvent('challenge_others_row_open', { id: featured.id, entry_id: entry.id });
-              router.push({ pathname: '/challenge-play', params: { id: featured.id, entryId: entry.id } });
-            }}
-          />
-        )}
-
-        <AdSlot slot="challenges_tab_top" />
-
-        <View style={styles.tabRow}>
-          {TABS.map(({ key, label }) => (
-            <Chip
-              key={key}
-              label={t(label)}
-              role="radio"
-              selected={tab === key}
-              size="sm"
-              phLabel={`challenge_tab_${key}`}
-              onPress={() => {
-                setTab(key);
-                setChallenges(null);
-                logEvent('challenge_tab', { tab: key });
-              }}
-            />
-          ))}
-        </View>
-
-        {error && !canRetryBrowse(error) && <InlineEmpty title={browseFailureMessage(error)} />}
-        {error && canRetryBrowse(error) && <InlineError message={browseFailureMessage(error)} onRetry={() => void load(tab)} />}
-        {challenges === null && !error && <SkeletonRows count={4} avatar={false} style={styles.flush} />}
-
-        {challenges?.map((challenge) => (
-          <Card
-            key={challenge.id}
-            challenge={challenge}
-            onOpen={() => tapCard(challenge)}
-          />
-        ))}
-
-        {cursor && (
-          <Pressable style={styles.moreBtn} onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
-            {loadingMore ? (
-              <LoadingText label={t('loadingText.loading')} />
-            ) : (
-              <Text style={styles.moreText}>{t('challenges.moreLines')}</Text>
+        {showingPast ? (
+          // 지난 챌린지 — 끝난 챌린지 목록(서버 종료 탭). 머리 꺾쇠로 세 구역 화면에 돌아간다.
+          <>
+            {listStatus}
+            {challenges?.map((challenge) => <Card key={challenge.id} challenge={challenge} onOpen={() => tapCard(challenge)} />)}
+            {moreButton}
+            {challenges !== null && challenges.length === 0 && !error && <InlineEmpty title={t('challenges.emptyEnded')} />}
+          </>
+        ) : (
+          <>
+            {/* ① 이번 주 공식 대사 — 바로 연기하기 버튼과 다른 배우 영상 줄. */}
+            {featured && (
+              <Rise index={0} testID="challenges-section-week">
+                <WeekHero
+                  challenge={featured}
+                  showGuide={firstTime}
+                  onOpen={() => tapCard(featured)}
+                  onPerform={canPerform(featured) ? () => perform(featured) : undefined}
+                  entered={enteredIds.has(featured.id)}
+                />
+                <ChallengeOthersRow
+                  challenge={featured}
+                  onOpenAll={() => {
+                    logEvent('challenge_others_row_all', { id: featured.id });
+                    openDetail(featured);
+                  }}
+                  onOpenEntry={(entry) => {
+                    logEvent('challenge_others_row_open', { id: featured.id, entry_id: entry.id });
+                    router.push({ pathname: '/challenge-play', params: { id: featured.id, entryId: entry.id } });
+                  }}
+                />
+              </Rise>
             )}
-          </Pressable>
-        )}
 
-        {/* 종료·내 챌린지는 위에 오늘의 챌린지가 있어도 그 칩의 목록이 비었다고 알린다. */}
-        {challenges !== null && challenges.length === 0 && (!featured || tab === 'ended' || tab === 'mine') && !error && (
-          <InlineEmpty title={emptyText} />
+            <AdSlot slot="challenges_tab_top" />
+
+            {/* ② 공식 챌린지 — 진행 중인 공식 대사와 지난 결과·지난 챌린지로 가는 길. */}
+            <Rise index={1} testID="challenges-section-official">
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle} accessibilityRole="header">{t('challenges.sectionOfficial')}</Text>
+                <Pressable onPress={openPast} hitSlop={8} accessibilityRole="link" ph-label="challenges_past">
+                  <Text style={styles.sectionLink}>{t('challenges.pastLink')}</Text>
+                </Pressable>
+              </View>
+              {lastWeek && (
+                <Pressable
+                  style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
+                  onPress={() => {
+                    logEvent('challenge_last_week_open', { id: lastWeek.id });
+                    router.push({ pathname: '/challenge-result', params: { id: lastWeek.id, nextId: featured?.id ?? '' } });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('challenges.resultBanner')}>
+                  <Feather name="award" size={20} color={palette.flame} />
+                  <View style={styles.flex}>
+                    <Text style={styles.bannerTitle}>{t('challenges.resultBanner')}</Text>
+                    <Text style={styles.bannerSub}>
+                      {t('challenges.resultBannerSub', { count: Math.min(3, lastWeek.entry_count) })}
+                    </Text>
+                  </View>
+                  <Feather name="chevron-right" size={20} color={palette.iconFaint} />
+                </Pressable>
+              )}
+              {official.map((challenge) => (
+                <Card key={challenge.id} challenge={challenge} onOpen={() => tapCard(challenge)} />
+              ))}
+            </Rise>
+
+            {/* ③ 배우들이 연 챌린지 — 연 사람·참여 수·남은 날. */}
+            <Rise index={2} testID="challenges-section-actors">
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle} accessibilityRole="header">{t('challenges.sectionActors')}</Text>
+              </View>
+              {listStatus}
+              {actors.map((challenge) => (
+                <Card key={challenge.id} challenge={challenge} onOpen={() => tapCard(challenge)} />
+              ))}
+              {moreButton}
+              {challenges !== null && actors.length === 0 && !error && <InlineEmpty title={t('challenges.emptyActors')} />}
+            </Rise>
+          </>
         )}
       </ScrollView>
       )}
-      {!selectMode && !deciding && (
+      {!selectMode && !deciding && !showingPast && (
         <FloatingAdd
           label={t('challenges.addLine')}
           bottom={floatingAddBottom}
@@ -589,7 +636,13 @@ function Card({
   challenge: ChallengeCard;
   onOpen: () => void;
 }) {
-  const host = challenge.origin === 'team' ? t('challenges.hostTeam') : t('challenges.hostMemberShort');
+  // 배우가 연 챌린지는 연 사람 이름을 보인다(SOMA-1122). 탈퇴했으면 이름 없이 「주최자 탈퇴」.
+  const host =
+    challenge.origin === 'team'
+      ? t('challenges.hostTeam')
+      : challenge.host_name?.trim()
+        ? t('challenges.hostMember', { name: challenge.host_name.trim() })
+        : t('challenges.hostWithdrawn');
   return (
     // 카드 전체(테두리 안 여백 포함)가 눌린다 — 예전엔 여백 안쪽 글자 영역만 눌렸다.
     <Pressable style={({ pressed }) => [styles.row, pressed && styles.pressed]} onPress={onOpen} accessibilityRole="button">
@@ -702,7 +755,10 @@ const styles = StyleSheet.create({
   },
   heroChipText: { ...type.micro, color: palette.onAccent },
   heroLine: { ...type.headline, fontWeight: '700', color: palette.onAccent, marginTop: 'auto' },
-  tabRow: { flexDirection: 'row', gap: space[1.5], paddingTop: space[1] },
+  section: { gap: space[3] },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[2] },
+  sectionTitle: { ...type.headline, color: palette.text },
+  sectionLink: { ...type.body2Bold, color: palette.blueDeep },
   row: { borderRadius: radius.lg, gap: space[3], padding: space[4], backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   rowMain: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   rowBody: { flex: 1, minWidth: 0, gap: space[2] },
