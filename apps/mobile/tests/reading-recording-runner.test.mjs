@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
-import { beforeEach, test } from 'node:test';
+import { beforeEach, mock, test } from 'node:test';
 
 import { ApiError } from '../lib/api-request.ts';
 
@@ -184,6 +184,48 @@ test('끊겨서 못 올린 녹음은 큐에 남았다가 다음 올리기에서 
   assert.equal(await runner.pendingRecordingUploads(), 0);
   assert.equal(s.uploads.length, 2);
   assert.deepEqual(s.uploads.map(([, body]) => body.request_id), ['q1', 'q1']);
+});
+
+test('완료 화면에서 마지막 올리기가 잠깐 실패하면 정해진 간격마다 같은 요청 id·시도 번호로 다시 보내 큐를 비운다', async () => {
+  mock.timers.enable({ apis: ['setInterval'] });
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  try {
+    s.files.set('file:///rec/l2.m4a', new Uint8Array(5000));
+    s.uploadError = new Error('offline');
+    await runner.enqueueLineRecording(input({ attemptNo: 2 }));
+    await runner.flushRecordingUploads();
+    assert.equal(await runner.pendingRecordingUploads(), 1);
+    assert.equal(s.uploads.length, 1);
+
+    const stop = runner.retryRecordingUploads();
+    mock.timers.tick(runner.RECORDING_RETRY_MS - 1);
+    await settle();
+    assert.equal(s.uploads.length, 1);
+
+    mock.timers.tick(1);
+    await settle();
+    assert.equal(s.uploads.length, 2);
+    assert.equal(await runner.pendingRecordingUploads(), 1);
+
+    s.uploadError = null;
+    mock.timers.tick(runner.RECORDING_RETRY_MS);
+    await settle();
+    assert.equal(await runner.pendingRecordingUploads(), 0);
+    assert.equal(heard.at(-1), 0);
+    assert.deepEqual(s.uploads.map(([, body]) => [body.request_id, body.attempt_no]), [['q1', 2], ['q1', 2], ['q1', 2]]);
+
+    stop();
+    s.files.set('file:///rec/l3.m4a', new Uint8Array(5000));
+    s.uploadError = new Error('offline');
+    await runner.enqueueLineRecording(input({ requestId: 'q2', lineId: 'l3', uri: 'file:///rec/l3.m4a' }));
+    await runner.flushRecordingUploads();
+    const before = s.uploads.length;
+    mock.timers.tick(runner.RECORDING_RETRY_MS * 3);
+    await settle();
+    assert.equal(s.uploads.length, before);
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test('회차가 지워져 다시 보내도 같은 녹음은 버리고 바뀐 수를 알린다', async () => {
