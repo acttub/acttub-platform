@@ -22,15 +22,6 @@ public final class PracticeLoopRound {
     private static final int PART_MAX = 60;
 
     /**
-     * 상태 칸 "배우의 말"의 보기(practice-loop.txt). 긴 이름이 앞이다 — "답"이 "답하기"류를 먼저 잡지 않게.
-     * {@link PracticeLoopRouter.Kind} 가운데 {@code 질문 오해}는 이 목록에 없다.
-     */
-    private static final List<String> KINDS = List.of(PracticeLoopRouter.Kind.INSIGHT.label, PracticeLoopRouter.Kind.SELF_LINE.label,
-            PracticeLoopRouter.Kind.METHOD.label, PracticeLoopRouter.Kind.EVALUATION.label, PracticeLoopRouter.Kind.CHOICE.label,
-            PracticeLoopRouter.Kind.QUESTION.label, PracticeLoopRouter.Kind.SHORT.label, PracticeLoopRouter.Kind.STOP.label,
-            PracticeLoopRouter.Kind.CORRECTION.label, PracticeLoopRouter.Kind.PUSHBACK.label, PracticeLoopRouter.Kind.ANSWER.label);
-
-    /**
      * 연습 루프 회차의 한 줄. 연습 루프 상태가 없으면 {@code null} — 부르는 쪽이 예전 줄("n차: 제목 — 제안")을 쓴다.
      *
      * @param state 그 회차 대화의 {@code coach_conversations.state}
@@ -75,8 +66,8 @@ public final class PracticeLoopRound {
             if (text.isEmpty()) continue;
             String kind = statuses == null || !statuses.isArray() ? ""
                     : DirectVideoPracticeLoop.statusField(LenientJson.asText(statuses.path(coachIndex), ""), "배우의 말");
-            String label = KINDS.stream().filter(kind::startsWith).findFirst().orElse("");
-            words.add(label.isEmpty() ? text : "(" + label + ") " + text);
+            PracticeLoopRouter.Kind classified = PracticeLoopRouter.Kind.ofLabel(kind);
+            words.add(classified == null ? text : "(" + classified.label + ") " + text);
         }
         return List.copyOf(words);
     }
