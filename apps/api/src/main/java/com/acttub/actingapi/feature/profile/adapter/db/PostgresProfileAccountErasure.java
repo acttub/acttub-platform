@@ -65,18 +65,18 @@ class PostgresProfileAccountErasure implements AccountErasure {
 
     private void eraseSignupAttribution(UUID userId) {
         // 가입 유입 기록(SOMA-588)은 사람과 끊어 남기지 않고 행째 지운다 — 통계는 탈퇴 전 값으로 충분하다.
-        entityManager.createNativeQuery("DELETE FROM user_signup_attributions WHERE user_id=:userId")
+        entityManager.createQuery("delete from UserSignupAttributionEntity a where a.userId = :userId")
                 .setParameter("userId", userId)
                 .executeUpdate();
         // 재조회용 기기 ID(SOMA-643, V43)도 지운다 — 24시간 안에 남아 있을 수 있다.
-        entityManager.createNativeQuery("DELETE FROM user_airbridge_device_lookups WHERE user_id=:userId")
+        entityManager.createQuery("delete from UserAirbridgeDeviceLookupEntity l where l.userId = :userId")
                 .setParameter("userId", userId)
                 .executeUpdate();
     }
 
     /** 가입 직후 답한 유입 경로(SOMA-649)도 행째 지운다 — 기타의 직접 입력이 남지 않게. */
     private void eraseDiscoveryAnswer(UUID userId) {
-        entityManager.createNativeQuery("DELETE FROM user_discovery_answers WHERE user_id=:userId")
+        entityManager.createQuery("delete from UserDiscoveryAnswerEntity a where a.userId = :userId")
                 .setParameter("userId", userId)
                 .executeUpdate();
     }

@@ -158,15 +158,15 @@ class ValueCheckCatalogIT {
             "ck_coach_messages_role",
             // 예약 장부의 상태는 보관함 저장소 SQL 만 쓴다. JPA 매핑과 함께 enum 을 지웠다(SOMA-589).
             "ck_upload_intents_status",
-            // 가입 유입 출처(V26·V28)는 컨트롤러의 상수와 source/platform 조합 검사로 거르고 저장소 native SQL만
-            // 쓰는 칸이라 Java enum이 없다. 조합·웹 안전 문자열 CHECK는 ANY 값 목록 형태가 아니라 이 검사 대상 밖이다.
+            // 가입 유입 출처(V26·V28)는 컨트롤러의 상수와 source/platform 조합 검사로 거르고 Schema Entity 가 문자열로
+            // 매핑하는 칸이라 Java enum이 없다. 조합·웹 안전 문자열 CHECK는 ANY 값 목록 형태가 아니라 이 검사 대상 밖이다.
             "ck_user_signup_attributions_source",
             "ck_user_signup_attributions_platform",
             // 유입 기록의 적은 쪽(V44, SOMA-643)은 저장소·동기화의 상수만 쓰는 칸이라 Java enum 이 없다.
             "ck_user_signup_attributions_recorded_via",
-            // Airbridge 기기 ID 임시 보관(V43)의 platform 은 컨트롤러의 상수로 거르고 저장소 native SQL 만 쓴다.
+            // Airbridge 기기 ID 임시 보관(V43)의 platform 은 컨트롤러의 상수로 거르고 Schema Entity 가 문자열로 매핑한다.
             "ck_user_airbridge_device_lookups_platform",
-            // 가입 직후 유입 경로 자기 응답(V38)의 값 목록은 domain 의 DiscoveryAnswer 상수가 들고 저장소 native SQL 만 쓴다.
+            // 가입 직후 유입 경로 자기 응답(V38)의 값 목록은 domain 의 DiscoveryAnswer 상수가 들고 Schema Entity 가 문자열로 매핑한다.
             "ck_user_discovery_answers_source",
             "ck_user_discovery_answers_detail",
             // 앱 공지 포스터(V29)의 값 목록은 domain 의 PosterRules 상수가 들고 저장소 native SQL 만 쓴다.
