@@ -56,13 +56,7 @@ export async function detectSttPolicy(): Promise<SttPolicy> {
  * onEnd 는 finish·abort 없이 인식기가 스스로 끝났을 때(오래 쉼·시간 한도·오류) 한 번 온다 — 독백은 끊지 않고 이어 들어야 해서
  * 새로 듣기 시작한다(SOMA-597). 그때까지 받아쓴 글과 녹음은 남아 있다.
  */
-type SttCallbacks = {
-  onEvent: (event: VadEvent) => void;
-  onInterim: (text: string) => void;
-  onEnd?: () => void;
-  /** reading_stt_error 를 남긴 오류마다 한 번(다시 듣는 말 없음은 오류가 아니다). 리딩 회차 요약의 stt_errors 로 센다. */
-  onError?: () => void;
-};
+type SttCallbacks = { onEvent: (event: VadEvent) => void; onInterim: (text: string) => void; onEnd?: () => void };
 
 export type SttHandle = {
   /**
@@ -260,7 +254,6 @@ export function useReadingStt(): SttHandle {
         platform: Platform.OS,
         had_text: !!text.current.trim(),
       });
-      callbacks.current?.onError?.();
     }
     ended();
   });

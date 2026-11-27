@@ -503,19 +503,6 @@ describe('받아쓰기 실패 신호와 계측(SOMA-804)', () => {
     expect(hook.result.current.failed()).toBe(false);
   });
 
-  test('오류는 화면에도 한 번씩 알리고(회차 요약 stt_errors), 다시 듣는 말 없음은 알리지 않는다', async () => {
-    const errors: string[] = [];
-    const hook = await renderHook(() => useReadingStt());
-    await act(async () => {
-      hook.result.current.start({ onEvent: () => undefined, onInterim: () => undefined, onError: () => errors.push('error') });
-    });
-    await emit('error', { error: 'no-speech' });
-    expect(errors).toEqual([]);
-    await emit('end');
-    await emit('error', { error: 'network' });
-    expect(errors).toEqual(['error']);
-  });
-
   test('글 없이 끝난 차례는 reading_stt_empty_turn 을 한 번만 보내고 실패로 본다', async () => {
     const { stt } = await listen();
     await emit('end');

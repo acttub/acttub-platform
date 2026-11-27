@@ -97,63 +97,6 @@ test('다음 할 일 없이 물어도 닫힐 때 문제없다', async () => {
   expect(screen.queryByText('Acttub 어떠셨어요?')).not.toBeOnTheScreen();
 });
 
-describe('리딩은 「좋았어요」 뒤에만 묻는다(11/27)', () => {
-  beforeEach(async () => {
-    await AsyncStorage.clear();
-  });
-
-  test('완료만 세면 두 번째여도 카드를 보이지 않고 센 횟수만 남긴다', async () => {
-    await act(() => rating.count({ kind: 'reading' }));
-    await act(() => rating.count({ kind: 'reading' }));
-
-    expect(screen.queryByTestId('app-rating-card')).not.toBeOnTheScreen();
-    expect(logEvent).not.toHaveBeenCalledWith('app_rating_prompt', expect.anything());
-    expect(await stored()).toEqual({ rated: false, asks: 0, lastAskAt: null, coachSinceAsk: 0, readingSinceAsk: 2, counted: [] });
-  });
-
-  test('두 번째 완료 뒤 좋았어요면 카드를 보이고 reading_good 으로 남기며 물은 기록을 남긴다', async () => {
-    await act(() => rating.count({ kind: 'reading' }));
-    await act(() => rating.count({ kind: 'reading' }));
-    await act(() => rating.askIfDue());
-
-    expect(screen.getByTestId('app-rating-card')).toBeOnTheScreen();
-    expect(logEvent).toHaveBeenCalledWith('app_rating_prompt', { trigger: 'reading_good' });
-    expect(await stored()).toEqual({ rated: false, asks: 1, lastAskAt: NOW, coachSinceAsk: 0, readingSinceAsk: 0, counted: [] });
-
-    // 같은 화면에서 다시 좋았어요를 눌러도 한 번 더 묻지 않는다
-    await fireEvent.press(screen.getByText('나중에'));
-    await act(() => rating.askIfDue());
-    expect(screen.queryByTestId('app-rating-card')).not.toBeOnTheScreen();
-  });
-
-  test('첫 완료 뒤 좋았어요는 아직 묻지 않고 센 횟수를 소모하지 않는다', async () => {
-    await act(() => rating.count({ kind: 'reading' }));
-    await act(() => rating.askIfDue());
-
-    expect(screen.queryByTestId('app-rating-card')).not.toBeOnTheScreen();
-    expect((await stored()).readingSinceAsk).toBe(1);
-  });
-
-  test('세기를 저장하기 전에 좋았어요를 눌러도 센 뒤에 판단한다', async () => {
-    await act(() => rating.count({ kind: 'reading' }));
-    await act(async () => {
-      void rating.count({ kind: 'reading' });
-      await rating.askIfDue();
-    });
-
-    expect(screen.getByTestId('app-rating-card')).toBeOnTheScreen();
-  });
-
-  test('7일 간격 안이면 좋았어요여도 묻지 않고 센 횟수를 그대로 둔다', async () => {
-    await AsyncStorage.setItem(KEY, JSON.stringify({ rated: false, asks: 1, lastAskAt: NOW - 6 * DAY, coachSinceAsk: 0, readingSinceAsk: 1, counted: [] }));
-    await act(() => rating.count({ kind: 'reading' }));
-    await act(() => rating.askIfDue());
-
-    expect(screen.queryByTestId('app-rating-card')).not.toBeOnTheScreen();
-    expect(await stored()).toEqual({ rated: false, asks: 1, lastAskAt: NOW - 6 * DAY, coachSinceAsk: 0, readingSinceAsk: 2, counted: [] });
-  });
-});
-
 test('저장소를 읽거나 쓰지 못해도 처음 상태로 묻고 흐름은 그대로 간다', async () => {
   jest.spyOn(AsyncStorage, 'getItem').mockRejectedValue(new Error('io'));
   jest.spyOn(AsyncStorage, 'setItem').mockRejectedValue(new Error('io'));

@@ -44,8 +44,6 @@ import { buildStartBody, roleLabel, turnRoles } from '@/lib/reading/session-plan
 import { isWordless, saidEnough, spokenCoverage } from '@/lib/reading/line-coverage';
 import { tooSoonAfterLineChange } from '@/lib/reading/next-tap-guard';
 import { logAdvance } from '@/lib/reading/advance-log';
-import { createRunSummary, type MineAdvance, type RunEnded } from '@/lib/reading/run-summary';
-import { setPlaybackStartListener } from '@/lib/reading/tts/playback-start';
 import { diffWords } from '@/lib/reading/word-diff';
 import { finishMonologueRun, isMonologue, livePosition, monologueChunks, monologueResults, sentenceIndexes } from '@/lib/reading/monologue';
 import { lineGroups } from '@/lib/reading/line-groups';
@@ -119,7 +117,6 @@ import { ReadingNoScript } from '@/components/reading/no-script';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
-import type { ReadingRatingValue } from '@/lib/reading/session-rating';
 import { MASCOT as MASCOT_IMG, MASCOT_SIZE, type MascotPose } from '@/components/ui/mascot';
 import { api } from '@/lib/api';
 import { skipsFirstReadingGuide } from '@/lib/returning-account';
@@ -164,11 +161,7 @@ type TurnNote = null | 'silence' | 'limit';
 /** 위쪽에 잠깐 보이는 알림. */
 type Notice = null | { kind: 'dropped'; count: number } | { kind: 'cloud_fallback' } | { kind: 'jump'; text: string };
 
-/** how 는 미뤄 둔 내 차례 넘김이 어떤 넘김이었는지(회차 요약). */
-type Deferred = null | { kind: 'advance' | 'end_turn'; from: number; how?: MineAdvance };
-
-/** 내 차례 닫기의 대기가 상한에 걸렸다(회차 요약 close_timeouts). */
-const TIMED_OUT: unique symbol = Symbol('timed_out');
+type Deferred = null | { kind: 'advance' | 'end_turn'; from: number };
 
 /** 예시 음성이 그 줄의 것인지 가르는 값 — 배역과 글이 고른 때와 같아야 한다. */
 function exampleLineSignature(line: ScriptLine | undefined): string {
@@ -321,14 +314,6 @@ export default function ReadingPlay() {
   const [editing, setEditing] = useState<{ lineId: string; draft: LineDraft; choices?: { lineId: string; text: string }[]; drafts?: Record<string, LineDraft> } | null>(null);
   const editResumes = useRef(false);
   const engineRef = useRef<PartnerVoiceEngine>('supertonic');
-  /** 리딩 회차 요약(reading_run_summary, lib/reading/run-summary) — 화면은 사건만 알리고 끝날 때 한 번 보낸다. */
-  const [summary] = useState(() => createRunSummary({ advance: session?.advance ?? 'unknown', handsFree }));
-  /** [시작] 전에 떠난 화면은 회차가 아니므로 보내지 않는다. 같은 회차는 summary.finish 가 한 번만 값을 준다. */
-  const sendRunSummary = useCallback((ended: RunEnded) => {
-    if (!startedRef.current) return;
-    const params = summary.finish(ended, engineRef.current);
-    if (params) logEvent('reading_run_summary', params);
-  }, [summary]);
   /** 내 차례를 닫는 중(받아쓰기 마무리·마이크 정지 대기) — [다음]을 「넘기는 중」으로 보인다. */
   const [closingTurn, setClosingTurn] = useState(false);
   const deviceVoiceRef = useRef(false);
@@ -353,19 +338,9 @@ export default function ReadingPlay() {
   const liftRatingInput = useCallback(() => {
     setTimeout(() => doneScrollRef.current?.scrollToEnd({ animated: true }), 250);
   }, []);
-  // 대본을 끝까지 읽으면 세고, 그 회차를 「좋았어요」로 고르면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494 · 11/27).
-  const { count: countRating, askIfDue: askRatingIfDue, element: ratingCard } = useAppRating();
-  // 별점 카드가 뜨면 완료 화면을 카드까지 내린다 — 「아쉬웠어요」에서 「좋았어요」로 바꾼 경우 카드가 화면 밖에 그려졌다.
-  const ratingCardShown = ratingCard !== null;
-  useEffect(() => {
-    if (ratingCardShown) liftRatingInput();
-  }, [ratingCardShown, liftRatingInput]);
-  const onReadingRated = useCallback(
-    (value: ReadingRatingValue) => {
-      if (value === 'good') void askRatingIfDue();
-    },
-    [askRatingIfDue],
-  );
+  // 대본을 2번 완주할 때마다 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494·SOMA-661).
+  // 대본을 끝까지 읽으면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494).
+  const { after: askRating, element: ratingCard } = useAppRating();
   const showFullScreenAd = useFullScreenAd();
   const sttActive = useRef(false);
   /** 줄별 시도 번호 — 같은 줄을 다시 말하면 1씩 늘어 이전 녹음을 대체한다(reading.recording). */
@@ -579,16 +554,16 @@ export default function ReadingPlay() {
         void markReadingFinished();
       }
       setPhase({ kind: 'done' });
-      sendRunSummary(stoppedEarlyRef.current ? 'stopped' : 'completed');
-      // 별점용 세기는 화면에 아무것도 띄우지 않으므로 광고(SOMA-1085)를 기다리지 않고 바로 센다 — 광고가 늦게 닫혀도
-      // 「좋았어요」의 묻기 판정에 이번 회차가 들어가게. 묻는 건 「좋았어요」를 고른 뒤다(11/27).
-      if (completed) void countRating({ kind: 'reading' });
-      void showFullScreenAd('reading_done_full');
+      // 결과로 넘어갈 때 전면 광고(SOMA-1085) — 별점 묻기는 광고를 닫은 뒤에 한다(둘이 겹치지 않게).
+      void (async () => {
+        await showFullScreenAd('reading_done_full');
+        if (completed) void askRating({ kind: 'reading' });
+      })();
       return;
     }
     // 이어하기의 앞 상대 대사(leadIn)는 저장하지 않는다 — 서버 위치가 뒤로 가지 않게.
     if (next.index !== prev.index && next.leadInUntil === null) queueRef.current?.push(progressPayload(next));
-  }, [countRating, session, sendRunSummary]);
+  }, [askRating, session]);
 
   const goNext = useCallback(
     (from: number) => {
@@ -771,8 +746,6 @@ export default function ReadingPlay() {
 
   useEffect(() => {
     mounted.current = true;
-    // 상대 목소리의 소리가 실제로 난 때(lib/reading/tts/playback-start). 상대 줄이 아닐 때 온 알림은 summary 가 버린다.
-    setPlaybackStartListener(() => summary.partnerAudio(Date.now()));
     void (async () => {
       // 전체 듣기·자동 넘김은 마이크를 열지 않는다 — 녹음·음성 인식 권한을 묻지 않는다(11/1 폰 확인: 권한 창이 세 번 떴다).
       const listenOnly = listenAll || handsFree;
@@ -796,9 +769,6 @@ export default function ReadingPlay() {
     })();
     return () => {
       mounted.current = false;
-      // 끝(완료·그만하기)에서 이미 보냈으면 아무것도 하지 않는다.
-      sendRunSummary('left');
-      setPlaybackStartListener(null);
       setReadingPlaybackRate(1);
       speechQueue.current?.cancel();
       speechQueue.current = null;
@@ -849,12 +819,6 @@ export default function ReadingPlay() {
   useEffect(() => {
     lineShownAt.current = Date.now();
   }, [run?.index, beatOn]);
-  // 회차 요약의 지나간 줄 수 — 실행 중에 보인 줄마다 하나. 상대 읽기 효과(아래)보다 먼저 돌아야 그 줄의 셈을 지우지 않는다.
-  const summaryRunning = phase.kind === 'running' && !!run && run.status !== 'done';
-  useEffect(() => {
-    if (summaryRunning) summary.lineShown();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [run?.index, summaryRunning]);
   /** 시작 전 안내나 지문 멈춤 — 상대 읽기·내 차례 마이크를 열지 않는다. */
   const turnGated = tipOpen || beatOn;
   const runPaused = run?.status === 'paused';
@@ -946,9 +910,6 @@ export default function ReadingPlay() {
     const voiced = parts.filter((part) => !isWordless(part.text));
     const preset = presetFor(line.role);
     let cancelled = false;
-    // 회차 요약의 상대 대기 시간은 여기(지문 멈춤·시작 안내가 끝나 읽기에 들어간 때)부터 잰다. 줄이 화면에 뜬 때와는 지문
-    // 멈춤만큼 다르다 — 그 멈춤은 일부러 둔 것이라 대기로 치지 않는다.
-    summary.partnerShown(Date.now());
     // 멈춤(일시정지·배경)이 끊은 재생은 끝난 것으로 돌아온다 — 정리(cleanup)보다 먼저 와도 남은 조각·대체 목소리·넘김을 하지
     // 않는다. 이어서가 그 줄을 처음부터 같은 목소리로 다시 읽는다(SOMA-1062).
     const stale = () => {
@@ -957,7 +918,6 @@ export default function ReadingPlay() {
     };
     const finish = () => {
       if (stale()) return;
-      summary.partnerHeard();
       if (holdRef.current) deferredRef.current = { kind: 'advance', from };
       else goNext(from);
     };
@@ -997,7 +957,6 @@ export default function ReadingPlay() {
     let waitForTap = false;
     const showAsText = () => {
       waitForTap = true;
-      summary.partnerTextOnly();
       setLineEngine('text_only');
     };
     const readWithDeviceVoice = async (read: () => Promise<void>) => {
@@ -1025,7 +984,6 @@ export default function ReadingPlay() {
     void (async () => {
       try {
         if (engine === 'text_only') {
-          summary.partnerTextOnly();
           setLineEngine('text_only'); // 글로 보기 — 버튼으로 넘긴다
           return;
         }
@@ -1053,7 +1011,6 @@ export default function ReadingPlay() {
               continue;
             }
             if (!deviceVoiceRef.current) {
-              summary.partnerTextOnly();
               setLineEngine('text_only');
               return;
             }
@@ -1097,7 +1054,6 @@ export default function ReadingPlay() {
             if (await readWithAppVoice(text, lang, 'missing')) continue;
             if (stale()) return;
             if (!deviceVoiceRef.current) {
-              summary.partnerTextOnly();
               setLineEngine('text_only');
               return;
             }
@@ -1138,11 +1094,11 @@ export default function ReadingPlay() {
       tts.stop();
       stopDeviceVoice();
     };
-  }, [phase.kind, turnGated, run?.index, run?.status, engine, goNext, presetFor, primeSpeech, script?.id, flash, summary]);
+  }, [phase.kind, turnGated, run?.index, run?.status, engine, goNext, presetFor, primeSpeech, script?.id, flash]);
 
   // ── 내 차례: 마이크(침묵 감지)와 STT ─────────────────────────────────────────
   /**
-   * 내 차례를 끝낸다(침묵·[다음]) — 그때까지의 녹음을 거둔 뒤 넘긴다. how 는 회차 요약에 세는 넘김의 종류다.
+   * 내 차례를 끝낸다(침묵·[다음]) — 그때까지의 녹음을 거둔 뒤 넘긴다.
    *
    * 손으로 누른 [다음]도 줄을 먼저 넘기지 않는다(11/27 검토). 넘기면 ① 줄이 바뀌며 내 차례 효과의 정리가 인식기를 abort 해
    * 마무리 중인 받아쓰기와 녹음 조각을 버리고, ② 줄 넘김의 진행 저장(line_results)에 그 줄의 받아쓴 글이 빠지며(마지막 줄이면
@@ -1150,45 +1106,31 @@ export default function ReadingPlay() {
    * 대신 닫는 동안 [다음]을 「넘기는 중」으로 보여 눌린 것을 알린다(closingTurn).
    */
   const endMyTurn = useCallback(
-    async (from: number, how: MineAdvance = 'auto') => {
+    async (from: number) => {
       const cur = runRef.current;
       if (!cur || !session || cur.index !== from || cur.status !== 'mine' || turnClosing.current) return;
       turnClosing.current = true;
-      const closeStartedAt = Date.now();
       setTurnDone(true);
       // 빨리 닫히는 대부분의 차례에서 버튼이 깜빡이지 않게, 닫기가 잠깐(CLOSING_LABEL_DELAY_MS) 넘게 걸릴 때만 「넘기는 중」을 보인다.
       const closingLabel = setTimeout(() => {
         if (mounted.current) setClosingTurn(true);
       }, CLOSING_LABEL_DELAY_MS);
-      let timeouts = 0;
       try {
         // 받아쓰기 마무리·마이크 정지가 늦거나 실패해도 [다음]은 정한 시간 안에 넘어간다(11/2 QA). 녹음 올리기는 원래 뒤에서 한다.
-        const finished = sttActive.current ? await settleWithin<string | typeof TIMED_OUT>(stt.finish(), STT_FINISH_MAX_MS, TIMED_OUT) : '';
-        if (finished === TIMED_OUT) timeouts += 1;
-        const text = finished === TIMED_OUT ? '' : finished;
-        const recording = await settleWithin(endTurnRecording(cur.lineIds[cur.index], text), MIC_STOP_MAX_MS, null);
-        if (recording === null) timeouts += 1;
+        const text = sttActive.current ? await settleWithin(stt.finish(), STT_FINISH_MAX_MS, '') : '';
+        await settleWithin(endTurnRecording(cur.lineIds[cur.index], text), MIC_STOP_MAX_MS, null);
         sttActive.current = false;
         setListening(false);
         const now = runRef.current;
-        if (!now || now.index !== from) {
-          summary.turnClosed(null, timeouts);
-          return;
-        }
+        if (!now || now.index !== from) return;
         if (text.trim()) commit(recordSaid(now, text));
-        // 넘기기 전에 센다 — 마지막 줄이면 넘김(goNext)이 곧바로 완료가 되어 요약을 보낸다. 닫는 사이 멈췄으면(일시정지)
-        // 줄이 그대로라 넘김으로 세지 않는다.
-        const before = runRef.current;
-        const moves = !!before && advance(before, from) !== before;
-        if (moves) summary.mineAdvanced(how);
-        summary.turnClosed(moves && how === 'manual' ? Date.now() - closeStartedAt : null, timeouts);
         goNext(from);
       } finally {
         clearTimeout(closingLabel);
         if (mounted.current) setClosingTurn(false);
       }
     },
-    [session, stt, commit, goNext, endTurnRecording, summary],
+    [session, stt, commit, goNext, endTurnRecording],
   );
   const endMyTurnRef = useRef(endMyTurn);
   endMyTurnRef.current = endMyTurn;
@@ -1200,13 +1142,9 @@ export default function ReadingPlay() {
     const deferred = deferredRef.current;
     deferredRef.current = null;
     if (!deferred || runRef.current?.status === 'paused') return;
-    if (deferred.kind === 'advance') {
-      // 상대 줄은 끝까지 읽은 때 이미 셌다 — 미뤄 둔 내 줄 넘김(핸즈프리·소리 없는 줄)만 여기서 센다.
-      const cur = runRef.current;
-      if (cur?.status === 'mine' && cur.index === deferred.from) summary.mineAdvanced('auto');
-      goNext(deferred.from);
-    } else deferredTimer.current = setTimeout(() => void endMyTurnRef.current(deferred.from, deferred.how), currentVad().silenceMs);
-  }, [goNext, summary]);
+    if (deferred.kind === 'advance') goNext(deferred.from);
+    else deferredTimer.current = setTimeout(() => void endMyTurnRef.current(deferred.from), currentVad().silenceMs);
+  }, [goNext]);
 
   useEffect(() => {
     if (monologue || phase.kind !== 'running' || turnGated || !run || run.status !== 'mine' || !session) return;
@@ -1226,10 +1164,7 @@ export default function ReadingPlay() {
       recordingClosed.current = true;
       const pause = setTimeout(() => {
         if (holdRef.current) deferredRef.current = { kind: 'advance', from };
-        else {
-          summary.mineAdvanced('auto');
-          goNext(from);
-        }
+        else goNext(from);
       }, beatMs([turnText]));
       return () => clearTimeout(pause);
     }
@@ -1245,9 +1180,9 @@ export default function ReadingPlay() {
       if (lateTimer) clearTimeout(lateTimer);
       lateTimer = null;
     };
-    const advanceNow = (how: MineAdvance = 'auto') => {
-      if (holdRef.current) deferredRef.current = { kind: 'end_turn', from, how };
-      else void endMyTurn(from, how);
+    const advanceNow = () => {
+      if (holdRef.current) deferredRef.current = { kind: 'end_turn', from };
+      else void endMyTurn(from);
     };
     /** 늦게 온 글로 넘기기 전에 조금 기다린다. 그사이 글이 더 오면(다시 말하는 중) 처음부터 다시 잰다. */
     const armLate = (ms: number) => {
@@ -1257,7 +1192,7 @@ export default function ReadingPlay() {
         if (cancelled || !shortAtEnd) return;
         shortAtEnd = false;
         logAdvance('advance_late', { line: from, chars: saidRef.current.length });
-        advanceNow('late');
+        advanceNow();
       }, ms);
     };
     // 말 끝(speech_end)이 오지 않아도 글이 기준을 넘긴 채 한동안 새 글이 없으면 넘긴다(11/27). 침묵 넘김 회차의 unmatched
@@ -1285,7 +1220,7 @@ export default function ReadingPlay() {
           chars: saidRef.current.length,
           coverage: Math.round(spokenCoverage(turnText, saidRef.current) * 100) / 100,
         });
-        advanceNow('stable');
+        advanceNow();
       }, ms);
     };
     const onEvent = (event: VadEvent) => {
@@ -1338,10 +1273,7 @@ export default function ReadingPlay() {
         if (cancelled || !cur || cur.index !== from || cur.status !== 'mine') return;
         setTurnDone(true);
         if (holdRef.current) deferredRef.current = { kind: 'advance', from };
-        else {
-          summary.mineAdvanced('auto');
-          goNext(from);
-        }
+        else goNext(from);
       }, pauseMsFor(pauseSecRef.current));
       return () => {
         cancelled = true;
@@ -1362,7 +1294,6 @@ export default function ReadingPlay() {
         const ok = stt.start(
           {
             onEvent,
-            onError: () => summary.sttError(),
             onInterim: (text) => {
               saidRef.current = text;
               setSaid(text);
@@ -1528,7 +1459,6 @@ export default function ReadingPlay() {
           {
             // 말이 멈춰도 넘기지 않는다 — 독백의 침묵은 대부분 일부러 쉬는 연기다.
             onEvent: () => undefined,
-            onError: () => summary.sttError(),
             onInterim: (text) => {
               monoPiece.current = text;
               setSaid(monoHeard());
@@ -2098,7 +2028,7 @@ export default function ReadingPlay() {
       </View>
     );
     const note = (text: string, icon?: 'info' | 'wifi-off') => <InfoBanner body={text} icon={icon} />;
-    const rating = completed && <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} onRated={onReadingRated} />;
+    const rating = completed && <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />;
     // 발음 보고서는 녹음한 회차에만 — 자동 넘김·듣기만은 녹음이 없어 「읽은 줄이 없어요」만 나온다(11/2 QA).
     const recorded = !listenAll && !handsFree && session.record !== false;
     const reportRow = completed && recorded ? <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" /> : null;
@@ -2604,11 +2534,8 @@ export default function ReadingPlay() {
                 if (monoNext) nextMonoChunk(monoNext.start);
                 else if (monologue) void finishMonologue();
                 else if (beatOn) setBeatDoneAt(run.index);
-                else if (myTurn) void endMyTurn(run.index, 'manual');
-                else {
-                  if (run.status === 'partner') summary.partnerTapped();
-                  goNext(run.index);
-                }
+                else if (myTurn) void endMyTurn(run.index);
+                else goNext(run.index);
               }}
             />
           </>

@@ -59,14 +59,6 @@ export function recordEvent(state: RatingState, event: RatingEvent, now: number)
   return { state: next, ask: next.coachSinceAsk >= getAppConfig().rating.coachEvery && mayAsk(next, now) };
 }
 
-/**
- * 리딩은 완료 때 세기만 하고, 배우가 그 회차를 「좋았어요」로 고른 뒤에만 묻는다(11/27 — 좋든 나쁘든 물으면 1%만 남겼다).
- * 센 완주 수가 기준에 닿았고 간격·횟수가 허락하면 참. 셀 때는 {@link recordEvent} 의 state 만 쓴다.
- */
-export function readingAskDue(state: RatingState, now: number): boolean {
-  return state.readingSinceAsk >= getAppConfig().rating.readingEvery && mayAsk(state, now);
-}
-
 /** 시트를 보여 준 뒤 — "나중에"를 눌러도 이 간격은 지킨다. */
 export function afterAsk(state: RatingState, now: number): RatingState {
   return { ...state, asks: state.asks + 1, lastAskAt: now, coachSinceAsk: 0, readingSinceAsk: 0 };

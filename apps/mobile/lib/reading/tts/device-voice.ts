@@ -9,7 +9,6 @@ import { speechLocale } from '../../i18n.ts';
 import { voiceSupportsLocale } from '../voice-capability.ts';
 import { devicePitchFor } from '../voices.ts';
 import { readingPlaybackRate } from './playback-rate.ts';
-import { notifyPlaybackStart } from './playback-start.ts';
 
 /** 기기에 지금 말(앱 표시 언어)의 음성이 있는가. 없으면 상대 대사는 글로 보인다. */
 export async function hasDeviceVoice(): Promise<boolean> {
@@ -45,7 +44,6 @@ export function speakWithDevice(text: string, preset: string, options: { rate?: 
           language: options.locale ?? speechLocale(),
           pitch: devicePitchFor(preset),
           rate: options.rate ?? readingPlaybackRate(),
-          onStart: notifyPlaybackStart,
           onDone: done,
           onStopped: done,
           onError: done,

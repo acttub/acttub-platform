@@ -18,7 +18,6 @@
 import { File, Paths } from 'expo-file-system';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { readingPlaybackRate } from './playback-rate.ts';
-import { notifyPlaybackStart } from './playback-start.ts';
 
 import { disposeAudioPlayer } from '../../audio-dispose.ts';
 import { currentLanguage, translate as t } from '../../i18n.ts';
@@ -296,7 +295,6 @@ export async function play(uri: string): Promise<void> {
         started = true;
         if (startTimer) clearTimeout(startTimer);
         startTimer = null;
-        notifyPlaybackStart();
       }
       if (started && !endTimer && (status.duration ?? 0) > 0) {
         const left = Math.max(0, status.duration - (status.currentTime ?? 0));

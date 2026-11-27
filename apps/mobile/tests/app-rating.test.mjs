@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { DEFAULT_APP_CONFIG } from '../lib/app-config.ts';
-import { EMPTY_RATING_STATE, afterAsk, afterRated, readingAskDue, recordEvent } from '../lib/app-rating.ts';
+import { EMPTY_RATING_STATE, afterAsk, afterRated, recordEvent } from '../lib/app-rating.ts';
 
 // 앱 평가 요청 (SOMA-494) — AI 코칭 2번마다·대본 2번 완주마다(SOMA-661) 묻되, 7일 간격·최대 3번,
 // "남기기"를 누르면 그만 묻는다. 스토어가 평가 여부를 알려 주지 않으므로 누른 것으로만 판단한다.
@@ -25,21 +25,7 @@ test('대본은 두 번째 완주에서 처음 묻는다(SOMA-661)', () => {
   assert.equal(DEFAULT_APP_CONFIG.rating.readingEvery, 2);
 });
 
-test('리딩은 센 완주가 기준에 닿고 간격·횟수가 허락할 때만 물을 때다 — 세기 자체는 묻지 않는다(11/27)', () => {
-  const once = recordEvent(EMPTY_RATING_STATE, { kind: 'reading' }, T0).state;
-  assert.equal(readingAskDue(once, T0), false);
-  const twice = recordEvent(once, { kind: 'reading' }, T0).state;
-  assert.equal(readingAskDue(twice, T0), true);
-  // 묻지 않은 채 더 세도 횟수는 쌓여 있다가 다음 「좋았어요」에 묻는다
-  assert.equal(readingAskDue(recordEvent(twice, { kind: 'reading' }, T0).state, T0), true);
-  const asked = { ...twice, asks: 1, lastAskAt: T0 - 6 * DAY };
-  assert.equal(readingAskDue(asked, T0), false);
-  assert.equal(readingAskDue(asked, T0 + DAY), true);
-  assert.equal(readingAskDue({ ...twice, rated: true }, T0), false);
-  assert.equal(readingAskDue({ ...twice, asks: DEFAULT_APP_CONFIG.rating.maxAsks }, T0), false);
-});
-
-const twoReadings =(state, at) => recordEvent(recordEvent(state, { kind: 'reading' }, at).state, { kind: 'reading' }, at);
+const twoReadings = (state, at) => recordEvent(recordEvent(state, { kind: 'reading' }, at).state, { kind: 'reading' }, at);
 
 test('물은 뒤에는 코칭 수를 다시 세고, 7일이 지나야 다시 묻는다', () => {
   let s = afterAsk(twoReadings(EMPTY_RATING_STATE, T0).state, T0);

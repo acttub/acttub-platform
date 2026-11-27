@@ -54,21 +54,6 @@ test('대사를 프리셋의 높낮이로 읽고, 다 읽거나 멈추거나 실
   await unknown;
 });
 
-test('OS 음성이 소리를 내기 시작하면 리딩 화면에 알린다(회차 요약 partner_wait)', async () => {
-  const { setPlaybackStartListener } = await import('../lib/reading/tts/playback-start.ts');
-  let started = 0;
-  setPlaybackStartListener(() => {
-    started += 1;
-  });
-  const reading = voice.speakWithDevice('시작', 'F1');
-  assert.equal(started, 0);
-  s.spoken[0][1].onStart();
-  assert.equal(started, 1);
-  s.spoken[0][1].onDone();
-  await reading;
-  setPlaybackStartListener(null);
-});
-
 test('빈 대사는 읽지 않고, 음성 엔진이 없으면 바로 끝낸다', async () => {
   await voice.speakWithDevice('   ', 'F1');
   await voice.speakWithDevice(undefined, 'F1');

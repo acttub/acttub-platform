@@ -88,9 +88,7 @@ test('practice.library: 묶음 상세는 회차 흐름과 「대화 이어 가�
 test('액티는 나갈 때 설문을 띄우지 않고, 일지를 마치면 앱 평가를 묻는다', () => {
   assert.doesNotMatch(read('app/coach.tsx'), /useExitReview|exitReview/);
   assert.match(read('app/journal.tsx'), /rating\.after\(\{ kind: 'coach', practiceId \}/);
-  // 리딩은 완료 때 세기만 하고, 「좋았어요」를 고를 때만 묻는다(11/27).
-  assert.match(read('app/reading/play.tsx'), /countRating\(\{ kind: 'reading' \}\)/);
-  assert.match(read('app/reading/play.tsx'), /askRatingIfDue\(\)/);
+  assert.match(read('app/reading/play.tsx'), /askRating\(\{ kind: 'reading' \}\)/);
   assert.doesNotMatch(read('app/(tabs)/index.tsx'), /feedbackNudge|useFeedbackSheet/);
   assert.match(read('app/settings.tsx'), /openStoreReviewPage/);
 });
