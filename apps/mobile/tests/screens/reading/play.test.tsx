@@ -7,6 +7,7 @@ import { hasMicPermission, micPermissionGranted } from '@/hooks/use-reading-mic'
 import { detectSttPolicy } from '@/hooks/use-reading-stt';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
+import { DEFAULT_APP_CONFIG, parseAppConfig, setAppConfig } from '@/lib/app-config';
 import { ApiError } from '@/lib/api-request';
 import { currentNetworkType } from '@/lib/reading/network';
 import { deleteDeviceFile } from '@/lib/account-files';
@@ -196,6 +197,8 @@ beforeEach(async () => {
   jest.mocked(pendingRecordingUploads).mockResolvedValue(0);
 });
 
+afterEach(() => setAppConfig(DEFAULT_APP_CONFIG));
+
 /** 준비가 끝나면 「리딩 시작 전」에 멈춘다 — [시작]을 눌러 첫 줄을 연다(SOMA-772). */
 async function begin() {
   await fireEvent.press(await screen.findByText('시작'));
@@ -371,6 +374,8 @@ test('말 끝에 글이 모자랐어도 늦게 온 마지막 결과가 기준을
 });
 
 test('말 끝에 글이 모자란 채로 다시 말하기 시작하면 늦은 넘김을 버리고 다음 말 끝을 기다린다(SOMA-804)', async () => {
+  // 늦은 넘김만 본다 — 글이 다 찬 채 멈추면 넘기는 보조 넘김(stable_advance_ms)은 끈다.
+  setAppConfig(parseAppConfig({ reading: { stable_advance_ms: 0 } }));
   jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
   mockMic.stop.mockResolvedValue(null);
   await startPlay();
@@ -398,6 +403,111 @@ test('말 끝에 글이 모자란 채로 인식기가 끝나면 침묵을 한 �
   await waitFor(() => expect(mockMic.start).toHaveBeenCalled());
   // 마이크로 넘어간 뒤 아무 소리도 없다 — 그래도 넘어간다
   await waitFor(() => expect(mockStt.finish).toHaveBeenCalledTimes(1), { timeout: 4000 });
+});
+
+/**
+ * 말 끝 없이 글이 다 찬 채 멈추면 넘기는 보조 넘김(11/27, stable_advance_ms 기본 1500ms). 받아쓰기 차례를 연 뒤
+ * 가짜 타이머로 시간을 민다. 넘기기 시작하면 stt.finish 가 곧바로 불리므로 그것으로 넘김을 본다.
+ */
+async function openSttTurn() {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  await startPlay();
+  await waitFor(() => expect(recognizer).not.toBeNull());
+  const listener = recognizer!;
+  recognizer = null; // 다음 내 차례의 인식기를 새로 받는다
+  return listener;
+}
+
+async function withFakeTimers(body: () => Promise<void>) {
+  jest.useFakeTimers();
+  try {
+    await body();
+  } finally {
+    jest.useRealTimers();
+  }
+}
+
+const tick = (ms: number) => act(async () => jest.advanceTimersByTime(ms));
+
+test('글이 90% 넘게 찬 뒤 말 끝 없이 1.5초 동안 새 글이 없으면 넘기고, 요약에 mine_stable 로 센다(11/27)', async () => {
+  const listener = await openSttTurn();
+  await withFakeTimers(async () => {
+    await act(async () => listener.onInterim!(SAID_WHOLE_LINE));
+    await tick(1499);
+    expect(mockStt.finish).not.toHaveBeenCalled();
+    await tick(1);
+    expect(mockStt.finish).toHaveBeenCalledTimes(1);
+  });
+  await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
+  await speechEnds(() => recognizer);
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  const sent = jest.mocked(logEvent).mock.calls.filter(([name]) => name === 'reading_run_summary');
+  expect(sent).toHaveLength(1);
+  expect(sent[0][1]).toEqual(expect.objectContaining({ mine_stable: 1, mine_auto: 1, mine_late: 0, mine_manual: 0 }));
+});
+
+test('글이 90%에 못 미치면 새 글이 없어도 말 끝 없이 넘기지 않는다(11/27)', async () => {
+  const listener = await openSttTurn();
+  await withFakeTimers(async () => {
+    await act(async () => listener.onInterim!('오늘'));
+    await tick(5000);
+  });
+  expect(mockStt.finish).not.toHaveBeenCalled();
+  expect(screen.getByText(ME)).toBeOnTheScreen();
+});
+
+test('1.5초 안에 새 중간 결과가 오면 그때부터 다시 잰다(11/27)', async () => {
+  const listener = await openSttTurn();
+  await withFakeTimers(async () => {
+    await act(async () => listener.onInterim!(SAID_WHOLE_LINE));
+    await tick(1000);
+    await act(async () => listener.onInterim!(`${SAID_WHOLE_LINE}가`));
+    await tick(1000);
+    expect(mockStt.finish).not.toHaveBeenCalled();
+    await tick(500);
+    expect(mockStt.finish).toHaveBeenCalledTimes(1);
+  });
+});
+
+test('글이 찬 뒤 다시 말하기 시작하면(speech_start) 말 끝 없이 넘기지 않는다(11/27)', async () => {
+  const listener = await openSttTurn();
+  await withFakeTimers(async () => {
+    await act(async () => listener.onInterim!(SAID_WHOLE_LINE));
+    await act(async () => listener.onEvent('speech_start'));
+    await tick(5000);
+  });
+  expect(mockStt.finish).not.toHaveBeenCalled();
+  expect(screen.getByText(ME)).toBeOnTheScreen();
+});
+
+test('stable_advance_ms 가 0 이면 글이 다 차도 말 끝 없이 넘기지 않는다(11/27)', async () => {
+  setAppConfig(parseAppConfig({ reading: { stable_advance_ms: 0 } }));
+  const listener = await openSttTurn();
+  await withFakeTimers(async () => {
+    await act(async () => listener.onInterim!(SAID_WHOLE_LINE));
+    await tick(10_000);
+  });
+  expect(mockStt.finish).not.toHaveBeenCalled();
+  expect(screen.getByText(ME)).toBeOnTheScreen();
+});
+
+test('말 끝으로 이미 넘겼으면 보조 넘김 타이머가 두 번 넘기지 않는다(11/27)', async () => {
+  const listener = await openSttTurn();
+  await withFakeTimers(async () => {
+    await act(async () => listener.onInterim!(SAID_WHOLE_LINE));
+    await act(async () => listener.onEvent('speech_end'));
+    expect(mockStt.finish).toHaveBeenCalledTimes(1);
+    // 닫는 동안 늦게 온 중간 결과도 다시 걸지 않는다
+    await act(async () => listener.onInterim!(`${SAID_WHOLE_LINE}가`));
+    await tick(3000);
+    expect(mockStt.finish).toHaveBeenCalledTimes(1);
+  });
+  await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
+  await speechEnds(() => recognizer);
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  const sent = jest.mocked(logEvent).mock.calls.filter(([name]) => name === 'reading_run_summary');
+  expect(sent[0][1]).toEqual(expect.objectContaining({ mine_auto: 2, mine_stable: 0 }));
 });
 test('녹음을 남기지 못하는 인식기면 녹음기로 받는다', async () => {
   jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });

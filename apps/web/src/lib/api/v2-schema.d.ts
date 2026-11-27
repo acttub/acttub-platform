@@ -6750,6 +6750,8 @@ export interface components {
             monologue_next_at: number;
             /** Monologue Touch Min */
             monologue_touch_min: number;
+            /** Stable Advance Ms */
+            stable_advance_ms: number;
         };
         /**
          * AdCreative

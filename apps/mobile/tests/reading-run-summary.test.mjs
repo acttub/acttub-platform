@@ -17,6 +17,7 @@ test('reading.run-summary: 회차가 끝나면 숫자만 담은 요약을 한 �
     mine_auto: 1,
     mine_manual: 0,
     mine_late: 0,
+    mine_stable: 0,
     partner_skip: 0,
     partner_full: 0,
     partner_skip_before_audio: 0,
@@ -89,6 +90,19 @@ test('reading.run-summary: 내 차례 닫기 — 손으로 넘긴 시간만 재�
   assert.equal(p.close_ms_max, 3_000);
   assert.equal(p.close_timeouts, 3);
   assert.equal(p.stt_errors, 1);
+});
+
+test('reading.run-summary: 말 끝 없이 글이 찬 채 넘긴 줄은 mine_stable 로 따로 세고 mine_auto 에 넣지 않는다', () => {
+  const s = createRunSummary({ advance: 'silence', handsFree: false });
+  s.mineAdvanced('stable');
+  s.mineAdvanced('stable');
+  s.mineAdvanced('auto');
+  s.mineAdvanced('late');
+  const p = s.finish('completed', 'cloud');
+  assert.equal(p.mine_stable, 2);
+  assert.equal(p.mine_auto, 1);
+  assert.equal(p.mine_late, 1);
+  assert.equal(p.mine_manual, 0);
 });
 
 test('reading.run-summary: 잰 값이 없으면 대기·닫기 시간 칸을 빼고 보낸다', () => {

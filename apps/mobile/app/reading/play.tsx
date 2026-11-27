@@ -1249,12 +1249,41 @@ export default function ReadingPlay() {
         advanceNow('late');
       }, ms);
     };
+    // 말 끝(speech_end)이 오지 않아도 글이 기준을 넘긴 채 한동안 새 글이 없으면 넘긴다(11/27). 침묵 넘김 회차의 unmatched
+    // 6,514줄 중 3,946줄은 글이 90% 넘게 찼는데 말 끝이 안 잡혀(잡음 등) 손으로 넘겼다. 대사 중간의 사이는 글이 기준에
+    // 못 미쳐 걸리지 않는다(0.7 로 낮췄다가 「말하는 중에 넘어간다」로 되돌린 11/5). 받아쓰기 있는 침묵 넘김에서만 건다.
+    let stableTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearStable = () => {
+      if (stableTimer) clearTimeout(stableTimer);
+      stableTimer = null;
+    };
+    /** 새 글이 올 때마다 처음부터 잰다. 기준에 못 미치거나 꺼져 있으면(0) 걸지 않는다. */
+    const armStable = () => {
+      clearStable();
+      const ms = getAppConfig().reading.stableAdvanceMs;
+      if (ms <= 0 || session.advance !== 'silence' || !sttActive.current || turnClosing.current) return;
+      if (!saidEnough(turnText, saidRef.current)) return;
+      stableTimer = setTimeout(() => {
+        stableTimer = null;
+        // 말 끝·늦은 넘김이 먼저 넘겼거나(turnClosing) 시트를 연 동안 이미 미뤄 뒀으면 두 번 넘기지 않는다.
+        if (cancelled || turnClosing.current || deferredRef.current) return;
+        shortAtEnd = false;
+        clearLate();
+        logAdvance('advance_stable', {
+          line: from,
+          chars: saidRef.current.length,
+          coverage: Math.round(spokenCoverage(turnText, saidRef.current) * 100) / 100,
+        });
+        advanceNow('stable');
+      }, ms);
+    };
     const onEvent = (event: VadEvent) => {
       if (cancelled) return;
       if (event === 'timeout') setTurnNote('silence');
       if (event === 'speech_start') {
         shortAtEnd = false;
         clearLate();
+        clearStable();
       }
       if (event === 'speech_start' && deferredTimer.current) {
         // 시트를 닫은 뒤 다시 말하기 시작했다 — 미뤄 둔 넘김은 버리고 이번 말이 끝나기를 기다린다.
@@ -1281,6 +1310,7 @@ export default function ReadingPlay() {
           return;
         }
         shortAtEnd = false;
+        clearStable();
         advanceNow();
       }
     };
@@ -1324,6 +1354,7 @@ export default function ReadingPlay() {
               saidRef.current = text;
               setSaid(text);
               if (shortAtEnd && session.advance === 'silence' && saidEnough(turnText, text)) armLate(getAppConfig().reading.speechEndGraceMs);
+              armStable();
             },
             // 인식기가 스스로 끝났거나 오류로 멈추면 음량·말 끝 이벤트도 끊긴다 — 침묵 감지를 마이크로 이어받는다.
             // 이미 말이 끝났는데 글이 모자라 기다리던 중이면, 더 올 글이 없으니 침묵을 한 번 더 잰 뒤 넘긴다.
@@ -1373,6 +1404,7 @@ export default function ReadingPlay() {
     return () => {
       cancelled = true;
       clearLate();
+      clearStable();
       if (limitTimer) clearTimeout(limitTimer);
       if (deferredTimer.current) clearTimeout(deferredTimer.current);
       deferredTimer.current = null;

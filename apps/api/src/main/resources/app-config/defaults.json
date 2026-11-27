@@ -9,7 +9,8 @@
     "advance_coverage": 0.9,
     "monologue_missed_below": 0.3,
     "monologue_next_at": 0.8,
-    "monologue_touch_min": 3
+    "monologue_touch_min": 3,
+    "stable_advance_ms": 1500
   },
   "cocreate": {
     "emotions": ["서운함", "설렘", "분노", "슬픔", "긴장", "담담함"],

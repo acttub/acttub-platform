@@ -19,10 +19,13 @@ public record AppConfig(Rating rating, Reading reading, Cocreate cocreate, Cocre
     public record Rating(int coachEvery, int readingEvery, int minGapDays, int maxAsks) {
     }
 
-    /** 리딩 자동 넘김(침묵 감지·말 끝 여유·말한 비율)과 독백 판정 기준. monologuePass 는 서버 규칙이다. */
+    /**
+     * 리딩 자동 넘김(침묵 감지·말 끝 여유·말한 비율)과 독백 판정 기준. monologuePass 는 서버 규칙이다.
+     * stableAdvanceMs 는 받아쓴 글이 advanceCoverage 를 넘긴 채 새 글이 이만큼 없으면 말 끝 없이도 넘기는 시간이다(0 이면 끔, 11/27).
+     */
     public record Reading(double vadThreshold, int silenceMs, int minSpeechMs, int maxListenMs, int speechEndGraceMs,
             double advanceCoverage, double monologuePass, double monologueMissedBelow, double monologueNextAt,
-            int monologueTouchMin) {
+            int monologueTouchMin, int stableAdvanceMs) {
     }
 
     /** 대본 같이 만들기 칩. 감정은 서버가 받는 목록 안에서만 고른다(보이는 순서만 바꾼다). 상황은 자유 글이다. */
@@ -62,7 +65,8 @@ public record AppConfig(Rating rating, Reading reading, Cocreate cocreate, Cocre
                 rules.monologuePass(),
                 fraction(x.monologueMissedBelow(), dx.monologueMissedBelow()),
                 fraction(x.monologueNextAt(), dx.monologueNextAt()),
-                positive(x.monologueTouchMin(), dx.monologueTouchMin()));
+                positive(x.monologueTouchMin(), dx.monologueTouchMin()),
+                millisOrOff(x.stableAdvanceMs(), dx.stableAdvanceMs()));
 
         Cocreate c = merged.cocreate() == null ? defaults.cocreate() : merged.cocreate();
         List<String> emotions = c.emotions() == null ? List.of()
@@ -92,6 +96,11 @@ public record AppConfig(Rating rating, Reading reading, Cocreate cocreate, Cocre
 
     private static int positive(int value, int fallback) {
         return value > 0 ? value : fallback;
+    }
+
+    /** 0(끔)부터 60초까지만 받는다. 밖이면 기본값. */
+    private static int millisOrOff(int value, int fallback) {
+        return value >= 0 && value <= 60_000 ? value : fallback;
     }
 
     private static double fraction(double value, double fallback) {

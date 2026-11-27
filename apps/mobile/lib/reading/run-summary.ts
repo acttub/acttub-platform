@@ -6,7 +6,8 @@
  * 화면은 사건만 알리고 셈은 여기서 한다. 시각은 부르는 쪽이 넘긴다(시험에서 정할 수 있게).
  */
 export type RunEnded = 'completed' | 'stopped' | 'left';
-export type MineAdvance = 'auto' | 'manual' | 'late';
+/** stable: 말 끝 없이 글이 다 찬 채로 멈춰 넘김(app/reading/play 의 armStable). auto 에 섞지 않아야 효과를 따로 본다. */
+export type MineAdvance = 'auto' | 'manual' | 'late' | 'stable';
 export type RunSummaryParams = Record<string, string | number | boolean>;
 
 export type RunSummary = {
@@ -46,6 +47,7 @@ export function createRunSummary(base: { advance: string; handsFree: boolean }):
   let mineAuto = 0;
   let mineManual = 0;
   let mineLate = 0;
+  let mineStable = 0;
   let partnerSkip = 0;
   let partnerFull = 0;
   let partnerSkipBeforeAudio = 0;
@@ -86,6 +88,7 @@ export function createRunSummary(base: { advance: string; handsFree: boolean }):
     mineAdvanced: (how) => {
       if (how === 'auto') mineAuto += 1;
       else if (how === 'manual') mineManual += 1;
+      else if (how === 'stable') mineStable += 1;
       else mineLate += 1;
     },
     turnClosed: (ms, timeouts) => {
@@ -105,6 +108,7 @@ export function createRunSummary(base: { advance: string; handsFree: boolean }):
         mine_auto: mineAuto,
         mine_manual: mineManual,
         mine_late: mineLate,
+        mine_stable: mineStable,
         partner_skip: partnerSkip,
         partner_full: partnerFull,
         partner_skip_before_audio: partnerSkipBeforeAudio,
