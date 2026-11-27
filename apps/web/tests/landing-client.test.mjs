@@ -106,6 +106,31 @@ test("게스트가 ?intro=1 이나 소개 링크(#coaching)로 들어와도 홈�
   window.history.replaceState(null, "", "/");
 });
 
+test("예전 ?intro=1 주소로 들어오면 주소창에서 intro 만 지우고 utm·해시는 남긴다", () => {
+  window.history.replaceState(null, "", "/?intro=1&utm_source=insta&utm_campaign=c1#reading");
+  render(react.createElement(LandingClient));
+  assert.equal(
+    `${window.location.pathname}${window.location.search}${window.location.hash}`,
+    "/?utm_source=insta&utm_campaign=c1#reading",
+  );
+  cleanup();
+
+  window.history.replaceState(null, "", "/?utm_source=insta");
+  render(react.createElement(LandingClient));
+  assert.equal(window.location.search, "?utm_source=insta");
+  cleanup();
+  window.history.replaceState(null, "", "/");
+});
+
+test("로고와 바닥의 기능 링크는 intro 없이 홈과 그 구간을 가리킨다", () => {
+  render(react.createElement(LandingClient));
+  assert.ok(screen.getAllByRole("link", { name: "ACTTUB 홈" }).every((a) => a.getAttribute("href") === "/"));
+  for (const [label, href] of [["대본 리딩", "/#reading"], ["연기 코칭", "/#coaching"], ["챌린지", "/#challenge"]]) {
+    assert.ok(screen.getAllByRole("link", { name: label }).some((a) => a.getAttribute("href") === href), label);
+  }
+  assert.equal(window.document.querySelector('a[href*="intro="]'), null);
+});
+
 test("기능 셋은 고정 없이 글과 휴대폰이 나란히 흐르고, 처음부터 보인다", () => {
   render(react.createElement(LandingClient));
   // 나타나기 효과(data-reveal·html.reveal-ready)와 스크롤 뒤 구간 맞춤(data-snap)은 없앴다(2026-11-27 QA).
