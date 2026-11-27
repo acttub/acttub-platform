@@ -34,6 +34,7 @@ import {
   type PostWriteFailure,
 } from '@/lib/community';
 import { pickCommunityImages } from '@/lib/community-image-picker';
+import { postOrigin } from '@/lib/community-prompt';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -48,15 +49,20 @@ export default function CommunityNewScreen() {
   const { confirm, alert, dialog } = useAppDialog();
   const images = useCommunityImages();
   const resetImages = images.reset;
-  const { id, category: initialCategory } = useLocalSearchParams<{ id?: string; category?: string }>();
+  const params = useLocalSearchParams<{ id?: string; category?: string; title?: string; body?: string; from?: string; kind?: string }>();
+  const { id, category: initialCategory } = params;
   const editing = !!id;
+  // 연습 완료 화면에서 이어 온 글(SOMA-1054)은 제목·내용이 미리 채워져 있다. 손대지 않고 나가면 묻지 않는다.
+  const initialTitle = editing ? '' : (params.title ?? '');
+  const initialBody = editing ? '' : (params.body ?? '');
+  const origin = postOrigin(editing ? null : params.from, params.kind);
   const scrollRef = useRef<ScrollView>(null);
   const [categories, setCategories] = useState<CommunityCategory[] | null>(null);
   const [categoriesFailed, setCategoriesFailed] = useState(false);
   // 글쓰기는 「자유」가 골라진 채로 연다(11/2 폰 QA). 고치는 글은 불러온 글의 분류로 바뀐다.
   const [category, setCategory] = useState<string | null>(initialCategory || (id ? null : 'free'));
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  const [title, setTitle] = useState(initialTitle);
+  const [body, setBody] = useState(initialBody);
   const [loadingPost, setLoadingPost] = useState(editing);
   const [submitting, setSubmitting] = useState(false);
   const [failure, setFailure] = useState<PostWriteFailure | null>(null);
@@ -142,7 +148,7 @@ export default function CommunityNewScreen() {
       } else {
         const imageIds = imageIdsOf(images.drafts);
         const created = await api.createCommunityPost({ category_slug: category, title: title.trim(), body: body.trim(), image_ids: imageIds });
-        logEvent('community_post_create', { category, images: imageIds.length });
+        logEvent('community_post_create', { category, images: imageIds.length, from: origin.from, kind: origin.kind });
         router.replace({ pathname: '/community-post', params: { id: created.id } });
       }
     } catch (e) {
@@ -155,7 +161,8 @@ export default function CommunityNewScreen() {
     }
   };
 
-  const dirty = !editing && (title.trim().length > 0 || body.trim().length > 0 || images.drafts.length > 0);
+  const dirty =
+    !editing && (title.trim() !== initialTitle.trim() || body.trim() !== initialBody.trim() || images.drafts.length > 0);
   const back = async () => {
     if (dirty) {
       const ok = await confirm({
@@ -252,6 +259,7 @@ export default function CommunityNewScreen() {
         </ScrollView>
         <CtaBar safeBottom={false}>
           {failure && failure !== 'contact' ? <InlineErrorLine message={submitFailMessage(failure)} /> : null}
+          {origin.kind === 'partner' ? <Text style={styles.hint}>{t('communityNew.partnerHint')}</Text> : null}
           <Text style={styles.hint}>{t('communityNew.contactHint')}</Text>
           <PrimaryButton
             label={photos === 'uploading' ? t('communityNew.imagesUploading') : editing ? t('communityNew.save') : t('communityNew.submit')}

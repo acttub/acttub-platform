@@ -112,6 +112,7 @@ import {
   readAppVoiceSupport,
   type PartnerVoiceEngine,
 } from '@/lib/reading/voice-capability';
+import { CommunityPromptRows } from '@/components/community-prompt-rows';
 import { InviteShareRow } from '@/components/invite-card';
 import { ReadingAfterCard } from '@/components/reading-after-card';
 import { ReadingNoScript } from '@/components/reading/no-script';
@@ -2033,6 +2034,16 @@ export default function ReadingPlay() {
     // 발음 보고서는 녹음한 회차에만 — 자동 넘김·듣기만은 녹음이 없어 「읽은 줄이 없어요」만 나온다(11/2 QA).
     const recorded = !listenAll && !handsFree && session.record !== false;
     const reportRow = completed && recorded ? <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" /> : null;
+    // 게시판으로 이어 주기(SOMA-1054) — 센 회차에만, 코칭 카드 아래. 회원이 아니면 줄이 그려지지 않는다.
+    const communityRows = completed && (
+      <CommunityPromptRows
+        input={{
+          work: script.title,
+          role: listenAll ? null : config.myNames.join(', '),
+          scene: sceneLabelAt({ title: script.title, scenes: script.scenes, lineIds: run.lineIds, index: run.startIndex }),
+        }}
+      />
+    );
 
     const firstStopped = firstReading && firstStoppedRef.current;
     if (!completed && !firstStopped) {
@@ -2120,6 +2131,7 @@ export default function ReadingPlay() {
                   />
                 </>
               )}
+              {communityRows}
               {!compared ? (
                 note(t('reading.noSttNote'), 'info')
               ) : (
@@ -2168,6 +2180,7 @@ export default function ReadingPlay() {
             {!wholeScript && <Text style={styles.doneMeta}>{t('reading.donePartialNote')}</Text>}
             {otherScript}
             {completed && !listened && <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="coach" />}
+            {communityRows}
             {listened ? (
               note(t('reading.listenDoneNote'), 'info')
             ) : !compared ? (

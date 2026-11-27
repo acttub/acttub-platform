@@ -7,6 +7,7 @@ import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { useCommunityPrompt } from '@/hooks/use-community-prompt';
 import { useEntryShare } from '@/components/entry-share-sheet';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { setPickedVideo } from '@/lib/practice/picked-video';
@@ -87,6 +88,8 @@ export default function ChallengeUploadScreen() {
   const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility; faceMosaic: boolean; first: boolean } | null>(null);
   const { alert, dialog } = useAppDialog();
   const entryShare = useEntryShare(params.line ?? '', () => void alert({ title: t('entryShare.title'), message: t('entryShare.none') }));
+  // 완료 화면에서 게시판으로 이어 주기(SOMA-1054) — 작품 대신 그 주 대사 한 줄을 넣는다. 회원이 아니면 줄이 없다.
+  const communityPrompt = useCommunityPrompt('challenge_done', !!created, { line: challenge?.line ?? params.line ?? '' });
   const attemptRef = useRef<RequestAttempt | null>(null);
   const lockRef = useRef(false);
   /**
@@ -328,6 +331,24 @@ export default function ChallengeUploadScreen() {
                     title: t('challengeDone.others'),
                     sub: t('challengeDone.othersSub'),
                     onPress: () => router.replace({ pathname: '/challenge-play', params: { id: challengeId } }),
+                  },
+                ]
+              : []),
+            ...(communityPrompt.visible
+              ? [
+                  {
+                    key: 'partner',
+                    icon: 'users' as const,
+                    title: t('communityPrompt.partner'),
+                    sub: t('communityPrompt.partnerSub'),
+                    onPress: () => communityPrompt.open('partner'),
+                  },
+                  {
+                    key: 'question',
+                    icon: 'help-circle' as const,
+                    title: t('communityPrompt.question'),
+                    sub: t('communityPrompt.questionSub'),
+                    onPress: () => communityPrompt.open('question'),
                   },
                 ]
               : []),
