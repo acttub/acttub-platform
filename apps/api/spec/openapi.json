@@ -10299,6 +10299,201 @@
         "required" : [ "kind", "role", "title", "year" ],
         "title" : "PortfolioCreditRequest"
       },
+      "StartDirectConversationRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "user_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "대화 상대(게시판 글·댓글의 작성자)",
+            "title" : "User Id"
+          },
+          "post_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid",
+              "description" : "대화를 연 게시판 글. 새 대화일 때만 남고 대화방 머리에 제목 한 줄로 보인다"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Post Id"
+          }
+        },
+        "required" : [ "user_id" ],
+        "title" : "StartDirectConversationRequest"
+      },
+      "DirectConversationOriginPost" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          }
+        },
+        "required" : [ "id", "title" ],
+        "title" : "DirectConversationOriginPost"
+      },
+      "DirectConversationPartner" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "name" : {
+            "type" : "string",
+            "description" : "공개 이름(게시판과 같다, 없으면 \"배우\"). 탈퇴했으면 \"탈퇴한 사용자\"",
+            "title" : "Name"
+          },
+          "photo_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "프로필 사진을 볼 짧은 주소(1시간). 없거나 탈퇴했으면 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Photo Url"
+          },
+          "withdrawn" : {
+            "type" : "boolean",
+            "title" : "Withdrawn"
+          }
+        },
+        "required" : [ "id", "name", "photo_url", "withdrawn" ],
+        "title" : "DirectConversationPartner"
+      },
+      "DirectConversationPayload" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "partner" : {
+            "$ref" : "#/components/schemas/DirectConversationPartner"
+          },
+          "origin_post" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/DirectConversationOriginPost",
+              "description" : "대화를 연 게시판 글. 없거나 지금 보이지 않으면(지움·가림·차단) null"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "can_send" : {
+            "type" : "boolean",
+            "title" : "Can Send"
+          },
+          "unavailable_reason" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "보낼 수 없는 까닭. 상대가 탈퇴했으면 partner_unavailable, 어느 쪽이든 차단했으면 message_blocked",
+              "enum" : [ "partner_unavailable", "message_blocked" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Unavailable Reason"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          },
+          "last_message_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Last Message At"
+          }
+        },
+        "required" : [ "can_send", "created_at", "id", "last_message_at", "origin_post", "partner", "unavailable_reason" ],
+        "title" : "DirectConversationPayload"
+      },
+      "DirectConversationReportRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "reason" : {
+            "type" : "string",
+            "enum" : [ "copyright", "inappropriate", "spam", "duplicate", "other", "abuse", "sexual", "privacy" ],
+            "title" : "Reason"
+          },
+          "detail" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 500
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Detail"
+          }
+        },
+        "required" : [ "reason" ],
+        "title" : "DirectConversationReportRequest"
+      },
+      "SendDirectMessageRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "body" : {
+            "type" : "string",
+            "description" : "앞뒤 공백을 걷고 1~1000자(코드 포인트). 글자만이다",
+            "title" : "Body"
+          }
+        },
+        "required" : [ "body", "request_id" ],
+        "title" : "SendDirectMessageRequest"
+      },
+      "DirectMessagePayload" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "conversation_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Conversation Id"
+          },
+          "body" : {
+            "type" : "string",
+            "title" : "Body"
+          },
+          "mine" : {
+            "type" : "boolean",
+            "title" : "Mine"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          }
+        },
+        "required" : [ "body", "conversation_id", "created_at", "id", "mine" ],
+        "title" : "DirectMessagePayload"
+      },
       "PracticeFeedbackStatus" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -11140,319 +11335,6 @@
         },
         "required" : [ "user_id" ],
         "title" : "BlockRequest"
-      },
-      "StartDirectConversationRequest" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "user_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "description" : "대화 상대(게시판 글·댓글의 작성자)",
-            "title" : "User Id"
-          },
-          "post_id" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "format" : "uuid",
-              "description" : "대화를 연 게시판 글. 새 대화일 때만 남고 대화방 머리에 제목 한 줄로 보인다"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Post Id"
-          }
-        },
-        "required" : [ "user_id" ],
-        "title" : "StartDirectConversationRequest"
-      },
-      "DirectConversationPartner" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Id"
-          },
-          "name" : {
-            "type" : "string",
-            "description" : "공개 이름(게시판과 같다, 없으면 \"배우\"). 탈퇴했으면 \"탈퇴한 사용자\"",
-            "title" : "Name"
-          },
-          "photo_url" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "description" : "프로필 사진을 볼 짧은 주소(1시간). 없거나 탈퇴했으면 null"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Photo Url"
-          },
-          "withdrawn" : {
-            "type" : "boolean",
-            "title" : "Withdrawn"
-          }
-        },
-        "required" : [ "id", "name", "photo_url", "withdrawn" ],
-        "title" : "DirectConversationPartner"
-      },
-      "DirectConversationOriginPost" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Id"
-          },
-          "title" : {
-            "type" : "string",
-            "title" : "Title"
-          }
-        },
-        "required" : [ "id", "title" ],
-        "title" : "DirectConversationOriginPost"
-      },
-      "DirectConversationPayload" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Id"
-          },
-          "partner" : {
-            "$ref" : "#/components/schemas/DirectConversationPartner"
-          },
-          "origin_post" : {
-            "anyOf" : [ {
-              "$ref" : "#/components/schemas/DirectConversationOriginPost"
-            }, {
-              "type" : "null"
-            } ]
-          },
-          "can_send" : {
-            "type" : "boolean",
-            "title" : "Can Send"
-          },
-          "unavailable_reason" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "description" : "보낼 수 없는 까닭. 상대가 탈퇴했으면 partner_unavailable, 어느 쪽이든 차단했으면 message_blocked",
-              "enum" : [ "partner_unavailable", "message_blocked" ]
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Unavailable Reason"
-          },
-          "created_at" : {
-            "type" : "string",
-            "format" : "date-time",
-            "title" : "Created At"
-          },
-          "last_message_at" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "format" : "date-time"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Last Message At"
-          }
-        },
-        "required" : [ "can_send", "created_at", "id", "last_message_at", "origin_post", "partner", "unavailable_reason" ],
-        "title" : "DirectConversationPayload"
-      },
-      "DirectLastMessage" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "preview" : {
-            "type" : "string",
-            "description" : "본문 앞 80자",
-            "title" : "Preview"
-          },
-          "mine" : {
-            "type" : "boolean",
-            "title" : "Mine"
-          },
-          "created_at" : {
-            "type" : "string",
-            "format" : "date-time",
-            "title" : "Created At"
-          }
-        },
-        "required" : [ "created_at", "mine", "preview" ],
-        "title" : "DirectLastMessage"
-      },
-      "DirectConversationSummary" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Id"
-          },
-          "partner" : {
-            "$ref" : "#/components/schemas/DirectConversationPartner"
-          },
-          "last_message" : {
-            "anyOf" : [ {
-              "$ref" : "#/components/schemas/DirectLastMessage"
-            }, {
-              "type" : "null"
-            } ]
-          },
-          "unread_count" : {
-            "type" : "integer",
-            "description" : "상대가 보냈고 내가 아직 읽지 않은 수",
-            "title" : "Unread Count"
-          },
-          "last_message_at" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "format" : "date-time"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Last Message At"
-          }
-        },
-        "required" : [ "id", "last_message", "last_message_at", "partner", "unread_count" ],
-        "title" : "DirectConversationSummary"
-      },
-      "DirectConversationListResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "conversations" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/DirectConversationSummary"
-            },
-            "title" : "Conversations"
-          },
-          "next_cursor" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Next Cursor"
-          }
-        },
-        "required" : [ "conversations", "next_cursor" ],
-        "title" : "DirectConversationListResponse"
-      },
-      "SendDirectMessageRequest" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "request_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Request Id"
-          },
-          "body" : {
-            "type" : "string",
-            "description" : "앞뒤 공백을 걷고 1~1000자(코드 포인트). 글자만이다",
-            "title" : "Body"
-          }
-        },
-        "required" : [ "body", "request_id" ],
-        "title" : "SendDirectMessageRequest"
-      },
-      "DirectMessagePayload" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Id"
-          },
-          "conversation_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Conversation Id"
-          },
-          "body" : {
-            "type" : "string",
-            "title" : "Body"
-          },
-          "mine" : {
-            "type" : "boolean",
-            "title" : "Mine"
-          },
-          "created_at" : {
-            "type" : "string",
-            "format" : "date-time",
-            "title" : "Created At"
-          }
-        },
-        "required" : [ "body", "conversation_id", "created_at", "id", "mine" ],
-        "title" : "DirectMessagePayload"
-      },
-      "DirectMessageListResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "messages" : {
-            "type" : "array",
-            "description" : "최근 것부터",
-            "items" : {
-              "$ref" : "#/components/schemas/DirectMessagePayload"
-            },
-            "title" : "Messages"
-          },
-          "next_cursor" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "description" : "더 옛 메시지를 읽을 커서"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Next Cursor"
-          }
-        },
-        "required" : [ "messages", "next_cursor" ],
-        "title" : "DirectMessageListResponse"
-      },
-      "DirectConversationReportRequest" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "reason" : {
-            "type" : "string",
-            "enum" : [ "copyright", "inappropriate", "spam", "duplicate", "other", "abuse", "sexual", "privacy" ],
-            "title" : "Reason"
-          },
-          "detail" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "maxLength" : 500
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Detail"
-          }
-        },
-        "required" : [ "reason" ],
-        "title" : "DirectConversationReportRequest"
-      },
-      "DirectUnreadCountResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "unread_count" : {
-            "type" : "integer",
-            "title" : "Unread Count"
-          }
-        },
-        "required" : [ "unread_count" ],
-        "title" : "DirectUnreadCountResponse"
       },
       "CoachStartRequest" : {
         "type" : "object",
@@ -14068,6 +13950,125 @@
         },
         "required" : [ "days" ],
         "title" : "PracticeDays"
+      },
+      "DirectUnreadCountResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "unread_count" : {
+            "type" : "integer",
+            "title" : "Unread Count"
+          }
+        },
+        "required" : [ "unread_count" ],
+        "title" : "DirectUnreadCountResponse"
+      },
+      "DirectConversationListResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "conversations" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DirectConversationSummary"
+            },
+            "title" : "Conversations"
+          },
+          "next_cursor" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Next Cursor"
+          }
+        },
+        "required" : [ "conversations", "next_cursor" ],
+        "title" : "DirectConversationListResponse"
+      },
+      "DirectConversationSummary" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "partner" : {
+            "$ref" : "#/components/schemas/DirectConversationPartner"
+          },
+          "last_message" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/DirectLastMessage"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "unread_count" : {
+            "type" : "integer",
+            "description" : "상대가 보냈고 내가 아직 읽지 않은 수",
+            "title" : "Unread Count"
+          },
+          "last_message_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Last Message At"
+          }
+        },
+        "required" : [ "id", "last_message", "last_message_at", "partner", "unread_count" ],
+        "title" : "DirectConversationSummary"
+      },
+      "DirectLastMessage" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "preview" : {
+            "type" : "string",
+            "description" : "본문 앞 80자",
+            "title" : "Preview"
+          },
+          "mine" : {
+            "type" : "boolean",
+            "title" : "Mine"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          }
+        },
+        "required" : [ "created_at", "mine", "preview" ],
+        "title" : "DirectLastMessage"
+      },
+      "DirectMessageListResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "messages" : {
+            "type" : "array",
+            "description" : "최근 것부터",
+            "items" : {
+              "$ref" : "#/components/schemas/DirectMessagePayload"
+            },
+            "title" : "Messages"
+          },
+          "next_cursor" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "더 옛 메시지를 읽을 커서"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Next Cursor"
+          }
+        },
+        "required" : [ "messages", "next_cursor" ],
+        "title" : "DirectMessageListResponse"
       },
       "ChallengeEntry" : {
         "type" : "object",

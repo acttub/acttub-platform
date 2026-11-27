@@ -4651,6 +4651,110 @@ export interface components {
             year: number;
             kind: components["schemas"]["PortfolioCreditKindInput"];
         };
+        /** StartDirectConversationRequest */
+        StartDirectConversationRequest: {
+            /**
+             * User Id
+             * Format: uuid
+             * @description 대화 상대(게시판 글·댓글의 작성자)
+             */
+            user_id: string;
+            /** Post Id */
+            post_id?: string | null;
+        };
+        /** DirectConversationOriginPost */
+        DirectConversationOriginPost: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+        };
+        /** DirectConversationPartner */
+        DirectConversationPartner: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @description 공개 이름(게시판과 같다, 없으면 "배우"). 탈퇴했으면 "탈퇴한 사용자"
+             */
+            name: string;
+            /** Photo Url */
+            photo_url: string | null;
+            /** Withdrawn */
+            withdrawn: boolean;
+        };
+        /** DirectConversationPayload */
+        DirectConversationPayload: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            partner: components["schemas"]["DirectConversationPartner"];
+            origin_post: components["schemas"]["DirectConversationOriginPost"] | null;
+            /** Can Send */
+            can_send: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: "partner_unavailable" | "message_blocked" | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Message At */
+            last_message_at: string | null;
+        };
+        /** DirectConversationReportRequest */
+        DirectConversationReportRequest: {
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "copyright" | "inappropriate" | "spam" | "duplicate" | "other" | "abuse" | "sexual" | "privacy";
+            /** Detail */
+            detail?: string | null;
+        };
+        /** SendDirectMessageRequest */
+        SendDirectMessageRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /**
+             * Body
+             * @description 앞뒤 공백을 걷고 1~1000자(코드 포인트). 글자만이다
+             */
+            body: string;
+        };
+        /** DirectMessagePayload */
+        DirectMessagePayload: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Conversation Id
+             * Format: uuid
+             */
+            conversation_id: string;
+            /** Body */
+            body: string;
+            /** Mine */
+            mine: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** PracticeFeedbackStatus */
         PracticeFeedbackStatus: {
             /** Asked */
@@ -5131,164 +5235,6 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
-        };
-        /** StartDirectConversationRequest */
-        StartDirectConversationRequest: {
-            /**
-             * User Id
-             * Format: uuid
-             * @description 대화 상대(게시판 글·댓글의 작성자)
-             */
-            user_id: string;
-            /** Post Id */
-            post_id?: string | null;
-        };
-        /** DirectConversationPartner */
-        DirectConversationPartner: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Name
-             * @description 공개 이름(게시판과 같다, 없으면 "배우"). 탈퇴했으면 "탈퇴한 사용자"
-             */
-            name: string;
-            /** Photo Url */
-            photo_url: string | null;
-            /** Withdrawn */
-            withdrawn: boolean;
-        };
-        /** DirectConversationOriginPost */
-        DirectConversationOriginPost: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Title */
-            title: string;
-        };
-        /** DirectConversationPayload */
-        DirectConversationPayload: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            partner: components["schemas"]["DirectConversationPartner"];
-            origin_post: components["schemas"]["DirectConversationOriginPost"] | null;
-            /** Can Send */
-            can_send: boolean;
-            /** Unavailable Reason */
-            unavailable_reason: "partner_unavailable" | "message_blocked" | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Last Message At */
-            last_message_at: string | null;
-        };
-        /** DirectLastMessage */
-        DirectLastMessage: {
-            /**
-             * Preview
-             * @description 본문 앞 80자
-             */
-            preview: string;
-            /** Mine */
-            mine: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
-        /** DirectConversationSummary */
-        DirectConversationSummary: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            partner: components["schemas"]["DirectConversationPartner"];
-            last_message: components["schemas"]["DirectLastMessage"] | null;
-            /**
-             * Unread Count
-             * @description 상대가 보냈고 내가 아직 읽지 않은 수
-             */
-            unread_count: number;
-            /** Last Message At */
-            last_message_at: string | null;
-        };
-        /** DirectConversationListResponse */
-        DirectConversationListResponse: {
-            /** Conversations */
-            conversations: components["schemas"]["DirectConversationSummary"][];
-            /** Next Cursor */
-            next_cursor: string | null;
-        };
-        /** SendDirectMessageRequest */
-        SendDirectMessageRequest: {
-            /**
-             * Request Id
-             * Format: uuid
-             */
-            request_id: string;
-            /**
-             * Body
-             * @description 앞뒤 공백을 걷고 1~1000자(코드 포인트). 글자만이다
-             */
-            body: string;
-        };
-        /** DirectMessagePayload */
-        DirectMessagePayload: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Conversation Id
-             * Format: uuid
-             */
-            conversation_id: string;
-            /** Body */
-            body: string;
-            /** Mine */
-            mine: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
-        /** DirectMessageListResponse */
-        DirectMessageListResponse: {
-            /**
-             * Messages
-             * @description 최근 것부터
-             */
-            messages: components["schemas"]["DirectMessagePayload"][];
-            /** Next Cursor */
-            next_cursor: string | null;
-        };
-        /** DirectConversationReportRequest */
-        DirectConversationReportRequest: {
-            /**
-             * Reason
-             * @enum {string}
-             */
-            reason: "copyright" | "inappropriate" | "spam" | "duplicate" | "other" | "abuse" | "sexual" | "privacy";
-            /** Detail */
-            detail?: string | null;
-        };
-        /** DirectUnreadCountResponse */
-        DirectUnreadCountResponse: {
-            /** Unread Count */
-            unread_count: number;
         };
         /** CoachStartRequest */
         CoachStartRequest: {
@@ -6443,6 +6389,60 @@ export interface components {
         PracticeDays: {
             /** Days */
             days: string[];
+        };
+        /** DirectUnreadCountResponse */
+        DirectUnreadCountResponse: {
+            /** Unread Count */
+            unread_count: number;
+        };
+        /** DirectConversationListResponse */
+        DirectConversationListResponse: {
+            /** Conversations */
+            conversations: components["schemas"]["DirectConversationSummary"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** DirectConversationSummary */
+        DirectConversationSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            partner: components["schemas"]["DirectConversationPartner"];
+            last_message: components["schemas"]["DirectLastMessage"] | null;
+            /**
+             * Unread Count
+             * @description 상대가 보냈고 내가 아직 읽지 않은 수
+             */
+            unread_count: number;
+            /** Last Message At */
+            last_message_at: string | null;
+        };
+        /** DirectLastMessage */
+        DirectLastMessage: {
+            /**
+             * Preview
+             * @description 본문 앞 80자
+             */
+            preview: string;
+            /** Mine */
+            mine: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** DirectMessageListResponse */
+        DirectMessageListResponse: {
+            /**
+             * Messages
+             * @description 최근 것부터
+             */
+            messages: components["schemas"]["DirectMessagePayload"][];
+            /** Next Cursor */
+            next_cursor: string | null;
         };
         /** ChallengeEntry */
         ChallengeEntry: {
