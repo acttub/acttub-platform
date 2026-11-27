@@ -10,6 +10,12 @@ export const PAYMENT_START_NOTICE = "2026년 11월 1일부터 결제를 시작�
 
 export const NOTICES: Notice[] = [
   {
+    date: "2026-11-27",
+    title: "ACTTUB Pro 결제는 11월 1일부터 시작했어요",
+    body: "월 3,900원(부가세 포함)이고, 앱(App Store·Google Play)에서는 연 32,500원 연 구독도 있어요. 무료 이용 범위와 해지·환불 기준은 요금 안내에서 볼 수 있어요.",
+    href: "/pricing",
+  },
+  {
     date: "2026-10-25",
     title: "ACTTUB Pro 유료 결제는 11월 시작을 준비하고 있어요",
     body: "그 전에는 실제로 결제되지 않아요. 정확한 시작일은 따로 안내해요. 가격과 해지·환불 기준은 요금 안내에서 볼 수 있어요.",
