@@ -5,9 +5,7 @@
 # 까닭이 없는 줄은 아직 JPA 로 옮기지 않은 자리다. 그 합은 테스트의 PENDING_CEILING 이고 줄기만 한다.
 # 옮기지 않기로 한 자리는 남김: 뒤에 까닭을 적은 줄로 둔다. 한 파일에 두 줄(옮길 것, 남길 것)을 둘 수 있다.
 feature/admin/adapter/db/PostgresAdminMetricsRepository.java 15
-feature/ads/adapter/db/PostgresAdFrequency.java 5
-feature/ads/adapter/db/PostgresAdRepository.java 10
-feature/ads/adapter/db/PostgresAdSlotSwitches.java 2
+feature/ads/adapter/db/PostgresAdRepository.java 1 남김: 첫 연습 판정(practiced)은 다른 기능의 표(practice 의 practices, coach 의 coach_conversations·coach_notes, reading 의 reading_sessions, challenge 의 challenge_entries)를 한 문장으로 읽는다. 그 기능들에 이 조회를 내주는 Port 가 없다(§5-1)
 feature/analysis/adapter/db/PostgresPracticeAnalysisStore.java 4 남김: 분석 입력 읽기·완료의 회차 잠금과 작업 잠금·시도 소진 정리는 다른 기능의 표(platform/operation 의 ai_jobs, practice 의 practices, video 의 videos·upload_intents, auth 의 users)를 읽거나 잠근다. 그 기능들에 이 조회·잠금을 내주는 Port 가 없고(AiJobLedger 는 작업 행 잠금·회차 id 목록을 내주지 않는다), 남의 엔티티를 쓰면 §5-1 주인 규칙을 어긴다
 feature/auth/adapter/db/PostgresAccountRowMarks.java 1 남김: 게스트 이전에서 설문을 물어본 표식을 넘기는 문장(carryOver)은 UPDATE … FROM 으로 같은 표의 게스트 행을 읽어 회원 행을 고친다. HQL 에 UPDATE … FROM 이 없다
 feature/auth/adapter/db/PostgresAuthAccountErasure.java 1 남김: 탈퇴가 users.email 과 users.nickname 을 한 문장으로 비운다. nickname 은 UserEntity 에 매핑하지 않는 칸이라(이름의 정본은 user_profiles.name, SOMA-528 결정 I-3) HQL 로 쓸 수 없다
