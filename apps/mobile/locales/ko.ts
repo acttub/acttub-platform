@@ -150,6 +150,10 @@ const ko = {
     next: '다음',
   },
   coachingTab: {
+    progress: '{{n}}/{{goal}}번 해 봤어요',
+    progressOver: '{{n}}번 해 봤어요',
+    tag: { emotionMemory: '감정 기억', resolved: '해결' },
+    durationA11y: '영상 길이 {{d}}',
     linkTalk: '영상 없이 말로',
     linkScript: '대사부터 같이 만들기',
     otherWaysTile: '다른 방법으로\n코칭 받기',

@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { HomeUploadCard } from '@/components/home-upload-card';
+import { PracticeProgressDots } from '@/components/practice-progress-dots';
 import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skeleton';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
@@ -21,6 +22,7 @@ import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { api } from '@/lib/api';
 import { dateLocale, translate as t } from '@/lib/i18n';
 import { coachingEntry, type CoachingEntry } from '@/lib/practice/coaching-entry';
+import { groupTagLabels, groupVideoDuration, practiceProgress } from '@/lib/practice/coaching-progress';
 import { groupPoster, groupRowTarget, recentGroups, sceneTitle } from '@/lib/practice/groups';
 import { continueActionFor } from '@/lib/practice/resume';
 import { setContinueOrigin } from '@/lib/practice/session-state';
@@ -46,7 +48,8 @@ function shortDate(iso: string | null | undefined): string {
  *   말로 코칭 · 내 대본으로 찍기 · 대사부터 같이 만들기는 그 한 줄이 여는 선택 화면(app/coach-other)에 모았다(SOMA-984 B안).
  * - 하던 코칭(pen P13.4): 메모 카드 자리가 「하던 코칭 · 이어서 하기」로 바뀌고 나머지는 같다.
  *
- * 디자인의 「2개 남음」 같은 남은 횟수는 서버에 그 값이 없어 그리지 않고, 장면 제목만 보조 글로 둔다.
+ * 장면 카드의 「n/3번 해 봤어요」·진행 점과 최근 코칭 줄의 태그·영상 길이는 서버가 값을 줄 때만 그린다(SOMA-810).
+ * 서버 스위치가 꺼져 있거나 옛 연습이라 값이 없으면 그 칸을 숨긴다.
  */
 export default function CoachingTab() {
   const tabBarSpace = useTabBarSpace();
@@ -126,6 +129,7 @@ export default function CoachingTab() {
     entry?.kind === 'next'
       ? (entry.group.practices.find((p) => p.id === entry.notePracticeId)?.created_at ?? entry.group.last_practiced_at)
       : null;
+  const progress = entry && entry.kind !== 'first' ? practiceProgress(entry.group) : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -233,6 +237,7 @@ export default function CoachingTab() {
                 </Text>
               </View>
             </View>
+            {progress && <PracticeProgressDots progress={progress} />}
             {resuming || nextTake ? (
               <View style={styles.quote}>
                 {/* 하던 코칭에는 「다음엔 이렇게 해 봐요」 제목을 붙이지 않는다 — 아래 문장은 조언이 아니라 상태 안내다(10/26). */}
@@ -276,6 +281,8 @@ export default function CoachingTab() {
           <View style={styles.recent}>
             {visible.slice(0, RECENT_COUNT).map((g) => {
               const poster = groupPoster(g);
+              const tags = groupTagLabels(g);
+              const duration = groupVideoDuration(g);
               return (
                 <Pressable key={g.root_id} onPress={() => router.push(groupRowTarget(g))} accessibilityRole="button" style={({ pressed }) => [styles.recentRow, pressed && styles.pressed]}>
                   <View style={styles.thumb}>
@@ -286,7 +293,17 @@ export default function CoachingTab() {
                   </View>
                   <View style={styles.flex}>
                     <Text style={styles.recentTitle} numberOfLines={1}>{sceneTitle(g)}</Text>
-                    <Text style={styles.recentMeta}>{shortDate(g.last_practiced_at)}</Text>
+                    <View style={styles.recentMetaRow}>
+                      <Text style={styles.recentMeta}>{shortDate(g.last_practiced_at)}</Text>
+                      {duration && (
+                        <Text style={styles.recentMeta} accessibilityLabel={t('coachingTab.durationA11y', { d: duration })} testID="coaching-recent-duration">
+                          {duration}
+                        </Text>
+                      )}
+                      {tags.map((label) => (
+                        <Text key={label} style={styles.recentTag} testID="coaching-recent-tag">{label}</Text>
+                      ))}
+                    </View>
                   </View>
                 </Pressable>
               );
@@ -483,5 +500,8 @@ const styles = StyleSheet.create({
   thumb: { width: 44, height: 44, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
   play: { width: 20, height: 20, borderRadius: radius.full, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center' },
   recentTitle: { ...type.body2Bold, color: palette.text },
-  recentMeta: { marginTop: 2, ...type.caption, color: palette.textMeta },
+  recentMetaRow: { marginTop: 2, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[1.5] },
+  recentMeta: { ...type.caption, color: palette.textMeta },
+  // 태그 칩 — 공지 상세 배지(app/notice-detail)와 같은 blue-soft 알약(micro).
+  recentTag: { overflow: 'hidden', backgroundColor: palette.blueSoft, color: palette.blueDeep, borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: 2, ...type.micro },
 });
