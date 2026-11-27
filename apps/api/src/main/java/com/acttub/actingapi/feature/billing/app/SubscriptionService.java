@@ -144,7 +144,7 @@ public class SubscriptionService {
     public View view(UUID userId) {
         requireAvailable();
         Instant now = clock.instant();
-        Optional<Instant> grantEnd = grantEnd(userId, now);
+        Optional<Instant> grantEnd = repository.grantEnd(userId, now);
         Optional<Subscription> found = repository.find(userId);
         if (found.isEmpty()) {
             return View.none(limitsEnforced(userId), grantEnd.orElse(null), settings.appEnabled());
@@ -172,20 +172,7 @@ public class SubscriptionService {
         boolean subscribed = repository.find(userId)
                 .map(sub -> BillingRules.pro(sub.status(), sub.periodEnd(), now, sub.provider()))
                 .orElse(false);
-        return subscribed || grantEnd(userId, now).isPresent();
-    }
-
-    /**
-     * 카드 없이 받은 Pro 기간의 끝 — 서버가 준 기간(billing_pro_grants)과 출시 주간 Pro(BillingRules.launchWeekEnd) 중 늦은 것.
-     */
-    Optional<Instant> grantEnd(UUID userId, Instant now) {
-        Optional<Instant> stored = repository.grantEnd(userId, now);
-        Instant launch = BillingRules.launchWeekEnd(
-                now.isBefore(BillingRules.LAUNCH_WEEK_START) || !now.isBefore(BillingRules.LAUNCH_WEEK_END) ? null : signupTime(userId), now);
-        if (launch == null) {
-            return stored;
-        }
-        return Optional.of(stored.filter(end -> end.isAfter(launch)).orElse(launch));
+        return subscribed || repository.grantEnd(userId, now).isPresent();
     }
 
     // ── 카드 등록 창 ────────────────────────────────────────────────
