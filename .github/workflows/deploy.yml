@@ -53,6 +53,7 @@ jobs:
       backup_image: ${{ steps.env.outputs.backup_image }}
       api_image: ${{ steps.env.outputs.api_image }}
       web_image: ${{ steps.env.outputs.web_image }}
+      pron_image: ${{ steps.env.outputs.pron_image }}
     steps:
       - uses: actions/checkout@v7
 
@@ -63,7 +64,7 @@ jobs:
           INPUT_ENV: ${{ inputs.environment }}
         run: deploy/guard.sh
 
-  # ── dev·prod — 홈서버 길: 이미지 셋 → GHCR → Tailscale SSH → compose ──────────────────────
+  # ── dev·prod — 홈서버 길: 이미지 넷 → GHCR → Tailscale SSH → compose ──────────────────────
   #
   # 이미지는 커밋 sha 로 태그합니다. 같은 sha 가 GHCR 에 이미 있으면 굽지 않습니다 — 다시 구우면
   # jar 의 타임스탬프와 Next 의 빌드 ID 가 달라져 다이제스트가 바뀌고, 서버의 compose 가 같은 코드를
@@ -210,6 +211,36 @@ jobs:
           docker build -t "$IMAGE" deploy/home/backup
           docker push "$IMAGE"
 
+  # 발음 채점 서비스(apps/pron). 모델까지 담아 수 GB 라 커밋 sha 가 아니라 apps/pron 트리 해시로 태그한다(guard.sh) —
+  # apps/pron 이 그대로면 GHCR 에 이미 있어 굽지 않고, 서버도 같은 이미지라 컨테이너를 그대로 둔다. rebuild_images 는
+  # 넘기지 않는다: 웹 설정을 다시 굽는 일이 채점 서비스를 다시 굽고 갈아 끼우게 하지 않는다.
+  build_pron:
+    name: 이미지 · pron (GHCR)
+    needs: guard
+    runs-on: ubuntu-latest
+    # 처음 굽거나 apps/pron 이 바뀌었을 때만 돈다. pip·모델 받기·push 로 10분 안팎이다.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/ghcr-image-exists
+        id: exists
+        with:
+          image: ${{ needs.guard.outputs.pron_image }}
+          rebuild: 'false'
+
+      - name: docker build → push
+        if: ${{ steps.exists.outputs.exists != 'true' }}
+        env:
+          IMAGE: ${{ needs.guard.outputs.pron_image }}
+        run: |
+          set -euo pipefail
+          docker build -t "$IMAGE" apps/pron
+          docker push "$IMAGE"
+
   # 러너가 Tailscale 임시 노드(tag:ci)가 되어 홈서버의 deploy 계정에 Tailscale SSH 로 들어갑니다.
   # 열쇠는 OAuth 클라이언트 하나뿐입니다 — 서버 IP 도 SSH 개인키도 secrets 에 없고, 접근 범위는
   # Tailscale ACL 이 정합니다(tag:ci → tag:homeserver, users [deploy]). 노드는 ephemeral 이라 잡이 끝나면
@@ -222,10 +253,11 @@ jobs:
   # 재실행하면 이미지는 이미 있어 빌드를 건너뛰고 여기부터 다시 합니다.
   deploy_home:
     name: 홈서버 배포 (compose)
-    needs: [guard, build_api, build_web, build_backup]
+    needs: [guard, build_api, build_web, build_backup, build_pron]
     environment: ${{ needs.guard.outputs.environment }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 채점 서비스 이미지가 바뀐 배포는 서버가 수 GB 를 당긴다(2단계). 그 몫을 더해 둔다.
+    timeout-minutes: 30
     env:
       # Tailscale MagicDNS 이름입니다. IP 는 태일넷이 알고 있어 여기 적지 않습니다.
       SERVER: insung-server
@@ -234,16 +266,17 @@ jobs:
       - uses: actions/checkout@v7
 
       # 서버는 로그인 없이 pull 합니다(deploy.sh). 이 잡은 GHCR 에 로그인하지 않으므로 여기서 같은 방식으로
-      # 먼저 봅니다 — private 이면 서버의 pull 전에 이유와 함께 멈춥니다. 새 패키지(backup 포함)는
+      # 먼저 봅니다 — private 이면 서버의 pull 전에 이유와 함께 멈춥니다. 새 패키지(backup·pron 포함)는
       # 조직 설정에 따라 private 으로 생길 수 있어 public 전환을 확인합니다. 이미지에는 공개값만 있습니다.
-      - name: 이미지 셋이 로그인 없이 당겨지는지 (GHCR 공개)
+      - name: 이미지 넷이 로그인 없이 당겨지는지 (GHCR 공개)
         env:
           API_IMAGE: ${{ needs.guard.outputs.api_image }}
           WEB_IMAGE: ${{ needs.guard.outputs.web_image }}
           BACKUP_IMAGE: ${{ needs.guard.outputs.backup_image }}
+          PRON_IMAGE: ${{ needs.guard.outputs.pron_image }}
         run: |
           set -euo pipefail
-          for image in "$API_IMAGE" "$WEB_IMAGE" "$BACKUP_IMAGE"; do
+          for image in "$API_IMAGE" "$WEB_IMAGE" "$BACKUP_IMAGE" "$PRON_IMAGE"; do
             if ! deploy/ghcr-image-exists.sh "$image"; then
               echo "::error::$image 를 로그인 없이 당길 수 없습니다 — 패키지 가시성을 public 으로 바꿉니다: https://github.com/orgs/$GITHUB_REPOSITORY_OWNER/packages"
               exit 1
@@ -294,6 +327,8 @@ jobs:
           API_IMAGE: ${{ needs.guard.outputs.api_image }}
           WEB_IMAGE: ${{ needs.guard.outputs.web_image }}
           BACKUP_IMAGE: ${{ needs.guard.outputs.backup_image }}
+          # .env 의 COMPOSE_PROFILES 에 pron 이 있는 환경만 쓴다(deploy.sh 9단계). 없으면 release.env 에만 적힌다.
+          PRON_IMAGE: ${{ needs.guard.outputs.pron_image }}
           # 새 연습(입력과 무관)을 새 코치(Gemini 직접 영상 코칭)에 연결한다(docs/deploy/DEPLOY-HOME.md §3).
           THREE_LAYERS_ENABLED: 'true'
           GUEST_DAILY_LIMIT_ENABLED: ${{ needs.guard.outputs.environment == 'dev' && 'false' || 'true' }}
@@ -304,7 +339,7 @@ jobs:
         run: |
           set -euo pipefail
           # shellcheck disable=SC2029
-          ssh "$SERVER" "cd '$REMOTE_DIR' && DEPLOY_THREE_LAYERS_ENABLED='$THREE_LAYERS_ENABLED' DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED='$GUEST_DAILY_LIMIT_ENABLED' DEPLOY_PRACTICE_REMINDER_ENABLED='$PRACTICE_REMINDER_ENABLED' DEPLOY_CPU_SHARES='$CPU_SHARES' ./deploy.sh '$GITHUB_SHA' '$API_IMAGE' '$WEB_IMAGE' '$BACKUP_IMAGE'"
+          ssh "$SERVER" "cd '$REMOTE_DIR' && DEPLOY_THREE_LAYERS_ENABLED='$THREE_LAYERS_ENABLED' DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED='$GUEST_DAILY_LIMIT_ENABLED' DEPLOY_PRACTICE_REMINDER_ENABLED='$PRACTICE_REMINDER_ENABLED' DEPLOY_CPU_SHARES='$CPU_SHARES' ./deploy.sh '$GITHUB_SHA' '$API_IMAGE' '$WEB_IMAGE' '$BACKUP_IMAGE' '$PRON_IMAGE'"
 
       # 터널을 거쳐 밖에서 봅니다. cloudflared 는 같은 compose 의 edge 프로필에 있고 deploy.sh 의 --wait 가
       # 그 healthy(엣지 연결)까지 기다렸으므로 보통 첫 시도에 맞습니다. 재시도는 DNS·엣지 전파 몫입니다.
@@ -350,7 +385,7 @@ jobs:
   # 않게 되고 정작 실패가 묻힙니다. 홈서버 이미지 빌드·배포 실패도 같은 알림입니다.
   notify:
     name: 결과 통지
-    needs: [guard, build_api, build_web, build_backup, deploy_home]
+    needs: [guard, build_api, build_web, build_backup, build_pron, deploy_home]
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -367,6 +402,7 @@ jobs:
           BUILD_API: ${{ needs.build_api.result }}
           BUILD_WEB: ${{ needs.build_web.result }}
           BUILD_BACKUP: ${{ needs.build_backup.result }}
+          BUILD_PRON: ${{ needs.build_pron.result }}
           DEPLOY_HOME: ${{ needs.deploy_home.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -382,7 +418,8 @@ jobs:
           failed=""
           cancelled=""
           for pair in "$GUARD:사전점검" \
-                      "$BUILD_API:이미지(api)" "$BUILD_WEB:이미지(web)" "$BUILD_BACKUP:이미지(backup)" "$DEPLOY_HOME:홈서버"; do
+                      "$BUILD_API:이미지(api)" "$BUILD_WEB:이미지(web)" "$BUILD_BACKUP:이미지(backup)" "$BUILD_PRON:이미지(pron)" \
+                      "$DEPLOY_HOME:홈서버"; do
             result="${pair%%:*}"
             label="${pair#*:}"
             case "$result" in

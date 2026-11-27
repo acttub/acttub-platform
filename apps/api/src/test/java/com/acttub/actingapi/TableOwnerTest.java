@@ -240,7 +240,8 @@ class TableOwnerTest {
     void scansDynamicSqlJpqlAnnotationsAndResourceSql() throws IOException {
         Map<String, Touched> references = references();
         assertThat(references).as("표를 하나도 못 찾았다 — 읽는 법이 코드와 어긋났다").isNotEmpty();
-        // 표 이름을 변수로 붙이는 SQL("UPDATE " + table). 쓰는 문장이라 쓰기로 센다.
+        // JPQL UPDATE 의 대상 엔티티. 쓰는 문장이라 쓰기로 센다. 표 이름을 변수로 붙이는 SQL("UPDATE " + table)을 쓰던 마지막
+        // 자리였고(SOMA-1172 에서 JPQL 로 옮겼다), 그 꼴을 쓰기로 세는 길(DYNAMIC_WRITE)은 새로 생길 때를 위해 둔다.
         assertThat(references.get("platform/operation/ExternalOperationOwnership.java").all())
                 .contains("external_operations", "ai_jobs");
         assertThat(references.get("platform/operation/ExternalOperationOwnership.java").written())

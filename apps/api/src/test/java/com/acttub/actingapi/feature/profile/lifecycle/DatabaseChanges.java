@@ -37,6 +37,8 @@ final class DatabaseChanges {
     private static final Pattern UUID_TEXT =
             Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     private static final Duration DATABASE_NOW_WINDOW = Duration.ofMinutes(10);
+    /** 테스트 시계가 실제 시각에서 이만큼은 떨어져야 시계로 잰 시각과 DB 의 {@code now()} 를 가를 수 있다. */
+    private static final Duration CLOCK_DISTANCE = Duration.ofDays(3_650);
 
     /** 사람을 가리키는 칸 하나. */
     record UserColumn(String table, String column) { }
@@ -101,7 +103,11 @@ final class DatabaseChanges {
             List<String> scope,
             Instant now,
             UnaryOperator<String> decrypt) {
-        Renderer renderer = new Renderer(names, texts, now, Instant.now(), decrypt);
+        Instant databaseNow = Instant.now();
+        if (Duration.between(now, databaseNow).abs().compareTo(CLOCK_DISTANCE) < 0) {
+            throw new IllegalStateException("테스트 시계(" + now + ")가 실제 시각과 10년 안이다. 시계로 잰 시각이 <DB 시각> 으로 읽힐 수 있다");
+        }
+        Renderer renderer = new Renderer(names, texts, now, databaseNow, decrypt);
         List<String> lines = new ArrayList<>();
         for (String table : primaryKeys.keySet()) {
             Map<String, Map<String, Object>> old = before.tables().get(table);

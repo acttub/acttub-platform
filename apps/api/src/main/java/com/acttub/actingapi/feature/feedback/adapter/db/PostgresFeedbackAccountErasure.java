@@ -1,6 +1,5 @@
 package com.acttub.actingapi.feature.feedback.adapter.db;
 
-import java.time.ZoneOffset;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -35,14 +34,14 @@ class PostgresFeedbackAccountErasure implements AccountErasure {
 
     @Override
     public List<UUID> erase(AccountErasureStep step, ClosingAccount account) {
-        entityManager.createNativeQuery("""
-                UPDATE practice_feedback
-                SET contact_email=NULL,contact_phone=NULL,
-                    sheet_seq=sheet_seq+1,sheet_synced_at=NULL,updated_at=:now
-                WHERE user_id=:userId
-                  AND (contact_email IS NOT NULL OR contact_phone IS NOT NULL)
+        entityManager.createQuery("""
+                update PracticeFeedbackEntity f
+                set f.contactEmail = null, f.contactPhone = null,
+                    f.sheetSeq = f.sheetSeq + 1, f.sheetSyncedAt = null, f.updatedAt = :now
+                where f.userId = :userId
+                  and (f.contactEmail is not null or f.contactPhone is not null)
                 """)
-                .setParameter("now", account.now().atOffset(ZoneOffset.UTC))
+                .setParameter("now", account.now())
                 .setParameter("userId", account.userId())
                 .executeUpdate();
         return List.of();
@@ -51,8 +50,9 @@ class PostgresFeedbackAccountErasure implements AccountErasure {
     /** 의견의 행은 계정 행을 가리킨 채 남는다(외래 키에 ON DELETE 가 없다). */
     @Override
     public boolean hasRecords(UUID userId) {
-        return !entityManager.createNativeQuery("SELECT 1 FROM practice_feedback WHERE user_id=:userId LIMIT 1")
+        return !entityManager.createQuery("select 1 from PracticeFeedbackEntity f where f.userId = :userId")
                 .setParameter("userId", userId)
+                .setMaxResults(1)
                 .getResultList()
                 .isEmpty();
     }

@@ -60,7 +60,7 @@ public class DatabaseHealthIndicator implements HealthIndicator, DisposableBean 
         var entityManager = entityManagers.createEntityManager();
         try {
             // CONTRACT §5-1: connectivity also uses JPA, without changing the business connection pool settings.
-            entityManager.createNativeQuery("SELECT 1")
+            entityManager.createQuery("select 1")
                     .setHint("jakarta.persistence.query.timeout", 1000).getSingleResult();
             return UP;
         } finally {

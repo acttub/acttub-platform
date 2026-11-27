@@ -17,7 +17,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 이탈 설문의 Postgres 구현 — {@code practice_feedback} (V14). 노출 표식({@code users.exit_survey_asked_at})은 계정 행의 칸이라
+ * 이탈 설문의 Postgres 구현 — {@code practice_feedback} (V14). 접수만 native 이고 나머지는 JPQL 이다. 노출 표식({@code users.exit_survey_asked_at})은 계정 행의 칸이라
  * {@code auth} 의 {@link ExitSurveyAsk} 가 고친다.
  *
  * <p>접수는 {@code (user_id, request_id)} 로 멱등하다. 노출 표식의 선점은 한 문장이다 — 두 기기가 동시에 물어도 하나만 이긴다.
@@ -52,6 +52,9 @@ class PostgresExitSurveyStore implements ExitSurveyStore, ExitSurveyOwnership {
      * {@code INSERT … SELECT FROM users} 인 것은 닫힌 계정에 새 설문이 남지 않게 하려는 것이다 — 없는
      * 사용자와 탈퇴한 계정이 FK 위반이 아니라 <b>0행</b>으로 돌아온다. 재전송은 {@code DO NOTHING} 뒤에
      * 먼저 만든 행을 읽어 같은 id 를 준다.
+     *
+     * <p>넣는 문장은 native 로 남았다. 한 문장에서 다른 기능(auth)의 {@code users} 를 읽고, 나눠 읽으면 문장이 하나 늘고 확인과
+     * 넣기가 다른 스냅숏이 된다(apps/api/CONTRACT.md §5-1·§5-9).
      */
     @Override
     public Accepted submit(NewSurvey survey, Instant now) {
@@ -84,14 +87,15 @@ class PostgresExitSurveyStore implements ExitSurveyStore, ExitSurveyOwnership {
             if (created) {
                 return new Accepted(id, true);
             }
-            List<Tuple> existing = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT id FROM practice_feedback
-                    WHERE user_id=:userId AND request_id=:requestId
-                    """, Tuple.class)
+            List<UUID> existing = entityManager.createQuery("""
+                    select f.id from PracticeFeedbackEntity f
+                    where f.userId = :userId and f.requestId = :requestId
+                    """, UUID.class)
                     .setParameter("userId", survey.userId())
-                    .setParameter("requestId", survey.requestId()));
+                    .setParameter("requestId", survey.requestId())
+                    .getResultList();
             // 행이 없으면 넣지 못한 까닭은 재전송이 아니라 닫힌 계정이다.
-            return existing.isEmpty() ? null : new Accepted(existing.getFirst().get("id", UUID.class), false);
+            return existing.isEmpty() ? null : new Accepted(existing.getFirst(), false);
         });
     }
 
@@ -103,38 +107,27 @@ class PostgresExitSurveyStore implements ExitSurveyStore, ExitSurveyOwnership {
 
     @Override
     public List<SheetRow> pendingSheetRows(int limit) {
-        return NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id,sheet_seq,user_id,practice_id,screen,trigger,body,
-                       contact_email,contact_phone,created_at
-                FROM practice_feedback
-                WHERE sheet_synced_at IS NULL
-                ORDER BY created_at,id
-                LIMIT :limit
-                """, Tuple.class)
-                .setParameter("limit", limit)).stream()
-                .map(row -> new SheetRow(
-                        row.get("id", UUID.class),
-                        ((Number) row.get("sheet_seq")).intValue(),
-                        row.get("user_id", UUID.class),
-                        row.get("practice_id", UUID.class),
-                        row.get("screen", String.class),
-                        row.get("trigger", String.class),
-                        row.get("body", String.class),
-                        row.get("contact_email", String.class),
-                        row.get("contact_phone", String.class),
-                        row.get("created_at", Instant.class)))
-                .toList();
+        return entityManager.createQuery("""
+                select new com.acttub.actingapi.feature.feedback.app.ExitSurveyStore$SheetRow(
+                       f.id, f.sheetSeq, f.userId, f.practiceId, f.screen, f.trigger, f.body,
+                       f.contactEmail, f.contactPhone, f.createdAt)
+                from PracticeFeedbackEntity f
+                where f.sheetSyncedAt is null
+                order by f.createdAt, f.id
+                """, SheetRow.class)
+                .setMaxResults(limit)
+                .getResultList();
     }
 
     /** 그 사이 순번이 올라갔으면(연락처 파기) 아무것도 쓰지 않는다 — 보낸 것이 이미 낡은 줄이다. */
     @Override
     public void markSheetSynced(UUID id, int seq, Instant now) {
-        transaction.executeWithoutResult(tx -> entityManager.createNativeQuery("""
-                UPDATE practice_feedback
-                SET sheet_synced_at=:now,updated_at=:now
-                WHERE id=:id AND sheet_seq=:seq
+        transaction.executeWithoutResult(tx -> entityManager.createQuery("""
+                update PracticeFeedbackEntity f
+                set f.sheetSyncedAt = :now, f.updatedAt = :now
+                where f.id = :id and f.sheetSeq = :seq
                 """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("now", now)
                 .setParameter("id", id)
                 .setParameter("seq", seq)
                 .executeUpdate());
@@ -142,15 +135,15 @@ class PostgresExitSurveyStore implements ExitSurveyStore, ExitSurveyOwnership {
 
     @Override
     public int purgeExpiredContacts(Instant acceptedBefore, Instant now) {
-        return transaction.execute(tx -> entityManager.createNativeQuery("""
-                UPDATE practice_feedback
-                SET contact_email=NULL,contact_phone=NULL,
-                    sheet_seq=sheet_seq+1,sheet_synced_at=NULL,updated_at=:now
-                WHERE created_at<:cutoff
-                  AND (contact_email IS NOT NULL OR contact_phone IS NOT NULL)
+        return transaction.execute(tx -> entityManager.createQuery("""
+                update PracticeFeedbackEntity f
+                set f.contactEmail = null, f.contactPhone = null,
+                    f.sheetSeq = f.sheetSeq + 1, f.sheetSyncedAt = null, f.updatedAt = :now
+                where f.createdAt < :cutoff
+                  and (f.contactEmail is not null or f.contactPhone is not null)
                 """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("cutoff", acceptedBefore.atOffset(ZoneOffset.UTC))
+                .setParameter("now", now)
+                .setParameter("cutoff", acceptedBefore)
                 .executeUpdate());
     }
 
@@ -164,8 +157,8 @@ class PostgresExitSurveyStore implements ExitSurveyStore, ExitSurveyOwnership {
      */
     @Override
     public void reassign(UUID from, UUID to) {
-        entityManager.createNativeQuery("""
-                UPDATE practice_feedback SET user_id=:to,updated_at=now() WHERE user_id=:from
+        entityManager.createQuery("""
+                update PracticeFeedbackEntity f set f.userId = :to, f.updatedAt = instant where f.userId = :from
                 """)
                 .setParameter("to", to)
                 .setParameter("from", from)

@@ -192,6 +192,34 @@ class VideoRepositoryIT {
     }
 
     @Test
+    @DisplayName("restamp 는 확정된 예약의 검증값과 영상의 크기·updated_at 을 고치고 확정 시각은 두며 고친 영상을 돌려준다. "
+            + "남의 예약·확정 전 예약은 null 이고 바꾸지 않는다. 파기된 영상의 크기는 그대로다")
+    void restampRewritesTheEtagAndTheSizeOfAFinalizedIntent() {
+        UUID owner = member();
+        UUID intent = videos.reserve(owner, intent(1_000, 5_000), QUOTA, now).intentId();
+        UUID id = videos.complete(owner, intent, new VideoStorage.Stored(1_000, "etag-1"), QUOTA, now).video().id();
+        UUID pending = videos.reserve(owner, intent(500, 1), QUOTA, now).intentId();
+        Instant later = now.plusSeconds(2_000);
+
+        assertThat(videos.restamp(member(), intent, new VideoStorage.Stored(1_200, "etag-x"), later)).as("남의 예약").isNull();
+        assertThat(videos.restamp(owner, pending, new VideoStorage.Stored(500, "etag-x"), later)).as("확정 전").isNull();
+        assertThat(jdbc.queryForObject("SELECT etag FROM upload_intents WHERE id=?", String.class, pending)).isNull();
+        assertThat(jdbc.queryForObject("SELECT etag FROM upload_intents WHERE id=?", String.class, intent)).isEqualTo("etag-1");
+
+        VideoView restamped = videos.restamp(owner, intent, new VideoStorage.Stored(1_200, "etag-2"), later);
+
+        assertThat(restamped).isEqualTo(videos.find(owner, id));
+        assertThat(restamped.byteSize()).isEqualTo(1_200);
+        assertThat(instant("SELECT updated_at FROM videos WHERE id=?", id)).isEqualTo(later);
+        assertThat(jdbc.queryForObject("SELECT etag FROM upload_intents WHERE id=?", String.class, intent)).isEqualTo("etag-2");
+        assertThat(instant("SELECT finalized_at FROM upload_intents WHERE id=?", intent)).isEqualTo(now);
+
+        videos.purgeFile(owner, id, later);
+        videos.restamp(owner, intent, new VideoStorage.Stored(1_500, "etag-3"), later.plusSeconds(1));
+        assertThat(jdbc.queryForObject("SELECT byte_size FROM videos WHERE id=?", Long.class, id)).isEqualTo(1_200L);
+    }
+
+    @Test
     @DisplayName("총량은 파기하지 않은 자기 영상의 바이트 합이다. 합이 상한과 같아지는 예약·확정은 통과하고 넘으면 QUOTA 다")
     void quotaCountsOnlyUnpurgedOwnBytesAndAllowsReachingTheLimit() {
         UUID owner = member();
@@ -427,6 +455,10 @@ class VideoRepositoryIT {
         soft.assertThat(statementsOf(() -> videos.complete(owner, intent[0], new VideoStorage.Stored(100, "e"), QUOTA, now)))
                 .as("확정된 예약의 재전송")
                 .containsExactly("select users for update of ue1_0", "select upload_intents for update", "select videos");
+        soft.assertThat(statementsOf(() -> videos.restamp(owner, intent[0], new VideoStorage.Stored(100, "e2"), now)))
+                .as("같은 키에 다시 올라온 객체")
+                .containsExactly("select users for update of ue1_0", "update upload_intents returning", "update videos",
+                        "select videos");
         UUID late = videos.reserve(owner, intent(100, 1), QUOTA, now).intentId();
         soft.assertThat(statementsOf(() -> videos.expireIntent(owner, late, now)))
                 .containsExactly("select upload_intents for update", "update upload_intents");

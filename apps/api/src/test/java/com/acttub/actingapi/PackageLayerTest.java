@@ -95,9 +95,9 @@ class PackageLayerTest {
             Map.entry("auth", FOUR_LAYERS),
             Map.entry("consent", FOUR_LAYERS),
             Map.entry("memory", FOUR_LAYERS),
-            // 이탈 설문(SOMA-546). 값 규칙(화면·계기·길이)은 app 의 상수 묶음이고 Schema Entity 는 없다 —
-            // 새 표는 native SQL 로 읽고 쓴다(V14 의 다른 연습 표들과 같다, EntityMappingIT 의 대기 목록).
-            Map.entry("feedback", Set.of("app", "adapter")),
+            // 이탈 설문(SOMA-546). 값 규칙(화면·계기·길이)은 app 의 상수 묶음이다. 표는 JPA 로 읽고 쓰고 접수만
+            // native 다(SOMA-1172).
+            Map.entry("feedback", Set.of("app", "adapter", "schema")),
             // 웹 문의하기(SOMA-834). 값 규칙은 app 의 상수 묶음이고 새 표는 native SQL 로 읽고 쓴다(Schema Entity 없음).
             Map.entry("support", Set.of("app", "adapter", "schema")),
             // 푸시 토큰에는 행위 규칙이 없다 — 등록은 upsert, 해제는 delete, 발송은 위탁이라
@@ -112,8 +112,8 @@ class PackageLayerTest {
             Map.entry("audition", Set.of("domain", "app", "adapter", "schema")),
             // PG 심사 전용 테스트 결제(SOMA-620). 메모리 세션과 토스 호출뿐이라 DB·Schema Entity·Domain Model 이 없다.
             Map.entry("billing", Set.of("app", "adapter", "schema")),
-            // 앱 광고 칸(SOMA-876). 칸 목록·고르는 순서·A/B 배정이 domain 에 산다. 표는 native SQL 로만 읽고 쓴다.
-            Map.entry("ads", Set.of("domain", "app", "adapter")),
+            // 앱 광고 칸(SOMA-876). 칸 목록·고르는 순서·A/B 배정이 domain 에 산다. 표는 JPA 로 읽고 쓴다(SOMA-1172).
+            Map.entry("ads", FOUR_LAYERS),
             // 앱 설정(SOMA-939). 운영 값 묶음과 칸 검사만 있어 저장소·규칙 층이 없다 — 파일을 읽어 내려준다.
             Map.entry("appconfig", Set.of("app", "adapter")));
 

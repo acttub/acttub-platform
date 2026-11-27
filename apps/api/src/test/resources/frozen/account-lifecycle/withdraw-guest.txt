@@ -199,7 +199,7 @@ practice_feedback: 2행 → 2행
 practice_reminder_sends: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
-  - <본인>, 2026-11-19, 'practice'
+  - <본인>, 1998-11-19, 'practice'
 practice_reports: 2행 → 2행
 practice_sessions: 2행 → 2행
   user_id=본인: 1 → 1
@@ -241,7 +241,7 @@ reading_sessions: 2행 → 1행
 reading_voice_usage: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
-  - <본인>, 2026-11-19
+  - <본인>, 1998-11-19
 refresh_tokens: 4행 → 4행
   user_id=본인: 2 → 2
   user_id=남: 2 → 2
@@ -279,7 +279,7 @@ upload_intents: 4행 → 4행
 user_active_days: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
-  - <본인>, 2026-11-19
+  - <본인>, 1998-11-19
 user_airbridge_device_lookups: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
@@ -311,7 +311,7 @@ user_profiles: 2행 → 2행
   ~ <본인>
       age_band: NULL → 25
       bio: '입시 준비 중입니다' → NULL
-      birth_date: 1999-03-02 → NULL
+      birth_date: 1971-03-02 → NULL
       name: '본인 배우' → NULL
       notify_analysis_done: true → false
       notify_challenge: true → false

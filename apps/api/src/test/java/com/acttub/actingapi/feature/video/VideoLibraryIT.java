@@ -178,6 +178,29 @@ class VideoLibraryIT {
     }
 
     @Test
+    @DisplayName("practice.record: 확정 응답을 못 받은 기기가 31분 뒤 같은 요청 id 로 자리를 다시 받아 같은 키에 다시 압축한 파일을 올리고 "
+            + "다시 마무리 — 200 같은 영상, 행 하나이고 분석·코치가 견주는 검증값은 새 파일의 것이다(SOMA-1137)")
+    void practiceRecord_aReuploadAfterFinalizationRestampsTheEtag() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        JsonNode intent = json(post("/v2/videos/intents").content(intentBody(requestId, "video/mp4", 1_000_000, 12_000)), 201);
+        deviceUploads(intent, 1_000_000);
+        String key = jdbc.queryForObject("SELECT object_key FROM upload_intents WHERE id=?", String.class, intentId(intent));
+        JsonNode created = json(post("/v2/videos/intents/{id}/complete", intentId(intent)), 201);
+        UUID video = UUID.fromString(created.path("id").stringValue(null));
+        assertThat(comparedEtag(video)).isEqualTo(storage.head(key).etag());
+
+        clock.advance(VideoRules.INTENT_TTL.plusMinutes(1));
+        JsonNode again = json(post("/v2/videos/intents").content(intentBody(requestId, "video/mp4", 1_000_000, 12_000)), 201);
+        assertThat(intentId(again)).as("같은 예약이 같은 키의 주소를 다시 준다").isEqualTo(intentId(intent));
+        storage.etags.put(key, "etag-recompressed");
+        JsonNode replayed = json(post("/v2/videos/intents/{id}/complete", intentId(intent)), 200);
+
+        assertThat(replayed.path("id").stringValue(null)).isEqualTo(video.toString());
+        assertThat(comparedEtag(video)).isEqualTo("etag-recompressed");
+        assertThat(count("videos")).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("practice.record: 얼굴 가리기를 켜고 올린 영상의 마무리 — 본문 face_mosaic true 를 받아 201 로 영상을 만든다. "
             + "본문의 모르는 키는 422 이고 영상이 생기지 않는다")
     void practiceRecord_completeAcceptsFaceMosaic() throws Exception {
@@ -717,6 +740,12 @@ class VideoLibraryIT {
 
     private UUID intentId(JsonNode intent) {
         return UUID.fromString(intent.path("intent_id").stringValue(null));
+    }
+
+    /** 분석({@code PostgresPracticeAnalysisStore})·코치({@code PostgresCoachVideoSource})가 내려받은 파일과 견주는 검증값. */
+    private String comparedEtag(UUID videoId) {
+        return jdbc.queryForObject(
+                "SELECT etag FROM upload_intents WHERE video_id=? ORDER BY finalized_at DESC LIMIT 1", String.class, videoId);
     }
 
     /** 기기가 서명 주소로 PUT 하는 자리 — 가짜 저장소에 직접 넣는다. */

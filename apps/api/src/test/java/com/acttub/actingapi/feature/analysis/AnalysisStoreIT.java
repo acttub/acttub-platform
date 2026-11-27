@@ -216,7 +216,8 @@ class AnalysisStoreIT {
         soft.assertThat(statementsOf(() -> store.getContext(pending))).containsExactly("select ai_jobs");
         UUID lease = UUID.randomUUID();
         soft.assertThat(statementsOf(() -> store.claimNext(lease, LEASE, now)))
-                .containsExactly("with select for update skip locked");
+                .as("작업 장부의 선점은 잠가 읽기와 임대 적기 두 문장이다(SOMA-1172)")
+                .containsExactly("select ai_jobs for update of aje1_0 skip locked", "update ai_jobs");
         soft.assertThat(statementsOf(() -> store.complete(pending, lease, new AnalysisResult(pack(List.of()), false, 9_000),
                 "model-a", now)))
                 .containsExactly(
@@ -251,7 +252,8 @@ class AnalysisStoreIT {
         soft.assertThat(statementsOf(() -> store.fail(failing, failingLease, "timeout", "timeout", now)))
                 .containsExactly("select ai_jobs", "update ai_jobs", "update practices");
         soft.assertThat(statementsOf(() -> store.sweepMaxAttempts(now)))
-                .containsExactly("select ai_jobs", "update ai_jobs", "update ai_jobs returning");
+                .as("시한 지난 작업 닫기는 잠가 읽고, 닫을 것이 없으면 거기서 끝난다(SOMA-1172)")
+                .containsExactly("select ai_jobs", "update ai_jobs", "select ai_jobs for update of aje1_0");
         soft.assertAll();
     }
 

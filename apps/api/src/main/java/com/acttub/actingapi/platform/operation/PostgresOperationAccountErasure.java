@@ -49,8 +49,9 @@ class PostgresOperationAccountErasure implements AccountErasure {
     /** 작업의 행은 계정 행을 가리킨 채 남는다(외래 키에 ON DELETE 가 없다). */
     @Override
     public boolean hasRecords(UUID userId) {
-        return !entityManager.createNativeQuery("SELECT 1 FROM ai_jobs WHERE user_id=:userId LIMIT 1")
+        return !entityManager.createQuery("select 1 from AiJobEntity j where j.userId = :userId")
                 .setParameter("userId", userId)
+                .setMaxResults(1)
                 .getResultList()
                 .isEmpty()
                 || !entityManager.createQuery("select o.id from ExternalOperationEntity o where o.userId = :userId", UUID.class)

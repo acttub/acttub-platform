@@ -65,8 +65,8 @@ class DeletedPracticeVideoPurge {
      * @return 장부에 올린 객체 삭제들
      */
     List<UUID> purgeExpired(Instant deletedBefore, Instant now) {
-        entityManager.createNativeQuery("DELETE FROM practice_deletion_marks WHERE deleted_at<:cutoff")
-                .setParameter("cutoff", now.minus(MARK_RETENTION).atOffset(ZoneOffset.UTC))
+        entityManager.createQuery("delete from PracticeDeletionMarkEntity m where m.deletedAt < :cutoff")
+                .setParameter("cutoff", now.minus(MARK_RETENTION))
                 .executeUpdate();
         return purge(NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT d.video_id,d.user_id,v.object_key,v.poster_key,v.purged_at
@@ -96,7 +96,7 @@ class DeletedPracticeVideoPurge {
 
     /** 탈퇴하면 무료 횟수 표시는 쓸 데가 없다. */
     void forgetMarksOf(UUID userId) {
-        entityManager.createNativeQuery("DELETE FROM practice_deletion_marks WHERE user_id=:userId")
+        entityManager.createQuery("delete from PracticeDeletionMarkEntity m where m.userId = :userId")
                 .setParameter("userId", userId)
                 .executeUpdate();
     }
@@ -113,7 +113,7 @@ class DeletedPracticeVideoPurge {
                 videos.purgeFile(video.id(), now);
                 scheduled.add(cleanups.scheduleObjectDelete(row.get("user_id", UUID.class), video.objectKeys(), now, now));
             }
-            entityManager.createNativeQuery("DELETE FROM deleted_practice_videos WHERE video_id=:videoId")
+            entityManager.createQuery("delete from DeletedPracticeVideoEntity d where d.videoId = :videoId")
                     .setParameter("videoId", video.id())
                     .executeUpdate();
         }

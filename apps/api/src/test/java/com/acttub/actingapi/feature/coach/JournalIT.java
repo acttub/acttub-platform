@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.coach;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -32,6 +33,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -113,8 +115,8 @@ class JournalIT {
     }
 
     @Test
-    @DisplayName("practice.journal: 대화가 없는 회차의 일지는 모델을 부르지 않고 ready 다. 옛 서버가 쓴 skipped 행도 ready 로 읽는다")
-    void create_withoutConversationIsReadyAndOldSkippedRowsReadAsReady() throws Exception {
+    @DisplayName("practice.journal: 대화가 없는 회차의 일지는 모델을 부르지 않고 ready 다. 옛 값 skipped 는 CHECK 가 막는다")
+    void create_withoutConversationIsReadyAndSkippedIsRejected() throws Exception {
         UUID quiet = practice(member);
         MODEL.set(null);
         JsonNode made = json(post("/v2/practices/{id}/journal", quiet).content(ANSWERS), 201);
@@ -123,10 +125,9 @@ class JournalIT {
         assertThat(jdbc.queryForObject("SELECT draft_status FROM actor_journals WHERE practice_id=?", String.class, quiet))
                 .isEqualTo("ready");
 
-        // 배포가 겹치는 동안 옛 서버가 남긴 행(CHECK 에는 아직 skipped 가 있다).
-        jdbc.update("UPDATE actor_journals SET draft_status='skipped' WHERE practice_id=?", quiet);
-        assertThat(LenientJson.asText(json(get("/v2/practices/{id}/journal", quiet), 200).path("draft_status")))
-                .isEqualTo("ready");
+        assertThatThrownBy(() -> jdbc.update("UPDATE actor_journals SET draft_status='skipped' WHERE practice_id=?", quiet))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_actor_journals_draft_status");
     }
 
     @Test

@@ -1,6 +1,5 @@
 package com.acttub.actingapi.feature.feedback.adapter.db;
 
-import java.time.ZoneOffset;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -31,14 +30,14 @@ class PostgresFeedbackPracticeGroupPart implements PracticeGroupErasurePart {
 
     @Override
     public void erase(PracticeGroupErasureStep step, ErasedPracticeGroup group) {
-        entityManager.createNativeQuery("""
-                UPDATE practice_feedback
-                SET contact_email=NULL,contact_phone=NULL,user_id=:keeper,
-                    sheet_seq=sheet_seq+1,sheet_synced_at=NULL,updated_at=:now
-                WHERE practice_id IN (:practiceIds)
+        entityManager.createQuery("""
+                update PracticeFeedbackEntity f
+                set f.contactEmail = null, f.contactPhone = null, f.userId = :keeper,
+                    f.sheetSeq = f.sheetSeq + 1, f.sheetSyncedAt = null, f.updatedAt = :now
+                where f.practiceId in :practiceIds
                 """)
                 .setParameter("keeper", group.keeper())
-                .setParameter("now", group.now().atOffset(ZoneOffset.UTC))
+                .setParameter("now", group.now())
                 .setParameter("practiceIds", group.practiceIds())
                 .executeUpdate();
     }

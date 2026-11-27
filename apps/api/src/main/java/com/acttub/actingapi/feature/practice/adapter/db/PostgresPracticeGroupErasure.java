@@ -1,7 +1,6 @@
 package com.acttub.actingapi.feature.practice.adapter.db;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -96,15 +95,15 @@ class PostgresPracticeGroupErasure implements PracticeGroupErasure, DeletedPract
 
             // 지운 회차의 시각은 남겨 오늘 쓴 무료 코칭 횟수에서 빠지지 않게 한다.
             for (Object[] practice : practices) {
-                entityManager.createNativeQuery("""
-                        INSERT INTO practice_deletion_marks(id,user_id,practice_created_at,from_reading,deleted_at)
-                        VALUES (:id,:userId,:createdAt,:fromReading,:now)
+                entityManager.createQuery("""
+                        insert into PracticeDeletionMarkEntity (id, userId, practiceCreatedAt, fromReading, deletedAt)
+                        values (:id, :userId, :createdAt, :fromReading, :now)
                         """)
                         .setParameter("id", UUID.randomUUID())
                         .setParameter("userId", userId)
-                        .setParameter("createdAt", ((Instant) practice[1]).atOffset(ZoneOffset.UTC))
+                        .setParameter("createdAt", (Instant) practice[1])
                         .setParameter("fromReading", practice[2] != null)
-                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                        .setParameter("now", now)
                         .executeUpdate();
             }
 
@@ -118,14 +117,14 @@ class PostgresPracticeGroupErasure implements PracticeGroupErasure, DeletedPract
                 }
                 if (!video.purged()) {
                     if (retain) {
-                        entityManager.createNativeQuery("""
-                                INSERT INTO deleted_practice_videos(video_id,user_id,deleted_at)
-                                VALUES (:videoId,:userId,:now)
-                                ON CONFLICT (video_id) DO NOTHING
+                        entityManager.createQuery("""
+                                insert into DeletedPracticeVideoEntity (videoId, userId, deletedAt)
+                                values (:videoId, :userId, :now)
+                                on conflict (videoId) do nothing
                                 """)
                                 .setParameter("videoId", video.id())
                                 .setParameter("userId", userId)
-                                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                                .setParameter("now", now)
                                 .executeUpdate();
                     } else {
                         videos.purgeFile(video.id(), now);

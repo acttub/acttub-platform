@@ -18,9 +18,13 @@ if [ "$resolved" = prod ] && [ "${GITHUB_REF:-}" != refs/heads/main ]; then
 fi
 [[ "${GITHUB_SHA:-}" =~ ^[0-9a-f]{40}$ ]] || fail "GITHUB_SHA 는 40자 커밋 SHA 여야 한다"
 base="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+# 채점 서비스는 커밋 sha 가 아니라 apps/pron 트리 해시로 태그한다. 이미지가 수 GB 라 apps/pron 이 그대로면 굽지도
+# 당기지도 않고 컨테이너도 그대로 둔다. 워크플로는 GITHUB_SHA 를 체크아웃하므로 HEAD 가 그 커밋이다.
+pron_tree="$(git -C "$(dirname "$0")/.." rev-parse HEAD:apps/pron)" || fail "apps/pron 트리 해시를 읽지 못했다"
 {
   echo "api_image=$base/api:$GITHUB_SHA"
   echo "web_image=$base/web:$resolved-$GITHUB_SHA"
   echo "backup_image=$base/backup:$GITHUB_SHA"
+  echo "pron_image=$base/pron:$pron_tree"
 } >> "$GITHUB_OUTPUT"
 echo "배포 환경: $resolved / 경로: home / ref: $GITHUB_REF"
