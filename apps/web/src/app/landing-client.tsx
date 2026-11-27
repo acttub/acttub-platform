@@ -8,7 +8,7 @@ import { useAppDownloadHref } from "@/features/app-download/app-download-button"
 import { HeroAppInstall } from "@/features/app-download/hero-app-install";
 import { StickyDownloadBar } from "@/features/app-download/sticky-download-bar";
 import { StoreBadges } from "@/features/app-download/store-badges";
-import { findFaq, PAYMENT_START_NOTICE } from "@/features/help/help-content";
+import { findFaq } from "@/features/help/help-content";
 import { useScrollSettle } from "@/features/site/scroll-settle";
 import { LandingHeroB } from "@/features/site/landing-hero-b";
 import { DEFAULT_HERO_MEDIA, type HeroMedia } from "@/features/site/landing-hero-media";
@@ -258,12 +258,11 @@ export default function LandingClient({
               무료로 시작하고, 더 하고 싶을 때 Pro
             </h2>
             <p className="mt-3 text-base text-[#4e5968] sm:text-[17px]">무료로도 매일 코칭을 받아요. Pro는 횟수 제한 없이, 상위 AI 모델로 더 자세히 코칭해요.</p>
-            <p className="mt-2 text-sm text-[#8a4b00]">{PAYMENT_START_NOTICE}</p>
             <div className="mt-8 grid gap-4 md:grid-cols-2 md:gap-5">
               <div className="rounded-3xl border border-[#e5e8eb] bg-white p-6 sm:p-[30px]">
                 <h3 className="text-lg font-extrabold">무료</h3>
                 <p className="mt-2 text-[34px] font-extrabold tracking-[-0.03em]">0원</p>
-                <p className="text-[13.5px] text-[#6b7684]">출시 후 무료 이용 범위 · 지금은 한도를 적용하지 않아요</p>
+                <p className="text-[13.5px] text-[#6b7684]">카드 등록 없이 무료로 써요</p>
                 <ul className="mt-5 divide-y divide-[#edf0f3] border-t border-[#edf0f3] text-[15.5px] text-[#333d4b]">
                   <li className="py-2.5">코칭 하루 3회</li>
                   <li className="py-2.5">리딩 대본 3개 보관</li>
@@ -280,7 +279,7 @@ export default function LandingClient({
                   <li className="py-2.5">코칭 횟수 제한 없음</li>
                   <li className="py-2.5">리딩 대본 개수 제한 없음</li>
                   <li className="py-2.5">상위 AI 모델·습관을 기억하는 코칭·더 자세한 코칭 노트</li>
-                  <li className="py-2.5">발음 보고서 (준비 중)</li>
+                  <li className="py-2.5">리딩 발음 보고서</li>
                 </ul>
               </div>
             </div>
