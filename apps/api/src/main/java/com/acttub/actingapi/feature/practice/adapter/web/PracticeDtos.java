@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.practice.adapter.web;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.practice.app.PracticeViews;
@@ -10,6 +11,7 @@ import com.acttub.actingapi.feature.practice.app.PracticeViews.JobView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.PracticeView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.StatusView;
 import com.acttub.actingapi.feature.practice.domain.PracticeRules;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -159,9 +161,13 @@ final class PracticeDtos {
             @Schema(nullable = true) JobResponse job,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             List<PreviousConversationResponse> previousConversations,
-            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character", "concern", "reading"}) String sessionPurpose) {
+            @Schema(nullable = true, allowableValues = {"evaluate", "stuck", "character", "concern", "reading"}) String sessionPurpose,
+            // 코칭 탭 진행 표시(SOMA-810). 스위치가 꺼져 있으면 키째 없고(자바 null), 켜져 있으면 늘 실린다 — 영상이 없거나 길이를
+            // 모르면 JSON null(Optional.empty)이다.
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            @Schema(implementation = Integer.class, nullable = true) Optional<Integer> videoDurationMs) {
 
-        static PracticeResponse of(PracticeView view) {
+        static PracticeResponse of(PracticeView view, boolean coachingProgress) {
             return new PracticeResponse(
                     view.id(), view.rootId(), view.ordinal(), view.videoId(), view.posterUrl(), view.stage(),
                     view.closeReason(),
@@ -170,7 +176,8 @@ final class PracticeDtos {
                     view.analysisStatus(), view.conversationId(), view.conversationStatus(), view.conversationCount(),
                     view.noteId(), view.noteTitle(), view.noteKind(), JobResponse.of(view.job()),
                     view.previousConversations().stream().map(PreviousConversationResponse::of).toList(),
-                    view.sessionPurpose());
+                    view.sessionPurpose(),
+                    coachingProgress ? Optional.ofNullable(view.videoDurationMs()) : null);
         }
     }
 
@@ -207,13 +214,20 @@ final class PracticeDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean favorite,
             @Schema(nullable = true) Instant hiddenAt,
             @Schema(nullable = true) UUID inProgressPracticeId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<PracticeResponse> practices) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<PracticeResponse> practices,
+            // 코칭 탭의 「n/3번 해 봤어요」(SOMA-810). 스위치가 꺼져 있으면 둘 다 키째 없다. 켜져 있으면 practice_count 는 노트가
+            // 생긴 회차 수이고 옛 자료 묶음이면 JSON null, practice_goal 은 늘 PracticeRules.SCENE_PRACTICE_GOAL 이다.
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            @Schema(implementation = Integer.class, nullable = true) Optional<Integer> practiceCount,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Integer practiceGoal) {
 
-        static GroupResponse of(GroupView view) {
+        static GroupResponse of(GroupView view, boolean coachingProgress) {
             return new GroupResponse(
                     view.rootId(), view.title(), view.ordinalCount(), view.lastConversationAt(), view.tags(),
                     view.favorite(), view.hiddenAt(), view.inProgressPracticeId(),
-                    view.practices().stream().map(PracticeResponse::of).toList());
+                    view.practices().stream().map(practice -> PracticeResponse.of(practice, coachingProgress)).toList(),
+                    coachingProgress ? Optional.ofNullable(view.practicedCount()) : null,
+                    coachingProgress ? PracticeRules.SCENE_PRACTICE_GOAL : null);
         }
     }
 

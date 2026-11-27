@@ -4384,6 +4384,8 @@ export interface components {
             previous_conversations: components["schemas"]["PreviousConversation"][];
             /** Session Purpose */
             session_purpose?: ("evaluate" | "stuck" | "character" | "concern" | "reading") | null;
+            /** Video Duration Ms */
+            video_duration_ms?: number | null;
         };
         /** PracticeJob */
         PracticeJob: {
@@ -5713,6 +5715,10 @@ export interface components {
             in_progress_practice_id?: string | null;
             /** Practices */
             practices: components["schemas"]["Practice"][];
+            /** Practice Count */
+            practice_count?: number | null;
+            /** Practice Goal */
+            practice_goal?: number;
         };
         /** PortfolioCreditPatch */
         PortfolioCreditPatch: {
