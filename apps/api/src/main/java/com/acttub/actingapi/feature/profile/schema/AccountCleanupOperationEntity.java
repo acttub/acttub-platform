@@ -16,8 +16,8 @@ import jakarta.persistence.Table;
  * <p>끝난 것은 남지 않는다 — 성공하면 지우고, 7일이 지나면 값과 함께 지운다. {@code payloadEncrypted}
  * 는 해제에 쓸 값의 암호문이고 접두사가 어느 키로 만들었는지를 말한다. 평문을 넣지 않는다.
  *
- * <p>집고 미루는 일은 {@code FOR UPDATE SKIP LOCKED} 가 필요해 native SQL 로 한다
- * ({@code PostgresAccountCleanupRepository}). 이 Entity 는 스키마 검증과 매핑의 자리다.
+ * <p>넣기는 HQL insert 다({@code PostgresObjectCleanupLedger}). 집고 적고 지우는 일은 같은 문장에서 행을 돌려받고
+ * ({@code RETURNING}) 집기는 {@code FOR UPDATE SKIP LOCKED} 로 골라 native SQL 로 한다({@code PostgresAccountCleanupRepository}).
  */
 @Entity
 @Table(name = "account_cleanup_operations")

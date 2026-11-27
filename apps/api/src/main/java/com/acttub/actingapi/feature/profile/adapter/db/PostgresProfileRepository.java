@@ -195,19 +195,17 @@ class PostgresProfileRepository
             if (saved == 0) {
                 return null;
             }
-            entityManager.createNativeQuery("""
-                    DELETE FROM user_profile_directions
-                    WHERE user_id=:userId
-                    """)
+            entityManager.createQuery("delete from UserProfileDirectionEntity d where d.userId = :userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
             for (String direction : profile.directions()) {
-                entityManager.createNativeQuery("""
-                        INSERT INTO user_profile_directions(user_id,direction)
-                        VALUES (:userId,:direction)
-                        """)
+                entityManager.createQuery("""
+                                insert into UserProfileDirectionEntity (id, userId, direction)
+                                values (:id, :userId, :direction)
+                                """)
+                        .setParameter("id", UUID.randomUUID())
                         .setParameter("userId", userId)
-                        .setParameter("direction", direction)
+                        .setParameter("direction", ActingDirection.valueOf(direction.toUpperCase(Locale.ROOT)))
                         .executeUpdate();
             }
             return find(userId);
@@ -273,23 +271,25 @@ class PostgresProfileRepository
 
     @Override
     public int deleteExpiredWebAttributions(Instant before) {
-        return transaction.execute(status -> entityManager.createNativeQuery("""
-                DELETE FROM user_signup_attributions
-                WHERE source='web_utm'
-                  AND recorded_at<:before
-                """)
-                .setParameter("before", before.atOffset(ZoneOffset.UTC))
+        return transaction.execute(status -> entityManager.createQuery("""
+                        delete from UserSignupAttributionEntity a
+                        where a.source = 'web_utm'
+                          and a.recordedAt < :before
+                        """)
+                .setParameter("before", before)
                 .executeUpdate());
     }
 
     @Override
     public NotificationSettings notificationSettings(UUID userId) {
-        List<Tuple> rows = list(entityManager.createNativeQuery("""
-                SELECT notify_analysis_done,notify_challenge,notify_evening_reminder
-                FROM user_profiles
-                WHERE user_id=:userId
-                """, Tuple.class)
-                .setParameter("userId", userId));
+        List<Tuple> rows = entityManager.createQuery("""
+                        select p.notifyAnalysisDone as notify_analysis_done, p.notifyChallenge as notify_challenge,
+                               p.notifyEveningReminder as notify_evening_reminder
+                        from UserProfileEntity p
+                        where p.userId = :userId
+                        """, Tuple.class)
+                .setParameter("userId", userId)
+                .getResultList();
         return rows.isEmpty() ? null : settings(rows.getFirst());
     }
 
@@ -304,15 +304,15 @@ class PostgresProfileRepository
             if (!lockActive(userId)) {
                 return false;
             }
-            entityManager.createNativeQuery("""
-                    INSERT INTO user_signup_attributions
-                        (user_id,source,platform,channel,medium,campaign,ad_group,ad_creative,content,term,sub_publisher,recorded_via)
-                    VALUES
-                        (:userId,:source,:platform,:channel,CAST(:medium AS text),
-                         CAST(:campaign AS text),CAST(:adGroup AS text),CAST(:adCreative AS text),
-                         CAST(:content AS text),CAST(:term AS text),CAST(:subPublisher AS text),:recordedVia)
-                    ON CONFLICT (user_id) DO NOTHING
-                    """)
+            entityManager.createQuery("""
+                            insert into UserSignupAttributionEntity
+                                (userId, source, platform, channel, medium, campaign, adGroup, adCreative, content, term,
+                                 subPublisher, recordedVia)
+                            values
+                                (:userId, :source, :platform, :channel, :medium, :campaign, :adGroup, :adCreative, :content,
+                                 :term, :subPublisher, :recordedVia)
+                            on conflict (userId) do nothing
+                            """)
                     .setParameter("userId", userId)
                     .setParameter("source", attribution.source())
                     .setParameter("platform", attribution.platform())
@@ -340,12 +340,12 @@ class PostgresProfileRepository
             if (!lockActive(userId)) {
                 return false;
             }
-            entityManager.createNativeQuery("""
-                    INSERT INTO user_airbridge_device_lookups (user_id,platform,device_uuid)
-                    SELECT :userId,:platform,:deviceUuid
-                    WHERE NOT EXISTS (SELECT 1 FROM user_signup_attributions WHERE user_id=:userId)
-                    ON CONFLICT (user_id) DO NOTHING
-                    """)
+            entityManager.createQuery("""
+                            insert into UserAirbridgeDeviceLookupEntity (userId, platform, deviceUuid)
+                            select :userId, :platform, :deviceUuid
+                            where not exists (select 1 from UserSignupAttributionEntity a where a.userId = :userId)
+                            on conflict do nothing
+                            """)
                     .setParameter("userId", userId)
                     .setParameter("platform", platform)
                     .setParameter("deviceUuid", deviceUuid)
@@ -364,11 +364,11 @@ class PostgresProfileRepository
             if (!lockActive(userId)) {
                 return false;
             }
-            entityManager.createNativeQuery("""
-                    INSERT INTO user_discovery_answers (user_id,source,detail,other_text)
-                    VALUES (:userId,CAST(:source AS text),CAST(:detail AS text),CAST(:otherText AS text))
-                    ON CONFLICT (user_id) DO NOTHING
-                    """)
+            entityManager.createQuery("""
+                            insert into UserDiscoveryAnswerEntity (userId, source, detail, otherText)
+                            values (:userId, :source, :detail, :otherText)
+                            on conflict (userId) do nothing
+                            """)
                     .setParameter("userId", userId)
                     .setParameter("source", answer.source())
                     .setParameter("detail", answer.detail())
@@ -384,10 +384,10 @@ class PostgresProfileRepository
      */
     @Override
     public void discardTransferredGuest(UUID guestId) {
-        entityManager.createNativeQuery("DELETE FROM user_signup_attributions WHERE user_id=:guestId")
+        entityManager.createQuery("delete from UserSignupAttributionEntity a where a.userId = :guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM user_airbridge_device_lookups WHERE user_id=:guestId")
+        entityManager.createQuery("delete from UserAirbridgeDeviceLookupEntity l where l.userId = :guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
     }
@@ -395,7 +395,7 @@ class PostgresProfileRepository
     /** 가입 직후 답한 유입 경로도 회원에게 옮기지 않는다. */
     @Override
     public void discardTransferredGuestAnswer(UUID guestId) {
-        entityManager.createNativeQuery("DELETE FROM user_discovery_answers WHERE user_id=:guestId")
+        entityManager.createQuery("delete from UserDiscoveryAnswerEntity a where a.userId = :guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
     }
@@ -494,14 +494,16 @@ class PostgresProfileRepository
 
     @Override
     public PhotoUpload pendingPhotoUpload(UUID userId) {
-        List<Tuple> rows = list(entityManager.createNativeQuery("""
-                SELECT photo_upload_key,photo_upload_mime_type,
-                       photo_upload_size_bytes,photo_upload_expires_at
-                FROM user_profiles
-                WHERE user_id=:userId
-                  AND photo_upload_key IS NOT NULL
-                """, Tuple.class)
-                .setParameter("userId", userId));
+        List<Tuple> rows = entityManager.createQuery("""
+                        select p.photoUploadKey as photo_upload_key, p.photoUploadMimeType as photo_upload_mime_type,
+                               p.photoUploadSizeBytes as photo_upload_size_bytes,
+                               p.photoUploadExpiresAt as photo_upload_expires_at
+                        from UserProfileEntity p
+                        where p.userId = :userId
+                          and p.photoUploadKey is not null
+                        """, Tuple.class)
+                .setParameter("userId", userId)
+                .getResultList();
         if (rows.isEmpty()) {
             return null;
         }

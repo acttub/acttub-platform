@@ -6,9 +6,15 @@
 export type Notice = { date: string; title: string; body: string; href?: string };
 
 /** 결제 시작 안내. /pricing 의 문구와 같게 둔다(시작일 2026-11-01 확정, SOMA-818). */
-export const PAYMENT_START_NOTICE = "2026년 11월 1일부터 결제를 시작해요. 그 전에는 결제되지 않아요.";
+export const PAYMENT_START_NOTICE = "2026년 11월 1일부터 결제를 시작했어요.";
 
 export const NOTICES: Notice[] = [
+  {
+    date: "2026-11-27",
+    title: "ACTTUB Pro 결제는 11월 1일부터 시작했어요",
+    body: "월 3,900원(부가세 포함)이고, 앱(App Store·Google Play)에서는 연 32,500원 연 구독도 있어요. 무료 이용 범위와 해지·환불 기준은 요금 안내에서 볼 수 있어요.",
+    href: "/pricing",
+  },
   {
     date: "2026-10-25",
     title: "ACTTUB Pro 유료 결제는 11월 시작을 준비하고 있어요",
@@ -43,7 +49,7 @@ export const FAQ: FaqCategory[] = [
     items: [
       {
         q: "ACTTUB Pro는 얼마인가요?",
-        a: "월 3,900원(부가세 포함)이고, 결제일부터 1개월마다 정기결제돼요. 앱(App Store·Google Play)에서는 연 32,500원 연 구독도 있어요. 결제는 2026년 11월 1일부터 시작해요.",
+        a: "월 3,900원(부가세 포함)이고, 결제일부터 1개월마다 정기결제돼요. 앱(App Store·Google Play)에서는 연 32,500원 연 구독도 있어요. 결제는 2026년 11월 1일부터 시작했어요.",
         href: "/pricing",
         hrefLabel: "요금 안내",
       },
