@@ -9,7 +9,7 @@ process.env.NEXT_PUBLIC_API_BASE_URL = "";
 const { canAgree, openSheet, submitSheet } = await import(
   "../src/features/consent/consent-sheet-flow.ts"
 );
-const { clearTokens, setTokens } = await import(
+const { clearTokens, setMemberTokens, setTokens } = await import(
   "../src/lib/auth/token-store.ts"
 );
 
@@ -263,6 +263,59 @@ test("account.consent: 동의 제출이 403 consent_required로 막혀도 시트
   } finally {
     unregister();
   }
+});
+
+function startMember() {
+  clearTokens();
+  setMemberTokens(
+    { access_token: "member-access", refresh_token: "member-refresh" },
+    { id: "member-1", email: "actor@example.com", status: "active" },
+    "google",
+  );
+}
+
+test("account.consent: 회원의 시트는 선택 문서까지 담고 나이 확인 줄을 두지 않는다", () => {
+  startMember();
+  const sheet = openSheet([
+    consentDocument("terms"),
+    consentDocument("data_sharing", { required: false }),
+  ]);
+
+  assert.equal(sheet.member, true);
+  assert.equal(sheet.askAge, false);
+  assert.deepEqual(
+    sheet.documents.map((document) => document.type),
+    ["terms", "data_sharing"],
+  );
+  assert.equal(canAgree(sheet, false), true);
+});
+
+test("account.consent: 선택 문서만 빠진 회원도 시트가 비지 않는다(새 data_sharing 판, 2026-11-27 QA)", () => {
+  startMember();
+  const sheet = openSheet([consentDocument("data_sharing", { required: false })]);
+
+  assert.equal(sheet.documents.length, 1);
+  assert.equal(canAgree(sheet, false), true);
+});
+
+test("account.consent: 회원이 동의하면 필수와 체크한 선택은 granted, 체크하지 않은 선택은 declined 로 보내고 age_confirmed 는 싣지 않는다", async () => {
+  startMember();
+  const bodies = recordConsents();
+  const sheet = openSheet([
+    consentDocument("terms"),
+    consentDocument("data_sharing", { required: false }),
+    consentDocument("marketing_email", { required: false }),
+  ]);
+
+  const result = await submitSheet(sheet, false, new Set(["marketing_email-document"]));
+
+  assert.deepEqual(result, { kind: "decided" });
+  assert.deepEqual(bodies, [
+    { document_id: "terms-document", action: "granted" },
+    { document_id: "data_sharing-document", action: "declined" },
+    { document_id: "marketing_email-document", action: "granted" },
+  ]);
+  assert.equal(window.localStorage.getItem("acttub.guest.age_confirmed"), null);
 });
 
 // 계측을 켤지는 서버의 동의 현황이 정한다(tests/analytics-consent.test.mjs). 시트는 그 판단에
