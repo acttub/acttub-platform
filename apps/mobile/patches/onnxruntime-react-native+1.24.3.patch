@@ -1,0 +1,32 @@
+diff --git a/node_modules/onnxruntime-react-native/ios/OnnxruntimeModule.mm b/node_modules/onnxruntime-react-native/ios/OnnxruntimeModule.mm
+index 8155f92..b78f295 100644
+--- a/node_modules/onnxruntime-react-native/ios/OnnxruntimeModule.mm
++++ b/node_modules/onnxruntime-react-native/ios/OnnxruntimeModule.mm
+@@ -10,6 +10,12 @@
+ #import <ReactCommon/RCTTurboModule.h>
+ #import <jsi/jsi.h>
+ 
++// acttub SOMA-1177: RN 0.88 에서 RCTCxxBridge 선언이 빠졌다. New Architecture 에서 이 모듈이 받는 _bridge(RCTBridgeProxy)는
++// 같은 -runtime 메서드를 그대로 가지므로 선언만 프로토콜로 둔다.
++@protocol OnnxruntimeJSIRuntimeProvider
++- (void *)runtime;
++@end
++
+ @implementation OnnxruntimeModule
+ 
+ @synthesize bridge = _bridge;
+@@ -27,12 +33,11 @@ - (void)setBridge:(RCTBridge*)bridge {
+  */
+ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(install) {
+   @try {
+-    RCTCxxBridge* cxxBridge = (RCTCxxBridge*)_bridge;
+-    if (cxxBridge == nil) {
++    if (_bridge == nil || ![_bridge respondsToSelector:@selector(runtime)]) {
+       return @false;
+     }
+ 
+-    auto jsiRuntime = (facebook::jsi::Runtime*)cxxBridge.runtime;
++    auto jsiRuntime = (facebook::jsi::Runtime*)[(id<OnnxruntimeJSIRuntimeProvider>)_bridge runtime];
+     if (jsiRuntime == nil) {
+       return @false;
+     }

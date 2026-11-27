@@ -29,3 +29,15 @@ test('음성 인식 녹음기: 초기화 안 된 녹음기는 들고 있지 않�
   // iOS 오디오 엔진 예외 패치(SOMA-916)는 그대로 둔다.
   assert.match(patch, /ExpoSpeechObjCCatcher/);
 });
+
+test('리딩 목소리(onnxruntime): RN 0.88 에서 빠진 RCTCxxBridge 대신 브리지의 runtime 을 프로토콜로 읽는다', () => {
+  // 1.24.3(최신)은 RCTCxxBridge 로 JSI 런타임을 꺼내 RN 0.88 에서 iOS 컴파일이 멈췄다(SOMA-1177).
+  const version = JSON.parse(read('package.json')).dependencies['onnxruntime-react-native'].replace(/^[~^]/, '');
+  const patch = read(`patches/onnxruntime-react-native+${version}.patch`);
+  assert.match(patch, /-\s+RCTCxxBridge\* cxxBridge = \(RCTCxxBridge\*\)_bridge;/);
+  assert.match(patch, /\+- \(void \*\)runtime;/);
+  assert.match(patch, /\+\s+auto jsiRuntime = \(facebook::jsi::Runtime\*\)\[\(id<OnnxruntimeJSIRuntimeProvider>\)_bridge runtime\];/);
+  // 설치된 소스에 실제로 들어갔는지 본다.
+  const installed = read('node_modules/onnxruntime-react-native/ios/OnnxruntimeModule.mm');
+  assert.doesNotMatch(installed, /RCTCxxBridge\*/);
+});
