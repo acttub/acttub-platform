@@ -174,6 +174,25 @@ test('공개를 고르면 얼굴 모자이크를 켤 수 있고(기본 꺼짐), 
   expect(await screen.findByText(/얼굴 모자이크를 만드는 중이에요\. 다 되면 다른 배우들에게 보여요\./)).toBeOnTheScreen();
 });
 
+test('나만 보기를 고르면 얼굴 가리고 공개를 제안하고, 누르면 공개·모자이크로 올린다(SOMA-1136)', async () => {
+  await render(<ChallengeUploadScreen />);
+  await screen.findByText('공개 범위');
+  // 공개(기본)에서는 제안이 없다.
+  expect(screen.queryByText('얼굴만 가리고 공개할 수도 있어요')).toBeNull();
+  await fireEvent.press(screen.getByRole('radio', { name: PRIVATE }));
+  expect(screen.getByText('얼굴만 가리고 공개할 수도 있어요')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('radio', { name: PUBLIC }));
+  await fireEvent.press(screen.getByRole('radio', { name: PRIVATE }));
+  // 노출은 화면당 한 번만 센다.
+  expect(events().filter(([name]) => name === 'challenge_mosaic_suggest_shown')).toHaveLength(1);
+  await fireEvent.press(screen.getByText('얼굴 가리고 공개로 올리기'));
+  expect(events()).toContainEqual(['challenge_mosaic_suggest_accepted', {}]);
+  expect(screen.queryByText('얼굴만 가리고 공개할 수도 있어요')).toBeNull();
+  expect(screen.getByLabelText('얼굴 모자이크').props.value).toBe(true);
+  await fireEvent.press(submitButton());
+  expect(createEntry).toHaveBeenCalledWith('c1', expect.objectContaining({ visibility: 'public', face_mosaic: true }));
+});
+
 test('비공개를 고르면 비공개로 저장하고 완료 문구가 다르다', async () => {
   const view = await render(<ChallengeUploadScreen />);
   await screen.findByText('공개 범위');
