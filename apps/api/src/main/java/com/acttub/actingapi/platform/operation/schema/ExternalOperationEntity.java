@@ -1,7 +1,11 @@
-package com.acttub.actingapi.platform.schema;
+package com.acttub.actingapi.platform.operation.schema;
 
 import java.time.Instant;
 import java.util.UUID;
+
+import com.acttub.actingapi.platform.schema.AppGeneratedUuidEntity;
+import com.acttub.actingapi.platform.schema.OperationKind;
+import com.acttub.actingapi.platform.schema.OperationStatus;
 import tools.jackson.databind.JsonNode;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Pattern;

@@ -13,6 +13,7 @@ import com.acttub.actingapi.feature.ads.schema.AdEventEntity;
 import com.acttub.actingapi.feature.ads.schema.AdServeEntity;
 import com.acttub.actingapi.feature.feedback.schema.PracticeFeedbackEntity;
 import com.acttub.actingapi.platform.operation.schema.AiJobEntity;
+import com.acttub.actingapi.platform.operation.schema.ExternalOperationEntity;
 import com.acttub.actingapi.feature.practice.schema.PracticeDeletionMarkEntity;
 import com.acttub.actingapi.feature.analysis.schema.AnalysisEntity;
 import com.acttub.actingapi.feature.billing.schema.BillingCheckoutEntity;
@@ -72,6 +73,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.jpa.repository.support.JpaEntityInformationSupport;
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -464,7 +466,8 @@ class EntityMappingIT {
                 UUID.randomUUID(), OperationKind.ANALYZE, OperationStatus.PENDING, "a".repeat(64));
         ExternalOperationEntity second = new ExternalOperationEntity(jsonNull, jsonNullPractice, user,
                 UUID.randomUUID(), OperationKind.ANALYZE, OperationStatus.PENDING, "b".repeat(64));
-        second.responsePayload = JsonNodeFactory.instance.nullNode();
+        // 이 매핑은 표의 주인(platform/operation) 안에 있어 칸을 이 패키지에서 바로 읽고 쓰지 못한다.
+        ReflectionTestUtils.setField(second, "responsePayload", JsonNodeFactory.instance.nullNode());
         entityManager.persist(first);
         entityManager.persist(second);
         UUID summaryId = UUID.randomUUID();
@@ -477,8 +480,10 @@ class EntityMappingIT {
                 Boolean.class, sqlNull)).isTrue();
         assertThat(jdbc.queryForObject("SELECT response_payload='null'::jsonb FROM external_operations WHERE id=?",
                 Boolean.class, jsonNull)).isTrue();
-        assertThat(entityManager.find(ExternalOperationEntity.class, sqlNull).responsePayload).isNull();
-        assertThat(entityManager.find(ExternalOperationEntity.class, jsonNull).responsePayload.isNull()).isTrue();
+        assertThat(ReflectionTestUtils.getField(entityManager.find(ExternalOperationEntity.class, sqlNull), "responsePayload"))
+                .isNull();
+        assertThat(ReflectionTestUtils.getField(entityManager.find(ExternalOperationEntity.class, jsonNull), "responsePayload"))
+                .isEqualTo(JsonNodeFactory.instance.nullNode());
         assertThat(entityManager.find(SummaryEntity.class, summaryId).getRaw())
                 .isEqualTo(JsonNodeFactory.instance.objectNode().put("scene_summary", "장면"));
         assertThat(entityManager.find(SummaryEntity.class, summaryId).getObservationsJson())
