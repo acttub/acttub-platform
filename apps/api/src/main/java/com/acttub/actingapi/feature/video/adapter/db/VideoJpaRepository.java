@@ -26,6 +26,15 @@ interface VideoJpaRepository extends Repository<VideoEntity, UUID> {
             """)
     int insert(UUID id, UUID userId, String objectKey, String contentType, long byteSize, int durationMs, Instant now);
 
+    /** 같은 키에 다시 올라온 파일의 크기로 고친다. 파기된 영상과 크기가 같은 영상은 그대로 둔다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update VideoEntity v
+            set v.byteSize = :byteSize, v.updatedAt = :now
+            where v.id = :videoId and v.userId = :userId and v.purgedAt is null and v.byteSize <> :byteSize
+            """)
+    int resize(UUID videoId, UUID userId, long byteSize, Instant now);
+
     /** 파기되지 않은 영상의 바이트 합 — 총량은 이것으로 센다(practice.record). */
     @Query("""
             select coalesce(sum(v.byteSize), 0)

@@ -30,6 +30,8 @@ public final class FakeObjectStorage implements ObjectStorage {
     public final Map<String, Long> objects = new ConcurrentHashMap<>();
     /** 서버가 직접 올린 객체의 형식. */
     public final Map<String, String> contentTypes = new ConcurrentHashMap<>();
+    /** 객체 키 → 검증값. 없으면 키에서 만든다. 같은 키에 다른 파일이 올라온 것을 흉내 낼 때 넣는다. */
+    public final Map<String, String> etags = new ConcurrentHashMap<>();
     /** 지우기를 거절할 키. */
     public final Set<String> failing = ConcurrentHashMap.newKeySet();
     /** 올리기 주소를 받은 키. */
@@ -40,6 +42,7 @@ public final class FakeObjectStorage implements ObjectStorage {
     public void clear() {
         objects.clear();
         contentTypes.clear();
+        etags.clear();
         failing.clear();
         presigned.clear();
         beforeUpload = null;
@@ -108,11 +111,14 @@ public final class FakeObjectStorage implements ObjectStorage {
         }
         objects.remove(objectKey);
         contentTypes.remove(objectKey);
+        etags.remove(objectKey);
     }
 
     private StoredObjectMetadata metadata(String objectKey, long size) {
         return new StoredObjectMetadata(
-                size, contentTypes.getOrDefault(objectKey, "application/octet-stream"), "etag-" + objectKey.hashCode());
+                size,
+                contentTypes.getOrDefault(objectKey, "application/octet-stream"),
+                etags.getOrDefault(objectKey, "etag-" + objectKey.hashCode()));
     }
 
     /** {@code @Import(FakeObjectStorage.Fixture.class)} 로 객체 저장소를 이 가짜로 바꾼다. */

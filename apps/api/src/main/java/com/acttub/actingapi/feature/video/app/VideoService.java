@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.video.app;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.video.app.VideoRepository.Completed;
@@ -92,6 +93,7 @@ public class VideoService {
     /**
      * 올라온 것을 확인하고 보관함에 영상을 만든다. 판정 순서가 응답을 가른다 — 이미 확정된 예약은 시한을 보기
      * 전에 같은 영상을 돌려주고(응답만 유실된 마무리의 재시도), 시한이 지난 예약은 저장소에 묻기 전에 치운다.
+     * 확정된 예약도 저장소를 다시 본다 — {@link #restamped} 가 그 이유다.
      *
      * @param faceMosaic 얼굴 가리기를 켜고 올린 영상(practice.start). 첫 질문용 미리 올리기를 시작하지 않는다 — 원본이 코치 AI 쪽으로
      *                   잠깐이라도 가지 않는다. 그 영상으로 만든 얼굴 가리기 회차는 분석 작업이 만든 가린 사본만 쓴다
@@ -106,7 +108,7 @@ public class VideoService {
         if (intent.videoId() != null) {
             VideoView already = videos.find(userId, intent.videoId());
             if (already != null) {
-                return new Completion(false, playback(already));
+                return new Completion(false, playback(restamped(userId, intentId, intent, already, now)));
             }
         }
         if (!now.isBefore(intent.expiresAt())) {
@@ -130,6 +132,25 @@ public class VideoService {
             case QUOTA -> throw new ApiException(422, "video_quota");
             case SIZE_MISMATCH -> throw new ApiException(422, "video_not_ready");
         };
+    }
+
+    /**
+     * 확정된 예약의 객체가 바뀌었으면 검증값·크기를 그 객체의 것으로 고쳐 적는다(SOMA-1137). 같은 요청 id 로 자리를 다시 받으면
+     * 확정된 예약이라도 같은 키의 올리기 주소가 다시 나가고, 기기는 다시 압축한 파일을 그 키에 올린 뒤 마무리를 다시 부른다.
+     * 고치지 않으면 분석·코치가 내려받은 파일의 검증값이 적어 둔 값과 달라 그 영상을 쓰지 못한다. 파기된 영상과 객체가 없는
+     * 키는 그대로 둔다.
+     */
+    private VideoView restamped(UUID userId, UUID intentId, IntentView intent, VideoView video, Instant now) {
+        if (video.purgedAt() != null) {
+            return video;
+        }
+        VideoStorage.Stored stored = storage.head(intent.objectKey());
+        if (stored == null
+                || (stored.byteSize() == video.byteSize() && Objects.equals(stored.etag(), intent.etag()))) {
+            return video;
+        }
+        VideoView restamped = videos.restamp(userId, intentId, stored, now);
+        return restamped == null ? video : restamped;
     }
 
     /** 첫 질문용 영상 준비를 뒤에서 시작한다(SOMA-780). 덧붙이 일이라 실패해도 올리기 완료는 그대로다. */
