@@ -306,7 +306,7 @@ class PurposeLoopTest {
         var opening = PurposeLoop.extract("<카드>\n잘 된 곳: 0:03 붙잡는 게 보여요\n아쉬운 곳: 0:12 화내는 쪽으로 들려요\n</카드>");
         PurposeLoop.rememberOpening(state, PurposeLoop.Purpose.EVALUATE, opening,
                 "대사 확인: 확인됨\n대사 시간: 0:03 \"가르쳐 줘\"\n장면: 이별 직후 | 헬레네 | 연인");
-        var view = PurposeView.from("evaluate", state);
+        var view = PurposeLoop.view("evaluate", state);
         assertThat(view.step()).isEqualTo("card");
         assertThat(view.choices()).extracting(PurposeView.Choice::label).containsExactly("코치와 같이 고치기", "다른 것도 봐 주세요");
         assertThat(view.card().issue().at()).isEqualTo(12);
@@ -315,11 +315,11 @@ class PurposeLoopTest {
 
         var wrap = PurposeLoop.Turn.moving(PurposeLoop.Purpose.EVALUATE, "wrap", "버튼", true, "method");
         PurposeLoop.remember(state, wrap, PurposeLoop.extract("정리\n<보기>\n남은 버튼\n</보기>"));
-        assertThat(PurposeView.from("evaluate", state).choices()).as("정리 뒤에는 버튼이 없다").isEmpty();
+        assertThat(PurposeLoop.view("evaluate", state).choices()).as("정리 뒤에는 버튼이 없다").isEmpty();
         var wrapped = StructuredJson.MAPPER.createObjectNode();
         PurposeLoop.remember(wrapped, wrap, PurposeLoop.extract("정리"), "\"취소해\"에서 붙잡듯 말해 봐도 좋아요");
-        assertThat(PurposeView.from("evaluate", wrapped).card().next().text()).as("정리의 행동이 카드의 다음 테이크").isEqualTo("\"취소해\"에서 붙잡듯 말해 봐도 좋아요");
-        assertThat(PurposeView.from(null, state)).isNull();
+        assertThat(PurposeLoop.view("evaluate", wrapped).card().next().text()).as("정리의 행동이 카드의 다음 테이크").isEqualTo("\"취소해\"에서 붙잡듯 말해 봐도 좋아요");
+        assertThat(PurposeLoop.view(null, state)).isNull();
     }
 
     @Test void aRewrittenCardKeepsEarlierTimesAndTheWrapKeepsTheSpotItFixed() {
@@ -376,7 +376,7 @@ class PurposeLoopTest {
         assertThat(VisibleCoachText.visible("어느 대사에서 그랬어요?\n<보기>\n0:12 \"취소해\"", false)).isEqualTo("어느 대사에서 그랬어요?\n");
         assertThat(VisibleCoachText.visible("정리예요.\n<인물 카드>\n누구: 망설이는 사람\n</인물 카드>", false)).isEqualTo("정리예요.\n");
         JsonNode none = null;
-        assertThat(PurposeView.from("stuck", none).step()).isEqualTo("reason");
+        assertThat(PurposeLoop.view("stuck", none).step()).isEqualTo("reason");
     }
 
     // ---- 영상 없이 말로 (SOMA-745) ----
@@ -393,7 +393,7 @@ class PurposeLoopTest {
         assertThat(PurposeLoop.Purpose.TALK_CHARACTER.character()).isTrue();
         assertThat(PurposeLoop.Purpose.CONCERN.talk()).isTrue();
         assertThat(PurposeLoop.Purpose.CHARACTER.talk()).isFalse();
-        assertThat(PurposeView.from("talk:concern", null).step()).isEqualTo("concern");
+        assertThat(PurposeLoop.view("talk:concern", null).step()).isEqualTo("concern");
     }
 
     @Test void theTalkModeIsAddedOnlyToTalkPromptsAndVideoPromptsStayTheSame() {

@@ -63,8 +63,8 @@ class DirectVideoPracticeLoopRoundTest {
         assertThat(DirectVideoPracticeLoop.languageOf("가 abcdefghijkl")).isEqualTo(Locale.ROOT);
         assertThat(DirectVideoPracticeLoop.closingNextTake(StringNode.valueOf("x"))).isEmpty();
         assertThat(DirectVideoPracticeLoop.designNextTake("다음 테이크: [끝을 짧게]")).isEqualTo("끝을 짧게");
-        assertThat(DirectVideoPracticeLoop.action("순간1 · 장면2 · 누적 3")).isEmpty();
-        assertThat(DirectVideoPracticeLoop.statusField(null, "할 일")).isEmpty();
+        assertThat(PracticeLoopRouter.action("순간1 · 장면2 · 누적 3")).isEmpty();
+        assertThat(PracticeLoopRouter.statusField(null, "할 일")).isEmpty();
         assertThat(DirectVideoPracticeLoop.actorMaterial(session("", List.of()))).isEqualTo(
                 "## 배우가 적은 것\n이번 연습을 올리며 배우가 적은 것이다. 영상 근거가 아니다.\n- 막힌 곳: 표현\n\n");
     }

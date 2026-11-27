@@ -214,7 +214,7 @@ final class CoachTurnGoldenRig {
         out.append("코치 말:\n").append(block(result.reply().message()));
         out.append("저장 상태:\n").append(block(pretty(sameAsInput(next.coachingState(), session.coachingState()))));
         out.append("handoff:\n").append(block(result.reply().handoff() == null ? "(없음)" : pretty(result.reply().handoff())));
-        out.append("화면의 목적 칸: ").append(PurposeView.from(next.sessionPurpose(), next.coachingState())).append('\n');
+        out.append("화면의 목적 칸: ").append(PurposeLoop.view(next.sessionPurpose(), next.coachingState())).append('\n');
         out.append("화면의 예시 답: ").append(AnswerExamples.from(next.sessionPurpose(), next.coachingState())).append('\n');
         if ("closed".equals(next.status())) {
             var note = DirectVideoPracticeLoop.note(next, next.stateRevision());

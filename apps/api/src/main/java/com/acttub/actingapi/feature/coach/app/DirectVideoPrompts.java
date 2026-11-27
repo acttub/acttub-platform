@@ -239,9 +239,9 @@ final class DirectVideoPrompts {
         java.util.Optional<Integer> length = personaFile(id, language, profile).flatMap(DirectVideoPrompts::lengthLine);
         if (ACTOR_PROFILE.equals(id)) {
             return length.map(n -> Math.max(PROFILE_MIN_REPLY, Math.min(PROFILE_MAX_REPLY, n)))
-                    .orElse(DirectVideoPracticeLoop.LONG_REPLY);
+                    .orElse(LONG_REPLY);
         }
-        return length.orElse(DirectVideoPracticeLoop.LONG_REPLY);
+        return length.orElse(LONG_REPLY);
     }
 
     /** 프롬프트를 받은 대화에서 줄이기가 말투와 길이를 공용 코치 쪽으로 되돌리지 않게 하는 줄. */
@@ -256,6 +256,10 @@ final class DirectVideoPrompts {
 
     /** 자문위원 파일이 없는 배우에게 기억 갱신이 쓴 맞춤 코칭을 붙이는 프롬프트 id(SOMA-795). 대화 상태에 이 id 로 남는다. */
     static final String ACTOR_PROFILE = "actor-profile";
+    /** 코치 말이 길다고 보는 글자 수(공백 포함). 목표는 50자 안쪽이고 이보다 길면 줄이기 호출을 한다. */
+    static final int LONG_REPLY = 60;
+    /** 배우가 이유·방법·예시·설명·피드백을 달라고 했을 때의 길이. 이때는 50자에 맞추려고 답을 줄이지 않는다. */
+    static final int EXPLAIN_REPLY = 120;
     static final int PROFILE_MIN_REPLY = 60;
     static final int PROFILE_MAX_REPLY = 160;
 
