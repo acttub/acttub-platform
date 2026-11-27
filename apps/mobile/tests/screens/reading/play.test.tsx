@@ -51,8 +51,16 @@ jest.mock('@/lib/reading/direction-beat', () => ({
   beatMs: () => mockBeatMs.value,
 }));
 jest.mock('@/lib/api', () => ({ api: { getCloudVoiceStatus: jest.fn(), listReadingScripts: jest.fn() } }));
-const mockAskRating = jest.fn(async () => undefined);
-jest.mock('@/hooks/use-app-rating', () => ({ useAppRating: () => ({ after: mockAskRating, element: null }) }));
+const mockCountRating = jest.fn(async () => undefined);
+const mockAskRatingIfDue = jest.fn(async () => undefined);
+jest.mock('@/hooks/use-app-rating', () => ({
+  useAppRating: () => ({ after: jest.fn(), count: mockCountRating, askIfDue: mockAskRatingIfDue, element: null }),
+}));
+const mockSendReadingRating = jest.fn(async (..._args: unknown[]) => 'sent' as const);
+jest.mock('@/lib/reading-rating', () => ({
+  readingRatings: { send: (...args: unknown[]) => mockSendReadingRating(...args) },
+  flushReadingRatings: jest.fn(async () => undefined),
+}));
 
 type Listener = { onEvent: (event: VadEvent) => void; onInterim?: (text: string) => void };
 const mockMic = { start: jest.fn(), stop: jest.fn() };
@@ -283,7 +291,9 @@ test('상대 대사를 읽고 내 대사에서 기다렸다가 말이 끝나면 
     ['l2', 1, 'file:///turn.m4a', 'audio/mp4'],
     ['l5', 1, 'file:///turn.m4a', 'audio/mp4'],
   ]);
-  expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
+  // 완료 때는 세기만 하고 묻지 않는다(11/27)
+  await waitFor(() => expect(mockCountRating).toHaveBeenCalledWith({ kind: 'reading' }));
+  expect(mockAskRatingIfDue).not.toHaveBeenCalled();
 
   await pressWhenReady('홈으로 가기');
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
@@ -1585,7 +1595,7 @@ test('인식된 말이 없어도 끝까지 가면 완료로 보내고 별점을 
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(screen.queryByText('연습으로 세지 않았어요')).not.toBeOnTheScreen();
   await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ complete: true })));
-  expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
+  await waitFor(() => expect(mockCountRating).toHaveBeenCalledWith({ kind: 'reading' }));
 });
 
 test('음성 인식을 못 쓰는 기기는 인식된 말 없이 끝까지 가도 완료로 보내고 별점을 묻는다(SOMA-773 예외)', async () => {
@@ -1597,7 +1607,7 @@ test('음성 인식을 못 쓰는 기기는 인식된 말 없이 끝까지 가�
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   expect(screen.queryByText('연습으로 세지 않았어요')).not.toBeOnTheScreen();
   await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ complete: true })));
-  expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
+  await waitFor(() => expect(mockCountRating).toHaveBeenCalledWith({ kind: 'reading' }));
 });
 
 test('이어하기 전에 서버가 받은 인식이 있으면 이번에 말이 없어도 완료다', async () => {
@@ -1612,7 +1622,24 @@ test('이어하기 전에 서버가 받은 인식이 있으면 이번에 말이 
   await speechEnds(() => recognizer);
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   await waitFor(() => expect(server.saveProgress).toHaveBeenLastCalledWith('r1', expect.objectContaining({ complete: true })));
-  expect(mockAskRating).toHaveBeenCalledWith({ kind: 'reading' });
+  await waitFor(() => expect(mockCountRating).toHaveBeenCalledWith({ kind: 'reading' }));
+});
+
+test('완료 화면에서 좋았어요를 고르면 스토어 별점을 물을 때인지 보고, 아쉬웠어요면 묻지 않는다(11/27)', async () => {
+  await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
+  await screen.findByText('듣는 중');
+  await speechEnds();
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  await waitFor(() => expect(mockCountRating).toHaveBeenCalledWith({ kind: 'reading' }));
+  expect(mockAskRatingIfDue).not.toHaveBeenCalled();
+
+  await fireEvent.press(screen.getByText('아쉬웠어요'));
+  await waitFor(() => expect(mockSendReadingRating).toHaveBeenCalledTimes(1));
+  expect(mockAskRatingIfDue).not.toHaveBeenCalled();
+
+  // 아쉬웠어요에서 좋았어요로 바꾸면 그때 묻는다
+  await fireEvent.press(screen.getByText('좋았어요'));
+  await waitFor(() => expect(mockAskRatingIfDue).toHaveBeenCalledTimes(1));
 });
 
 test('진행 저장이 끝난 회차라고 거절되면 실행을 닫고 상세로 안내한다', async () => {

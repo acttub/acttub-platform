@@ -9,6 +9,7 @@ import {
   afterAsk,
   afterRated,
   parseRatingState,
+  readingAskDue,
   recordEvent,
   type RatingEvent,
 } from '@/lib/app-rating';
@@ -38,6 +39,7 @@ async function save(state: ReturnType<typeof parseRatingState>) {
  *
  * `after(event, proceed)`: 사건을 세고, 물을 때가 아니면 곧바로 `proceed` 를 부른다. 물을 때면
  * 카드를 보이고, 남기기·나중에 어느 쪽이든 카드가 접힌 뒤 `proceed` 를 부른다.
+ * 리딩은 `count(event)` 로 완료 때 세기만 하고, 「좋았어요」를 고르면 `askIfDue()` 가 물을 때인지 보고 카드를 보인다(11/27).
  * `element` 는 팝업이 아니라 부르는 화면이 스크롤 안 알맞은 자리(완료·정리 내용 아래)에 끼워 넣는 인라인 카드다. 안 물을 땐 null.
  */
 export function useAppRating() {
@@ -64,6 +66,37 @@ export function useAppRating() {
     logEvent('app_rating_prompt', { trigger: event.kind });
     setVisible(true);
   }, []);
+
+  // 리딩의 세기·묻기는 차례대로 — 세기 저장이 끝나기 전에 「좋았어요」를 눌러도, 빠르게 바꿔 눌러도 한 번만 묻게.
+  const chainRef = useRef<Promise<void>>(Promise.resolve());
+  const enqueue = useCallback((task: () => Promise<void>) => {
+    const next = chainRef.current.then(task, task);
+    chainRef.current = next.catch(() => undefined);
+    return next;
+  }, []);
+
+  /** 리딩 완료 — 세기만 하고 묻지 않는다. 물을지는 「좋았어요」를 고른 뒤 {@link askIfDue} 가 정한다. */
+  const count = useCallback(
+    (event: RatingEvent) =>
+      enqueue(async () => {
+        await save(recordEvent(await load(), event, Date.now()).state);
+      }),
+    [enqueue],
+  );
+
+  /** 배우가 이번 리딩을 「좋았어요」로 골랐다 — 물을 때면 카드를 보인다. 아니면 센 횟수를 그대로 둔다. */
+  const askIfDue = useCallback(
+    () =>
+      enqueue(async () => {
+        const now = Date.now();
+        const state = await load();
+        if (!readingAskDue(state, now)) return;
+        await save(afterAsk(state, now));
+        logEvent('app_rating_prompt', { trigger: 'reading_good' });
+        setVisible(true);
+      }),
+    [enqueue],
+  );
 
   const rate = useCallback(async () => {
     await save(afterRated(await load()));
@@ -96,7 +129,7 @@ export function useAppRating() {
     </View>
   ) : null;
 
-  return { after, element };
+  return { after, count, askIfDue, element };
 }
 
 const styles = StyleSheet.create({

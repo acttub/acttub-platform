@@ -13,10 +13,13 @@ export function ReadingRating({
   sessionId,
   initial = null,
   onInputFocus,
+  onRated,
 }: {
   sessionId: string;
   initial?: SavedRating | null;
   onInputFocus?: () => void;
+  /** 배우가 평가를 고르거나 한 줄을 보낼 때마다 — 완료 화면이 「좋았어요」에만 스토어 별점을 묻는다(11/27). */
+  onRated?: (rating: ReadingRatingValue) => void;
 }) {
   return (
     <RatingBox<ReadingRatingValue>
@@ -33,6 +36,7 @@ export function ReadingRating({
       onInputFocus={onInputFocus}
       reasons={{ for: 'bad', options: READING_BAD_REASONS.map(([code, key]) => [code, t(`reading.${key}`)] as const) }}
       save={async (requestId, rating, comment, reasons) => {
+        onRated?.(rating);
         const result = await readingRatings.send(sessionId, buildReadingRatingBody({ requestId, rating, comment }));
         logEvent('reading_rating_submit', { rating, length: comment?.length ?? 0, result, reasons: reasons.join(',') });
         return result;

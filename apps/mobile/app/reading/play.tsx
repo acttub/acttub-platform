@@ -119,6 +119,7 @@ import { ReadingNoScript } from '@/components/reading/no-script';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { ReadingRating } from '@/components/reading-rating';
+import type { ReadingRatingValue } from '@/lib/reading/session-rating';
 import { MASCOT as MASCOT_IMG, MASCOT_SIZE, type MascotPose } from '@/components/ui/mascot';
 import { api } from '@/lib/api';
 import { skipsFirstReadingGuide } from '@/lib/returning-account';
@@ -352,8 +353,14 @@ export default function ReadingPlay() {
   const liftRatingInput = useCallback(() => {
     setTimeout(() => doneScrollRef.current?.scrollToEnd({ animated: true }), 250);
   }, []);
-  // 대본을 끝까지 읽으면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494).
-  const { after: askRating, element: ratingCard } = useAppRating();
+  // 대본을 끝까지 읽으면 세고, 그 회차를 「좋았어요」로 고르면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494 · 11/27).
+  const { count: countRating, askIfDue: askRatingIfDue, element: ratingCard } = useAppRating();
+  const onReadingRated = useCallback(
+    (value: ReadingRatingValue) => {
+      if (value === 'good') void askRatingIfDue();
+    },
+    [askRatingIfDue],
+  );
   const showFullScreenAd = useFullScreenAd();
   const sttActive = useRef(false);
   /** 줄별 시도 번호 — 같은 줄을 다시 말하면 1씩 늘어 이전 녹음을 대체한다(reading.recording). */
@@ -568,16 +575,16 @@ export default function ReadingPlay() {
       }
       setPhase({ kind: 'done' });
       sendRunSummary(stoppedEarlyRef.current ? 'stopped' : 'completed');
-      // 결과로 넘어갈 때 전면 광고(SOMA-1085) — 별점 묻기는 광고를 닫은 뒤에 한다(둘이 겹치지 않게).
+      // 결과로 넘어갈 때 전면 광고(SOMA-1085) — 별점용 세기는 광고를 닫은 뒤에 한다. 묻는 건 「좋았어요」를 고른 뒤다.
       void (async () => {
         await showFullScreenAd('reading_done_full');
-        if (completed) void askRating({ kind: 'reading' });
+        if (completed) void countRating({ kind: 'reading' });
       })();
       return;
     }
     // 이어하기의 앞 상대 대사(leadIn)는 저장하지 않는다 — 서버 위치가 뒤로 가지 않게.
     if (next.index !== prev.index && next.leadInUntil === null) queueRef.current?.push(progressPayload(next));
-  }, [askRating, session, sendRunSummary]);
+  }, [countRating, session, sendRunSummary]);
 
   const goNext = useCallback(
     (from: number) => {
@@ -2082,7 +2089,7 @@ export default function ReadingPlay() {
       </View>
     );
     const note = (text: string, icon?: 'info' | 'wifi-off') => <InfoBanner body={text} icon={icon} />;
-    const rating = completed && <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} />;
+    const rating = completed && <ReadingRating sessionId={session.id} onInputFocus={liftRatingInput} onRated={onReadingRated} />;
     // 발음 보고서는 녹음한 회차에만 — 자동 넘김·듣기만은 녹음이 없어 「읽은 줄이 없어요」만 나온다(11/2 QA).
     const recorded = !listenAll && !handsFree && session.record !== false;
     const reportRow = completed && recorded ? <ReadingAfterCard sessionId={session.id} ready={pendingUploads === 0} part="report" /> : null;
