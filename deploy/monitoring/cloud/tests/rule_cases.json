@@ -1287,6 +1287,10 @@
       {
         "series": "acttub_http_requests_total{environment=\"dev\",latency_class=\"ordinary\",status_class=\"2xx\"}",
         "values": "0+10x10"
+      },
+      {
+        "series": "process_start_time_seconds{job=\"api\",environment=\"dev\"}",
+        "values": "-600+0x40"
       }
     ],
     "alert_rule_test": [
@@ -1574,6 +1578,10 @@
       {
         "series": "http_server_requests_seconds_bucket{environment=\"dev\",latency_class=\"ordinary\",le=\"2\"}",
         "values": "0+6x20"
+      },
+      {
+        "series": "process_start_time_seconds{job=\"api\",environment=\"dev\"}",
+        "values": "-600+0x40"
       }
     ],
     "promql_expr_test": [
@@ -1593,6 +1601,45 @@
             "exp_annotations": {}
           }
         ]
+      }
+    ]
+  },
+  {
+    "name": "API 를 다시 띄운 직후 5분은 옛 프로세스의 요청 수로 histogram 누락을 울리지 않는다",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x12"
+      },
+      {
+        "series": "process_start_time_seconds{job=\"api\",environment=\"dev\"}",
+        "values": "-600 -600 -600 180+0x9"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",latency_class=\"ordinary\",status_class=\"2xx\"}",
+        "values": "0 30 60 0+0x9"
+      },
+      {
+        "series": "http_server_requests_seconds_bucket{environment=\"dev\",latency_class=\"ordinary\",le=\"+Inf\"}",
+        "values": "0 30 60 stale"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "5m",
+        "alertname": "http-histogram",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "6m",
+        "alertname": "http-histogram",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "9m",
+        "alertname": "http-histogram",
+        "exp_alerts": []
       }
     ]
   }
