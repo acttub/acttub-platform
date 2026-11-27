@@ -452,7 +452,7 @@ const en: DeepStringShape<typeof ko> = {
     errVideoNotReady: 'This video cannot be used yet.',
     errTooLong: 'Challenge videos can be up to 60 seconds.',
     errTooShort: 'The video is too short. Please record at least 3 seconds.',
-    errDailyLimit: 'You can post three a day. Please try again tomorrow.',
+    errDailyLimit: "You can't post more today. Your video is saved in your library, so post it tomorrow.",
     errHidden: 'This entry is under review, so it cannot be made public.',
     errInvalid: 'Please check what you wrote.',
     errOther: "Couldn't post your entry.",
