@@ -51,7 +51,8 @@ case "${1:-}" in
     if [ "${2:-}" = --hash ]; then echo "$3 ${TEST_PROXY_HASH:-p1}"; exit; fi
     if [ "${2:-}" != --no-env-resolution ]; then printf 'services:\n  %s:\n    test: %s\n' "$2" "${TEST_HASH:-h1}"; exit; fi
     printf 'api\nweb\ndb\nproxy\ncloudflared\n'
-    [ "${TEST_BACKUP_ACTIVE:-false}" != true ] || echo backup ;;
+    [ "${TEST_BACKUP_ACTIVE:-false}" != true ] || echo backup
+    [ "${TEST_PRON_ACTIVE:-false}" != true ] || echo pron ;;
   pull) call "$*"; [ "${TEST_PULL_FAILURE:-false}" != true ] ;;
   up)
     call "$*"
@@ -108,7 +109,7 @@ printf 'COMPOSE_PROFILES=edge\n' > "$WORK/.env"
 run_deploy() {
   (cd "$WORK" && env PATH="$WORK/bin:$PATH" TEST_CALLS="$WORK/calls" TEST_STATE="$WORK/state" \
     SHA=0123456789abcdef API_IMAGE=example/api:0123456 WEB_IMAGE=example/web:0123456 \
-    BACKUP_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 DEPLOY_THREE_LAYERS_ENABLED= DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED= DEPLOY_PRACTICE_REMINDER_ENABLED= DEPLOY_CPU_SHARES= "$@" \
+    BACKUP_IMAGE= PRON_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 DEPLOY_THREE_LAYERS_ENABLED= DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED= DEPLOY_PRACTICE_REMINDER_ENABLED= DEPLOY_CPU_SHARES= "$@" \
     "$ROOT/deploy/home/deploy.sh") > "$WORK/log" 2>&1
 }
 success() { run_deploy "$@" || { cat "$WORK/log"; exit 1; }; }
@@ -131,6 +132,10 @@ failure DEPLOY_CPU_SHARES=0
 printf 'previous-release\n' > "$WORK/release.env"
 failure TEST_BACKUP_ACTIVE=true
 grep -qx previous-release "$WORK/release.env"
+failure TEST_PRON_ACTIVE=true
+grep -q 'pron 프로필에는 5번째 인자 또는 PRON_IMAGE 가 필요하다' "$WORK/log"
+grep -qx previous-release "$WORK/release.env"
+failure TEST_PRON_ACTIVE=true PRON_IMAGE='example/pron:tag with spaces'
 failure TEST_CONFIG_FAILURE=true
 grep -qx previous-release "$WORK/release.env"
 # 컨테이너를 만들기 전의 실패도 release.env 를 직전 것으로 되돌린다.
@@ -230,6 +235,22 @@ grep -qx 'up -d --no-deps --remove-orphans --wait --wait-timeout 180 db backup' 
 grep -qx 'rm api4' "$WORK/calls"
 [ "$(containers api)" = "api16 " ]
 [ "$(containers web)" = "web17 " ]
+# 채점 서비스(pron 프로필): 이미지를 release.env 에 쓰고 함께 당기며, 새 api 가 응답한 뒤(9단계)에 바꾼다. 옛 트리 태그는 지운다.
+PRON_TAG=example/pron:0123456789abcdef0123456789abcdef01234567
+: > "$WORK/calls"
+success TEST_HASH=h4 TEST_PRON_ACTIVE=true PRON_IMAGE="$PRON_TAG" \
+  TEST_IMAGES="$PRON_TAG example/pron:89abcdef0123456789abcdef0123456789abcdef"
+grep -qx 'pull --policy missing api web pron' "$WORK/calls"
+grep -qx "PRON_IMAGE=$PRON_TAG" "$WORK/release.env"
+pron_at="$(grep -n -x 'up -d --no-deps --remove-orphans --wait --wait-timeout 180 db pron' "$WORK/calls" | cut -d: -f1)"
+[ "$pron_at" -gt "$(grep -n '^exec -T proxy wget' "$WORK/calls" | tail -1 | cut -d: -f1)" ]
+[ "$(grep '^image rm' "$WORK/calls")" = 'image rm example/pron:89abcdef0123456789abcdef0123456789abcdef' ]
+[ "$(containers api)" = "api16 " ]
+# pron 프로필이 없는 환경은 이미지를 받아도 당기지도 띄우지도 않는다.
+: > "$WORK/calls"
+success TEST_HASH=h4 PRON_IMAGE="$PRON_TAG"
+grep -qx 'pull --policy missing api web' "$WORK/calls"
+! grep -q ' pron$' "$WORK/calls" || exit 1
 # active.conf 가 없는 컨테이너를 가리켜도(손으로 고침·중단) 응답 중인 healthy 컨테이너를 지우지 않고 옆에 띄운다.
 printf 'map $host $api_upstream { default proj-api-999:8080; }\nmap $host $web_upstream { default proj-web-999:3000; }\n' > "$WORK/proxy/active.conf"
 : > "$WORK/calls"
@@ -285,4 +306,4 @@ grep -q '새 컨테이너를 남긴다' "$WORK/log"
 [ "$(containers api | wc -w | tr -d ' ')" = 2 ]
 [ "$(containers web | wc -w | tr -d ' ')" = 2 ]
 [ -f "$WORK/release.env.prev" ]
-echo '✔ deploy.sh: 입력 거부·backup 프로필·첫 배포·멱등·옆에 띄워 넘기기·넘기기 전후 실패의 되돌리기·스위치 대조·옛 이미지 정리 검증 통과'
+echo '✔ deploy.sh: 입력 거부·backup·pron 프로필·첫 배포·멱등·옆에 띄워 넘기기·넘기기 전후 실패의 되돌리기·스위치 대조·옛 이미지 정리 검증 통과'

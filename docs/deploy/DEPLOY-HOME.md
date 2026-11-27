@@ -26,6 +26,7 @@ PostgreSQL → 매일 pg_dump → R2 백업 버킷 / 파일 → 환경별 R2 파
 이름을 받는다 — cloudflared는 `edge` 망, web은 `front` 망에만 있어 그 망의 `web`·`api`는 proxy 하나다.
 호스트 포트는 공개하지 않는다. OAuth의 운영 도메인은 유지한다.
 API 이미지는 `api:<sha>`, 웹 이미지는 빌드 시점의 공개 설정을 담은 `web:<env>-<sha>`, 백업은 `backup:<sha>`다.
+리딩 발음 채점 서비스는 `pron:<apps/pron 트리 해시>`다. 모델을 담아 수 GB라 `apps/pron`이 바뀐 배포만 새로 굽고 서버가 당긴다.
 DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §5](../../apps/api/CONTRACT.md#5-영속-계층-규칙)),
 실제 서버 버전과 이미지 ID는 작업할 때 다시 확인한다.
 
@@ -82,18 +83,22 @@ JWT 서명 키를 유지해야 기존 로그인 세션을 이어받는다. `.env
 GitHub 환경마다 `TS_OAUTH_CLIENT_ID`·`TS_OAUTH_SECRET` 접속 설정, 공개 웹 빌드 설정,
 `HOME_PUBLIC_URL`을 확인한다. GHCR 패키지는 서버가 읽을 수 있어야 한다.
 웹 공개 설정을 바꾸고 같은 SHA를 배포하면 `rebuild_images=true`로 이미지를 다시 만든다.
-변수만 변경해도 기존 웹 이미지 내부 설정은 바뀌지 않는다.
+변수만 변경해도 기존 웹 이미지 내부 설정은 바뀌지 않는다. 채점 서비스 이미지는 `rebuild_images`로도 다시 굽지 않는다.
 
 ```bash
 gh workflow run deploy.yml --ref main -f environment=prod
 ```
 
-Actions가 이미지 세 개를 빌드·게시한 뒤 서버의 배포·복원 파일을 전송하고 `deploy.sh`를 실행한다.
-처음 만든 GHCR 백업 패키지도 서버가 읽을 수 있는지 확인한다. 복원 도구는 `restore-db.sh`와
+Actions가 이미지 네 개를 빌드·게시한 뒤 서버의 배포·복원 파일을 전송하고 `deploy.sh`를 실행한다. 채점 서비스 이미지는
+GHCR에 같은 트리 해시가 없을 때만 굽는다. 처음 만든 GHCR 백업·채점 서비스 패키지도 서버가 읽을 수 있는지(공개) 확인한다. 복원 도구는 `restore-db.sh`와
 `db-manifest.sql`·`schema-fingerprint.sql`을 함께 전송한다.
 `deploy.sh`는 바뀐 web·api만 옛 것 옆에 새로 띄워 proxy를 넘기는 무중단 배포를 하고, 실패하면 옛 컨테이너가 계속 응답하게
 되돌린다. 단계·실패 처리·상한은 [`deploy.sh`](../../deploy/home/deploy.sh) 머리말이 정한다.
-성공하면 컨테이너가 쓰지 않는 옛 릴리스 이미지(`<sha>`·`<env>-<sha>` 태그)를 서버에서 지운다. dev와 운영이 같은 Docker를 쓰므로 한 환경의 배포가 다른 환경의 옛 이미지도 지운다.
+`.env`의 `COMPOSE_PROFILES`에 `pron`이 있으면 `deploy.sh`가 `release.env`에 `PRON_IMAGE`를 쓰고, 새 api가 응답한 뒤
+채점 서비스를 바꾼다. 이미지가 같으면 그대로 둔다. 바꾸는 동안(모델을 올리는 수십 초) 채점 요청은 실패한다 — 그 줄은
+「채점 실패」로 빠지고, 보낸 줄이 모두 실패하면 그 시도가 다시 줄 선다. 이미지가 바뀐 배포는 서버가 수 GB를 당기므로 디스크를 먼저 본다.
+`release.env`가 뒤에 읽히므로 `.env`에 `PRON_IMAGE`가 남아 있어도 쓰이지 않는다.
+성공하면 컨테이너가 쓰지 않는 옛 릴리스 이미지(`<sha>`·`<env>-<sha>`·채점 서비스의 트리 해시 태그)를 서버에서 지운다. dev와 운영이 같은 Docker를 쓰므로 한 환경의 배포가 다른 환경의 옛 이미지도 지운다.
 배포가 겹치는 동안(새 api 기동과 옛 판의 요청 마무리) 옛·새 api가 같은 DB에서 함께 돈다. 그래서 마이그레이션은 직전 운영
 API를 깨지 않아야 한다([DB와 배포 안전성](../BRANCHING-STRATEGY.md#db와-배포-안전성)). proxy·cloudflared·db의 이미지나
 망 설정을 바꾼 배포는 그 컨테이너를 다시 만들어 그동안 끊긴다. `.env`를 고친 뒤 맨손 `docker compose up`으로 적용해도
@@ -138,7 +143,9 @@ Sentry 이벤트에도 `trace_id` 태그를 붙여 로그와 잇는다. 주기 �
 DB 스키마와 호환되는 직전 운영 SHA(직전 운영 태그) 및 이미지로 `deploy.sh`를 다시 실행한다. 현재 이미지와
 `release.env`의 SHA를 먼저 기록한다. 넘기기 전에 실패한 배포는 `deploy.sh`가 옛 판을 그대로 남기지만(§3), 넘긴 뒤에
 드러난 문제는 자동으로 되돌리지 않는다. 직전 SHA 재배포도 같은 무중단 길을 탄다.
-서버에서 지워진 직전 이미지는 `deploy.sh`가 GHCR에서 다시 받는다. proxy가 없던 SHA(SOMA-700 이전)로 되돌리면 옛
+서버에서 지워진 직전 이미지는 `deploy.sh`가 GHCR에서 다시 받는다. 채점 서비스만 되돌릴 때는 기록해 둔 직전
+`PRON_IMAGE`를 5번째 인자로 넣어 같은 SHA의 `deploy.sh`를 다시 실행한다. GHCR에 없는 손 빌드 이미지(`acttub-pron:<sha>`)로
+되돌리면 `DEPLOY_PULL_POLICY=missing`을 함께 준다. proxy가 없던 SHA(SOMA-700 이전)로 되돌리면 옛
 `deploy.sh`가 proxy를 지우고 예전처럼 api·web을 다시 만들어 그동안 끊긴다.
 같은 SHA·설정·이미지로 재배포하면 컨테이너를 유지한다. `rebuild_images=true`로 같은 태그를 다시 빌드하면 새 이미지 ID를
 대조해 교체한다. 마이그레이션은 앱 기동의 일부라([CONTRACT §5-5](../../apps/api/CONTRACT.md#5-5-flyway-가-스키마를-소유한다))

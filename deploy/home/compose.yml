@@ -322,9 +322,9 @@ services:
     logging: *logging
 
   # 리딩 발음 채점 서비스(SOMA-606, apps/pron). 프로필 pron 이라 pron 프로필로 띄운 환경에서만 뜬다(dev·운영 모두 띄워 둔다).
-  # 호스트 포트도 터널도 없다 — api 만 default 네트워크에서 http://pron:8000 으로 부른다. 이미지는 아직 배포 워크플로가
-  # 굽지 않는다: apps/pron 을 서버에서 직접 빌드해 PRON_IMAGE 로 태그하고 `compose --profile pron up -d pron` 으로 띄운다.
-  # deploy.sh 는 이 서비스를 만들거나 다시 만들지 않는다(api·web·db·proxy·cloudflared·backup 만 이름으로 올린다).
+  # 호스트 포트도 터널도 없다 — api 만 default 네트워크에서 http://pron:8000 으로 부른다. 이미지는 배포 워크플로가 apps/pron
+  # 트리 해시로 굽고(build_pron), deploy.sh 가 release.env 의 PRON_IMAGE 로 고정한 뒤 새 api 가 응답하면 갈아 끼운다(9단계).
+  # 기본값 acttub-pron:local 은 서버에서 손으로 빌드해 띄울 때만 쓴다.
   pron:
     image: ${PRON_IMAGE:-acttub-pron:local}
     profiles: [pron]
