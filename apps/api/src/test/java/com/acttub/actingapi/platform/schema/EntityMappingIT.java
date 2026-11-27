@@ -446,11 +446,11 @@ class EntityMappingIT {
                 java.time.Instant.now()));
         entityManager.flush();
         // 1:1 메시지(V105)는 두 사람을 가리킨다.
-        UUID partnerId=UUID.randomUUID(), conversationId=UUID.randomUUID();
+        UUID partnerId=UUID.randomUUID(), directConversationId=UUID.randomUUID();
         save(UserEntity.class,new UserEntity(partnerId,"partner-"+partnerId+"@example.test",UserStatus.ACTIVE));
-        save(DirectConversationEntity.class,new DirectConversationEntity(conversationId,userId,partnerId,null,java.time.Instant.now()));
+        save(DirectConversationEntity.class,new DirectConversationEntity(directConversationId,userId,partnerId,null,java.time.Instant.now()));
         entityManager.flush();
-        save(DirectMessageEntity.class,new DirectMessageEntity(UUID.randomUUID(),conversationId,userId,"안녕하세요",UUID.randomUUID(),
+        save(DirectMessageEntity.class,new DirectMessageEntity(UUID.randomUUID(),directConversationId,userId,"안녕하세요",UUID.randomUUID(),
                 "e".repeat(64),java.time.Instant.now()));
         entityManager.flush();
 
