@@ -88,8 +88,9 @@ function signIn(n) {
     const decisions = res.documents.map((d) => ({ document_id: d.id, action: 'granted' }));
     res = call('POST', '/v2/auth/signup', null, { signup_token: res.signup_token, decisions, age_confirmed: true });
   }
-  // 예전에 만든 계정은 문서의 새 버전이 나오면 재동의 전까지 다른 요청이 403(consent_required)이다.
-  for (const d of call('GET', '/v2/consents/pending', res.access_token).documents) {
+  // 예전에 만든 계정은 문서의 새 버전이 나오면 재동의 전까지 다른 요청이 403(consent_required)이다. 앱처럼 진입 응답의
+  // 미결정 문서를 고른다(옛 앱만 부르는 /v2/consents/pending 과 같은 목록이다).
+  for (const d of call('GET', '/v2/consents/entry', res.access_token).undecided_documents) {
     call('POST', '/v2/consents', res.access_token, { document_id: d.id, action: 'granted' }, [200, 201, 204]);
   }
   return res.access_token;
