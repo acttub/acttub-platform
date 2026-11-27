@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Share, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 
 import { AdSlot } from '@/components/ad-slot';
 import { ReportRating } from '@/components/report-rating';
@@ -68,7 +68,7 @@ export default function CoachingDoneScreen() {
   }, []);
 
   // 평가 한 줄 칸을 누르면 키보드 위로 올린다.
-  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollRef = useRef<ScrollViewInstance | null>(null);
   const liftRatingInput = () => {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250);
   };

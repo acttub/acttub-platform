@@ -87,7 +87,7 @@ async function normalizeRecordingFile(uri: string, contentType: string): Promise
     const file = new File(uri);
     const bytes = await file.bytes();
     const louder = normalizeWavBytes(bytes, { maxGain: 6 });
-    if (louder !== bytes) file.write(louder);
+    if (louder !== bytes) file.writeSync(louder);
   } catch {
     // 그대로 둔다
   }

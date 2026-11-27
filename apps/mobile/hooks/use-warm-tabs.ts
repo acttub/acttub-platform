@@ -1,6 +1,5 @@
 import { usePathname } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { InteractionManager } from 'react-native';
 
 import { api } from '@/lib/api';
 import { isHomeReady, subscribeHomeReady } from '@/lib/launch-splash';
@@ -27,7 +26,11 @@ export function useWarmTabs(): ReadonlySet<WarmTab> {
           }
           return subscribeHomeReady(listener);
         },
-        afterInteractions: (task) => InteractionManager.runAfterInteractions(task),
+        // RN 0.88 에서 InteractionManager 가 빠졌다. 공식 안내대로 requestIdleCallback 으로 한가할 때 부른다.
+        afterInteractions: (task) => {
+          const id = requestIdleCallback(() => task());
+          return { cancel: () => cancelIdleCallback(id) };
+        },
         wait: (ms, task) => {
           const timer = setTimeout(task, ms);
           return () => clearTimeout(timer);

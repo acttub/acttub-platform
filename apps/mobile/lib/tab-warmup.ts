@@ -24,7 +24,7 @@ export const WARM_PREFETCH_WAIT_MS = 2500;
 export type WarmDeps = {
   /** 홈 첫 화면이 다 그려졌을 때 한 번 부른다. 이미 그려졌으면 바로 부른다. 해제 함수를 돌려준다. */
   onHomeReady: (listener: () => void) => () => void;
-  /** 화면 움직임·누름 처리가 끝난 뒤에 부른다(InteractionManager). */
+  /** 화면 움직임·누름 처리가 끝나 한가할 때 부른다(requestIdleCallback). */
   afterInteractions: (task: () => void) => { cancel: () => void };
   wait: (ms: number, task: () => void) => () => void;
   /** 커뮤니티를 만들기 전에 받아 둘 목록. 실패해도 넘어간다. */

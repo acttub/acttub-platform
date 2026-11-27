@@ -206,7 +206,7 @@ export function CommunityBoard({
             <View style={styles.more}>
               <LoadingText label={t('loadingText.loading')} />
             </View>
-          ) : null
+          ) : undefined
         }
         onEndReached={() => void loadMore()}
         onEndReachedThreshold={0.4}

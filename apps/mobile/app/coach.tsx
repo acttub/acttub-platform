@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance, type TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -99,7 +99,7 @@ function CoachTalk() {
   const keyboardHeight = useKeyboardHeight();
   const keyboardVisible = keyboardHeight > 0;
   const [practice] = useState(() => getPractice());
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   /** 지금 질문 칸의 위쪽 y(스크롤 안 기준) — 키보드가 뜨면 이 자리부터 보이게 올린다. */
   const questionY = useRef<number | null>(null);
   const mountedRef = useRef(true);
@@ -115,7 +115,7 @@ function CoachTalk() {
   const [input, setInput] = useState('');
   // 허용 범위 밖 글자(결합 기호를 쌓은 글 등)는 입력칸에 들어오지 않는다(SOMA-905). 뺀 게 있으면 한 줄 알린다.
   const { onChangeText: changeInput, hint: strippedHint } = useReadableInput(setInput);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
   // 못 보내는 보내기를 눌렀나(SOMA-1057). 이유가 바뀌거나 풀리면 다시 누를 때까지 줄을 숨긴다.

@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Linking, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -50,7 +50,7 @@ export default function CommunityNewScreen() {
   const resetImages = images.reset;
   const { id, category: initialCategory } = useLocalSearchParams<{ id?: string; category?: string }>();
   const editing = !!id;
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const [categories, setCategories] = useState<CommunityCategory[] | null>(null);
   const [categoriesFailed, setCategoriesFailed] = useState(false);
   // 글쓰기는 「자유」가 골라진 채로 연다(11/2 폰 QA). 고치는 글은 불러온 글의 분류로 바뀐다.

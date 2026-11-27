@@ -164,7 +164,7 @@ export function ChallengeCommentsSheet({
             ListEmptyComponent={
               comments !== null && !loadError ? (
                 <InlineEmpty title={t('comments.emptyTitle')} description={t('comments.empty')} />
-              ) : null
+              ) : undefined
             }
             renderItem={({ item }) => (
               <View style={styles.row}>

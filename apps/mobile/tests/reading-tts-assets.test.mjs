@@ -15,14 +15,14 @@ const modules = {
       textSync() { if (!s.files.has(this.uri)) throw new Error('missing'); return s.files.get(this.uri).text; }
       async text() { return this.textSync(); }
       create() { s.files.set(this.uri, { size: 0, text: '' }); }
-      write(text) { s.files.set(this.uri, { size: text.length, text }); }
+      writeSync(text) { s.files.set(this.uri, { size: text.length, text }); }
       delete() { if (s.stuck.has(this.uri)) throw new Error('busy'); s.files.delete(this.uri); }
       moveSync(target) { s.files.set(target.uri, s.files.get(this.uri)); s.files.delete(this.uri); }
       static async downloadFileAsync(url, file) {
         s.fetched.push(url);
         const body = s.remote.get(url);
         if (typeof body !== 'string') throw body ?? new Error('network unreachable');
-        file.write(body);
+        file.writeSync(body);
         return file;
       }
     }

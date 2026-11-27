@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View, type ViewInstance } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -97,7 +97,7 @@ export function SpotlightHost() {
   // 띄워 달라는 요청도, 비출 자리도 화면 밖에서 바뀐다 — 바뀌면 다시 그린다.
   const [, refresh] = useReducer((n: number) => n + 1, 0);
   // 덮개 판의 원점은 창 기준과 다르다 — 판 자신을 같은 방법으로 재서 그 차이를 뺀다.
-  const probe = useRef<View | null>(null);
+  const probe = useRef<ViewInstance | null>(null);
   const [origin, setOrigin] = useState({ x: 0, y: 0 });
 
   // 구멍 자리·모양과 설명 카드 높이. 셋 다 같은 박자로 움직인다.

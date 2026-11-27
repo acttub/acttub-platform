@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View, type TextInput } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance, type TextInputInstance } from 'react-native';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -102,9 +102,9 @@ export default function ProfileNameScreen() {
   const me = profile.me;
   // 못 넘어가는 「다음」을 누른 횟수(SOMA-1057). 0 이면 이유 줄을 숨긴다. 누를 때마다 줄을 다시 그려 그 자리로 스크롤한다.
   const [blockedTaps, setBlockedTaps] = useState(0);
-  const scrollRef = useRef<ScrollView>(null);
-  const nameRef = useRef<TextInput>(null);
-  const otherRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const nameRef = useRef<TextInputInstance>(null);
+  const otherRef = useRef<TextInputInstance>(null);
   const submittingRef = useRef(false);
   useEffect(() => setBlockedTaps(0), [screen]);
 

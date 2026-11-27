@@ -20,7 +20,7 @@ const fakes = {
       get exists() { return s.files.has(this.uri); }
       get size() { return s.files.get(this.uri)?.length; }
       async bytes() { if (s.unreadable) throw new Error('io'); return s.files.get(this.uri); }
-      write(bytes) { s.files.set(this.uri, bytes); s.rewritten.push([this.uri, bytes]); }
+      writeSync(bytes) { s.files.set(this.uri, bytes); s.rewritten.push([this.uri, bytes]); }
     }`,
   '@/lib/account-files': `const s = globalThis.__runnerTest;
     export async function deleteDeviceFile(uri) { s.deleted.push(uri); s.files.delete(uri); }`,

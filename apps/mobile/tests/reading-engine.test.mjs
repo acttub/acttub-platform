@@ -8,7 +8,7 @@ const state = globalThis.__readingEngineTest;
 const modules = {
   'expo-file-system': `const s=globalThis.__readingEngineTest;
     export const Paths={cache:'file:///cache'};
-    export class File { constructor(root,name){this.uri=root+'/'+name;} get exists(){return s.files.has(this.uri);} write(bytes){s.files.set(this.uri,bytes);} }`,
+    export class File { constructor(root,name){this.uri=root+'/'+name;} get exists(){return s.files.has(this.uri);} writeSync(bytes){s.files.set(this.uri,bytes);} }`,
   'expo-audio': `const s=globalThis.__readingEngineTest;
     export async function setAudioModeAsync(){}
     export function createAudioPlayer(source){

@@ -14,7 +14,7 @@ test('문서 선택: 안드로이드는 소스에서 빌드한다 — 미리 빌
 });
 
 test('문서 선택: 결과는 꺼낸 promise 하나로 한 번만 처리하고, 이미 처리됐으면 앱을 끄지 않는다', () => {
-  const patch = read('patches/expo-document-picker+14.0.8.patch');
+  const patch = read('patches/expo-document-picker+58.0.5.patch');
   assert.match(patch, /\+\s+val promise = pendingPromise \?: return@OnActivityResult\n\+\s+pendingPromise = null/);
   assert.match(patch, /\+\s+private fun rejectQuietly\(/);
   assert.match(patch, /-\s+pendingPromise\?\.resolve\(result\)/);

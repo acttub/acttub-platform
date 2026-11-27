@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useEffect } from 'react';
-import { StyleSheet, View, type ImageSourcePropType } from 'react-native';
+import { StyleSheet, View, type ImageRequireSource } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -41,11 +41,11 @@ export function ActyMotion({
   intro,
   testID,
 }: {
-  source: ImageSourcePropType;
+  source: ImageRequireSource;
   size: { width: number; height: number };
   kind: ActyMotionKind;
   /** celebrate 가 처음 잠깐 보여 주는 자세. 기본은 없음 — 화면 자세로 바로 시작한다. */
-  intro?: ImageSourcePropType;
+  intro?: ImageRequireSource;
   testID?: string;
 }) {
   const reduceMotion = useReducedMotion();

@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode, type Ref } from 'react';
-import { ScrollView, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type ImageRequireSource, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { KeyboardLift } from '@/components/keyboard-lift';
@@ -28,7 +28,7 @@ export function DoneScreen({
   footer,
   scrollRef,
 }: {
-  mascot?: ImageSourcePropType;
+  mascot?: ImageRequireSource;
   /** 액티 움직임 — 축하할 일이 아닌 완료는 'none'. */
   mascotMotion?: ActyMotionKind;
   title: string;
@@ -38,7 +38,7 @@ export function DoneScreen({
   homeDisabled?: boolean;
   mascotTop?: boolean;
   footer?: ReactNode;
-  scrollRef?: Ref<ScrollView>;
+  scrollRef?: Ref<ScrollViewInstance>;
 }) {
   // 축하할 완료(액티가 기뻐하는 끝 화면)가 처음 뜰 때 짧은 효과음을 한 번 낸다(11/2 우영).
   const celebrate = mascotMotion === 'celebrate';

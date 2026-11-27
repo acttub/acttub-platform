@@ -34,7 +34,7 @@ const mockRouter = { replace: jest.fn(), push: jest.fn(), dismissTo: jest.fn() }
 const mockRemoveListeners: (() => void)[] = [];
 const mockNavigation = {
   addListener: jest.fn((event: string, fn: () => void) => {
-    if (event === 'beforeRemove') mockRemoveListeners.push(fn);
+    if (event === 'removed') mockRemoveListeners.push(fn);
     return () => undefined;
   }),
 };
@@ -1821,7 +1821,7 @@ test('[시작] 전에 나가기: 확인 없이 회차를 지운 뒤 이미 있�
   expect(server.saveProgress).not.toHaveBeenCalled();
   expect(mockRouter.replace).not.toHaveBeenCalled();
 
-  // 화면이 내려갈 때(beforeRemove) 다시 지우지 않는다.
+  // 화면이 내려간 뒤(removed) 다시 지우지 않는다.
   await act(async () => mockRemoveListeners.forEach((fn) => fn()));
   expect(server.deleteSession).toHaveBeenCalledTimes(1);
 });

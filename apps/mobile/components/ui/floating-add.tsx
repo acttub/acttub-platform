@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import type { Ref } from 'react';
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -23,7 +23,7 @@ export function FloatingAdd({
   bottom: number;
   onPress: () => void;
   phLabel: string;
-  target?: { ref: Ref<View>; onLayout: (e: LayoutChangeEvent) => void };
+  target?: { ref: Ref<ViewInstance>; onLayout: (e: LayoutChangeEvent) => void };
 }) {
   return (
     <View style={[styles.wrap, { bottom }]} ref={target?.ref} onLayout={target?.onLayout}>

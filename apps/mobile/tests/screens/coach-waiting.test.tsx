@@ -251,9 +251,9 @@ describe('기다리는 동안', () => {
 
     const preventRemove = jest.requireMock('expo-router/react-navigation').usePreventRemove as jest.Mock;
     const leave = preventRemove.mock.calls.filter(([on]) => on).at(-1)[1];
-    const action = { type: 'REPLACE', payload: { name: 'coach' } };
-    await act(async () => leave({ data: { action } }));
-    expect(mockNavDispatch).toHaveBeenCalledWith({ type: 'REPLACE', payload: { name: 'coach' } });
+    const repeat = jest.fn();
+    await act(async () => leave({ data: { action: { type: 'REPLACE', payload: { name: 'coach' } } }, repeat }));
+    expect(repeat).toHaveBeenCalledTimes(1);
     expect(mockRouter.dismissTo).not.toHaveBeenCalledWith('/coaching');
     os.restore();
   });

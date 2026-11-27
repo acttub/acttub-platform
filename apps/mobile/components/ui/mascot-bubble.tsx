@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import { StyleSheet, Text, View, type ImageRequireSource } from 'react-native';
 
 import { MASCOT, MASCOT_SIZE } from '@/components/ui/mascot';
 import { palette } from '@/constants/palette';
@@ -18,7 +18,7 @@ export function MascotBubble({
   guide,
   question = false,
 }: {
-  source?: ImageSourcePropType;
+  source?: ImageRequireSource;
   title: string;
   body?: string | null;
   guide?: string | null;

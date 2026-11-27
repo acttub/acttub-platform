@@ -1,5 +1,5 @@
 import { forwardRef, useState } from 'react';
-import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { StyleSheet, Text, TextInput, View, type TextInputProps, type TextInputInstance } from 'react-native';
 
 import { InlineErrorLine } from '@/components/ui/inline-error';
 import { useReadableInput } from '@/hooks/use-readable-input';
@@ -13,7 +13,7 @@ const noop = () => {};
  * 디자인 시스템 pen 「TextField/Default·Focus·Error」 — 이름표(body2-bold text-sub) 아래 흰 바탕 입력칸.
  * 높이 48 · r-md · 1px border, 입력 중 1.5px blue, `error`가 있으면 1.5px danger 와 아래 InlineError/Line 한 줄.
  */
-export const TextField = forwardRef<TextInput, TextInputProps & { label?: string; error?: string | null; charset?: InputCharsetMode | 'off' }>(function TextField(
+export const TextField = forwardRef<TextInputInstance, TextInputProps & { label?: string; error?: string | null; charset?: InputCharsetMode | 'off' }>(function TextField(
   { label, error, style, onFocus, onBlur, charset, onChangeText, ...input },
   ref,
 ) {

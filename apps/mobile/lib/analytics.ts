@@ -9,8 +9,8 @@
  *
  * 이벤트 이름은 GA4 규칙: snake_case, 40자 이내. 커스텀 파라미터도 snake_case.
  *
- * iOS/Android 모두 Firebase 네이티브 모듈을 포함한다(2026-07-23부터). iOS는 useFrameworks(static)
- * 컴파일 충돌을 $RNFirebaseAsStaticFramework=true(plugins/with-rnfirebase-static)로 해결.
+ * iOS/Android 모두 Firebase 네이티브 모듈을 포함한다(2026-07-23부터). iOS 는 RNFB 27 부터 Firebase 를
+ * Swift Package 로 받아 useFrameworks 를 dynamic 으로 둔다.
  * 네이티브 모듈이 없거나 초기화 실패한 환경(Expo Go·웹)은 아래 try 가드로 조용히 no-op이 된다.
  */
 import { isProductionApiUrl } from './api-env.ts';

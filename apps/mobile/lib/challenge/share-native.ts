@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { Directory, File, Paths } from 'expo-file-system';
-import * as MediaLibrary from 'expo-media-library';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import { Linking, Platform, Share as SystemShare } from 'react-native';
 import Share, { Social } from 'react-native-share';
 
