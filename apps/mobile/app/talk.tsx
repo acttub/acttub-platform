@@ -104,6 +104,7 @@ export default function TalkScreen() {
       <CoachingLimitSheet
         visible={freeLimit}
         onClose={() => setFreeLimit(false)}
+        from="talk"
         onRewarded={() => {
           // 광고를 보고 1회를 받았다(SOMA-1067) — 고른 목적으로 바로 다시 시작한다.
           setFreeLimit(false);

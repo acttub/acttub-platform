@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import ScriptCocreateScreen from '@/app/script-cocreate';
+import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import { setContinueOrigin } from '@/lib/practice/session-state';
@@ -33,6 +34,7 @@ jest.mock('@/lib/api', () => ({
 }));
 jest.mock('@/lib/reading/store', () => ({ loadIntoCurrent: jest.fn(), rememberMyRoles: jest.fn(async () => undefined) }));
 jest.mock('@/lib/practice/session-state', () => ({ setContinueOrigin: jest.fn() }));
+jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 
 const createSampleScript = api.createSampleScript as jest.Mock;
 const reviseSampleScript = api.reviseSampleScript as jest.Mock;
@@ -235,6 +237,19 @@ test('확정이 실패하면 결과 화면에 이유를 보인다', async () => 
   await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
   await fireEvent.press(await screen.findByRole('button', { name: '이 대본으로 확정' }));
   expect(await screen.findByText('내 대본이 가득 찼어요. 리딩에서 안 쓰는 대본을 지운 뒤 다시 확정해 주세요.')).toBeOnTheScreen();
+  expect(jest.mocked(logEvent).mock.calls.filter(([name]) => name === 'free_limit_shown')).toEqual([]);
+});
+
+test('확정이 무료 대본 한도에 걸리면 한도 문구를 보이고 free_limit_shown 을 한 번 남긴다(11/27)', async () => {
+  createSampleScript.mockResolvedValue(sample());
+  saveSampleScript.mockRejectedValue(new ApiError(403, 'limit', 'free_script_limit'));
+  await reachDirection();
+  await fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
+  await fireEvent.press(await screen.findByRole('button', { name: '이 대본으로 확정' }));
+  expect(await screen.findByText('무료는 대본 3개까지 보관해요')).toBeOnTheScreen();
+  expect(jest.mocked(logEvent).mock.calls.filter(([name]) => name === 'free_limit_shown')).toEqual([
+    ['free_limit_shown', { kind: 'script', from: 'cocreate' }],
+  ]);
 });
 
 test('생성 응답 유실 뒤 같은 입력 재시도는 request_id 유지, 입력 변경은 새 id', async () => {

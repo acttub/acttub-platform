@@ -52,7 +52,7 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
 - 영상은 파일이 남아 있는(purged_at 없는) 확정된 본인 videos 행이어야 한다. 없는 영상과 남의 영상은 404, 본인 영상이 미확정이거나 파일만
   파기됐으면 422 video_not_ready. 길이 60초 이내(기기가 적은 값과 서버가 ffprobe로 잰 실제 길이 모두 초 단위로 반올림해 60.5초 미만이면 통과,
   넘으면 422 video_too_long). 서버가 영상 객체를 읽을 수 없으면 422 video_not_ready. 챌린지 촬영(A18)의 상한도 60초다. 하한은 3초다: 앱이 3초 미만 촬영본을 올리기 전에 막고 "영상이 너무 짧아요. 3초 이상 촬영해 주세요."를 보인다(서버 검사는 아직 없다). 다른
-  영상으로 같은 챌린지에 여러 번 참여할 수 있다. 하루 참여는 3개까지(429 daily_entry_limit, 삭제한 것도 센다).
+  영상으로 같은 챌린지에 여러 번 참여할 수 있다. 하루 참여는 살아 있는 참여작 3개까지이고, 지운 것까지 센 시도는 하루 6번까지다(둘 중 하나라도 차면 429 daily_entry_limit, 한국 시간 자정 기준). 지우고 다시 찍는 배우가 지운 것 때문에 막히지 않게 하되, 올리고 지우기를 끝없이 되풀이하지는 못하게 한다(2026-11-27 운영 기록: 14일 동안 하루 3개에 닿은 50회 중 20회는 지운 참여작 때문에 살아 있는 참여작이 3개 미만이었다).
 - visible·진행 중인 챌린지에만 참여한다. review·hidden·deleted 챌린지는 404, 조회 가능한 종료 챌린지는 422 challenge_closed. 마감은 저장
   시점의 서버 시각으로 본다(촬영 중에 마감되면 영상은 보관함에 남고 참여작은 만들어지지 않는다). 참여 생성이 영상 파기·챌린지 삭제와
   겹치면 한쪽만 성공한다.
@@ -86,7 +86,7 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
 
 ## 예외
 - 같은 영상 같은 챌린지: 422 duplicate_entry.
-- 하루 4번째 참여: 429 daily_entry_limit.
+- 하루 4번째 참여(살아 있는 3개가 있을 때): 429 daily_entry_limit. 지운 참여작은 살아 있는 수에 들지 않지만, 지운 것을 포함한 7번째 시도는 429다.
 - 종료 챌린지 참여: 422 challenge_closed. review·hidden·deleted 챌린지: 404. 60.5초 이상 영상: 422 video_too_long. 본인 미확정·파일 파기 영상: 422
   video_not_ready. 남의 영상·없는 영상: 404.
 - 참여작 삭제 뒤 같은 영상으로 다시 참여: 된다(새 행).
@@ -98,7 +98,7 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
 - 비공개 저장: published_at NULL, 목록에 없고 P03에 "비공개 저장".
 - 공개 범위를 바꾸지 않고 올리기: 나만 보기(private)로 올라간다.
 - 같은 요청 id·같은 지문 두 번: 행 하나. 다른 지문: 422. 같은 영상 같은 챌린지: 422 duplicate_entry. 다른 영상: 두 번째 행.
-- 하루 4번째: 429 daily_entry_limit. 종료 챌린지: 422 challenge_closed. review 챌린지: 404. 60.5초: 422 video_too_long. 60.4초: 200. 본인 미확정 영상: 422
+- 하루 4번째(살아 있는 3개): 429 daily_entry_limit. 지운 것 포함 7번째 시도: 429. 종료 챌린지: 422 challenge_closed. review 챌린지: 404. 60.5초: 422 video_too_long. 60.4초: 200. 본인 미확정 영상: 422
   video_not_ready. 파일만 파기한 본인 영상: 422 video_not_ready. 남의 영상: 404.
 - 마감 1초 뒤 저장 요청: 422 challenge_closed, 영상은 보관함에 있다.
 - 공개 → 비공개: 랭킹에서 빠지고 entry_likes·entry_comments·entry_saves 행은 남는다. 다시 공개(진행 중): 좋아요 수·댓글 그대로 돌아오고

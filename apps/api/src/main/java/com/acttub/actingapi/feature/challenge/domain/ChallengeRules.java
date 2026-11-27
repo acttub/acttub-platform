@@ -9,7 +9,10 @@ public final class ChallengeRules {
     public static final int DAILY_CREATIONS = 3;
     /** 챌린지 영상은 60초 이내다(촬영 상한과 같다). 서버가 실제 길이로 확인한다. */
     public static final int ENTRY_VIDEO_MAX_MS = 60_000;
+    /** 하루에 살아 있는 참여작은 3개까지다. 지운 참여작은 이 수에 들지 않는다(마음에 안 들어 지우고 다시 찍는 배우가 막혔다, 11/27). */
     public static final int DAILY_ENTRIES = 3;
+    /** 지운 것까지 센 하루 시도 상한. 올리고 지우기를 끝없이 되풀이해 AI 검사·모자이크 비용이 쌓이지 않게 한다. */
+    public static final int DAILY_ENTRY_ATTEMPTS = 6;
     public static final int CAPTION_MAX = 300;
     /** 참여작 목록·피드 한 쪽. */
     public static final int ENTRY_PAGE = 20;

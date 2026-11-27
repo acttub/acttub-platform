@@ -2,11 +2,12 @@ import { RatingBox } from '@/components/report-rating';
 import { logEvent } from '@/lib/analytics';
 import { translate as t } from '@/lib/i18n';
 import { readingRatings } from '@/lib/reading-rating';
-import { buildReadingRatingBody, READING_RATING_COMMENT_MAX, type ReadingRating as SavedRating, type ReadingRatingValue } from '@/lib/reading/session-rating';
+import { buildReadingRatingBody, READING_BAD_REASONS, READING_RATING_COMMENT_MAX, type ReadingRating as SavedRating, type ReadingRatingValue } from '@/lib/reading/session-rating';
 
 /**
  * 리딩이 끝난 화면의 "이번 리딩 어땠나요?"(reading.session, SOMA-661). 칩을 누르는 순간 서버에 리딩 회차 단위로
  * 남기고, 못 보내면 기기가 들고 있다가 다시 보낸다(lib/reading-rating.ts). 노트 평가와 같은 상자를 쓴다.
+ * 「아쉬웠어요」를 고르면 이유 칩(READING_BAD_REASONS)을 더 보이고, 고른 코드를 reasons 로 기록한다(11/27).
  */
 export function ReadingRating({
   sessionId,
@@ -30,9 +31,10 @@ export function ReadingRating({
       thanks={t('reading.rateThanks')}
       commentMax={READING_RATING_COMMENT_MAX}
       onInputFocus={onInputFocus}
-      save={async (requestId, rating, comment) => {
+      reasons={{ for: 'bad', options: READING_BAD_REASONS.map(([code, key]) => [code, t(`reading.${key}`)] as const) }}
+      save={async (requestId, rating, comment, reasons) => {
         const result = await readingRatings.send(sessionId, buildReadingRatingBody({ requestId, rating, comment }));
-        logEvent('reading_rating_submit', { rating, length: comment?.length ?? 0, result });
+        logEvent('reading_rating_submit', { rating, length: comment?.length ?? 0, result, reasons: reasons.join(',') });
         return result;
       }}
     />

@@ -19,6 +19,22 @@ export function noteRatingCommentText(text: string | null | undefined): string |
   return trimmed.length > 0 ? trimmed : null;
 }
 
+/**
+ * 고른 이유 문구를 한 줄 앞에 붙인다(「느려요, 다음 줄로 안 넘어가요 / 글」). 이유만 골라도 보낼 수 있다.
+ * max 를 넘으면 뒤를 자르고, 자른 자리가 이모지 반쪽이면 그 반쪽도 뺀다. 남는 글이 없으면 null.
+ */
+export function ratingCommentWithReasons(reasons: readonly string[], text: string | null | undefined, max: number): string | null {
+  const head = reasons.join(', ');
+  const tail = noteRatingCommentText(text);
+  let joined = head && tail ? `${head} / ${tail}` : head || tail || '';
+  if (joined.length > max) {
+    joined = joined.slice(0, max);
+    const last = joined.charCodeAt(joined.length - 1);
+    if (last >= 0xd800 && last <= 0xdbff) joined = joined.slice(0, -1);
+  }
+  return noteRatingCommentText(joined);
+}
+
 export function buildNoteRatingBody(input: {
   requestId: string;
   rating: NoteRatingBody['rating'];

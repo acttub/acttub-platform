@@ -22,6 +22,8 @@ export type AppConfig = {
     maxListenMs: number;
     speechEndGraceMs: number;
     advanceCoverage: number;
+    /** 말 끝 없이도 글이 다 찬 채로 이만큼 새 글이 없으면 넘긴다. 0 이면 끈다. */
+    stableAdvanceMs: number;
     monologuePass: number;
     monologueMissedBelow: number;
     monologueNextAt: number;
@@ -42,6 +44,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     maxListenMs: 60000,
     speechEndGraceMs: 1300,
     advanceCoverage: 0.9,
+    // 서버 기본값과 같다(app-config/defaults.json). 서버가 이 칸을 안 주는 예전 서버에서도 이 값으로 돈다(11/27).
+    stableAdvanceMs: 1800,
     monologuePass: 0.72,
     monologueMissedBelow: 0.3,
     monologueNextAt: 0.8,
@@ -70,6 +74,11 @@ function positive(value: unknown, fallback: number, max = Number.POSITIVE_INFINI
 /** 0보다 큰 정수. */
 function positiveInt(value: unknown, fallback: number, max = Number.POSITIVE_INFINITY): number {
   return Number.isInteger(value) && (value as number) > 0 && (value as number) <= max ? (value as number) : fallback;
+}
+
+/** 0 이상 유한한 수. 0 이 「끈다」인 칸에 쓴다(positive 는 0 을 거른다). */
+function nonNegative(value: unknown, fallback: number, max: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= max ? value : fallback;
 }
 
 /** 0 초과 1 이하 비율. */
@@ -118,6 +127,7 @@ export function parseAppConfig(json: unknown): AppConfig {
       maxListenMs: positive(reading.max_listen_ms, d.reading.maxListenMs, 600_000),
       speechEndGraceMs: positive(reading.speech_end_grace_ms, d.reading.speechEndGraceMs, 60_000),
       advanceCoverage: ratio(reading.advance_coverage, d.reading.advanceCoverage),
+      stableAdvanceMs: nonNegative(reading.stable_advance_ms, d.reading.stableAdvanceMs, 60_000),
       monologuePass: ratio(reading.monologue_pass, d.reading.monologuePass),
       monologueMissedBelow: ratio(reading.monologue_missed_below, d.reading.monologueMissedBelow),
       monologueNextAt: ratio(reading.monologue_next_at, d.reading.monologueNextAt),

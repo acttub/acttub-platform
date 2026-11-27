@@ -278,6 +278,32 @@ class ChallengeEntryIT {
         assertThat(LenientJson.asText(enter(challenge, video, "public", 422).path("detail"))).isEqualTo("duplicate_entry");
     }
 
+    @Test void challengeEntry_dailyLimitCountsLiveEntriesAndCapsAttemptsWithDeleted() throws Exception {
+        UUID open = challenge(NOW.plus(Duration.ofDays(7)));
+        // 하나 올리고 지우기를 세 번 — 지운 것은 살아 있는 한도(3)에 들지 않는다.
+        for (int i = 0; i < 3; i++) {
+            String id = LenientJson.asText(enter(open, video(user, 30_000), "public", 201).path("id"));
+            response(delete("/v2/entries/{id}", id), 204);
+        }
+        for (int i = 0; i < 2; i++) enter(open, video(user, 30_000), "public", 201);
+        // 지운 3 + 살아 있는 2 = 시도 5. 하나 더(시도 6, 살아 있는 3)는 받는다.
+        enter(open, video(user, 30_000), "public", 201);
+        // 살아 있는 3개도, 시도 6번도 찼다.
+        assertThat(LenientJson.asText(enter(open, video(user, 30_000), "public", 429).path("detail"))).isEqualTo("daily_entry_limit");
+        clock.advance(Duration.ofDays(1));
+        enter(open, video(user, 30_000), "public", 201);
+    }
+
+    @Test void challengeEntry_dailyAttemptCapStopsEndlessUploadAndDelete() throws Exception {
+        UUID open = challenge(NOW.plus(Duration.ofDays(7)));
+        for (int i = 0; i < 6; i++) {
+            String id = LenientJson.asText(enter(open, video(user, 30_000), "public", 201).path("id"));
+            response(delete("/v2/entries/{id}", id), 204);
+        }
+        // 살아 있는 참여작은 0개지만 오늘 시도 6번을 다 썼다.
+        assertThat(LenientJson.asText(enter(open, video(user, 30_000), "public", 429).path("detail"))).isEqualTo("daily_entry_limit");
+    }
+
     @Test void challengeEntry_rejectsAFourthEntryClosedHiddenLongUnreadyAndForeignVideos() throws Exception {
         UUID open = challenge(NOW.plus(Duration.ofDays(7)));
         for (int i = 0; i < 3; i++) enter(open, video(user, 30_000), "public", 201);

@@ -206,6 +206,9 @@ const COACH_TEXT: Record<CoachMark, string> = {
   alone: 'reading.coachAlone',
 };
 
+/** 내 차례 닫기가 이보다 오래 걸릴 때만 [다음]을 「넘기는 중」으로 바꾼다(빠른 닫기에서 깜빡임 막기). */
+const CLOSING_LABEL_DELAY_MS = 250;
+
 export default function ReadingPlay() {
   const router = useRouter();
   // 한 번 들어온 동안은 같은 자세 — 다시 그릴 때마다 바뀌면 깜빡여 보인다.
@@ -312,6 +315,8 @@ export default function ReadingPlay() {
   const [editing, setEditing] = useState<{ lineId: string; draft: LineDraft; choices?: { lineId: string; text: string }[]; drafts?: Record<string, LineDraft> } | null>(null);
   const editResumes = useRef(false);
   const engineRef = useRef<PartnerVoiceEngine>('supertonic');
+  /** 내 차례를 닫는 중(받아쓰기 마무리·마이크 정지 대기) — [다음]을 「넘기는 중」으로 보인다. */
+  const [closingTurn, setClosingTurn] = useState(false);
   const deviceVoiceRef = useRef(false);
   /**
    * 예시 대본의 미리 만든 음성(engine 'example'). text 는 고른 때의 줄(배역·글) — 리딩 중 줄을 고치면 음성과 글이 달라져
@@ -334,6 +339,7 @@ export default function ReadingPlay() {
   const liftRatingInput = useCallback(() => {
     setTimeout(() => doneScrollRef.current?.scrollToEnd({ animated: true }), 250);
   }, []);
+  // 대본을 2번 완주할 때마다 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494·SOMA-661).
   // 대본을 끝까지 읽으면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494).
   const { after: askRating, element: ratingCard } = useAppRating();
   const showFullScreenAd = useFullScreenAd();
@@ -1092,22 +1098,38 @@ export default function ReadingPlay() {
   }, [phase.kind, turnGated, run?.index, run?.status, engine, goNext, presetFor, primeSpeech, script?.id, flash]);
 
   // ── 내 차례: 마이크(침묵 감지)와 STT ─────────────────────────────────────────
-  /** 내 차례를 끝낸다(침묵·[다음]) — 그때까지의 녹음을 거둔 뒤 넘긴다. */
+  /**
+   * 내 차례를 끝낸다(침묵·[다음]) — 그때까지의 녹음을 거둔 뒤 넘긴다.
+   *
+   * 손으로 누른 [다음]도 줄을 먼저 넘기지 않는다(11/27 검토). 넘기면 ① 줄이 바뀌며 내 차례 효과의 정리가 인식기를 abort 해
+   * 마무리 중인 받아쓰기와 녹음 조각을 버리고, ② 줄 넘김의 진행 저장(line_results)에 그 줄의 받아쓴 글이 빠지며(마지막 줄이면
+   * 완료 판정도), ③ 상대 목소리가 인식기의 iOS 오디오 세션이 재생으로 돌아오기(restorePlaybackAudio) 전에 시작된다.
+   * 대신 닫는 동안 [다음]을 「넘기는 중」으로 보여 눌린 것을 알린다(closingTurn).
+   */
   const endMyTurn = useCallback(
     async (from: number) => {
       const cur = runRef.current;
       if (!cur || !session || cur.index !== from || cur.status !== 'mine' || turnClosing.current) return;
       turnClosing.current = true;
       setTurnDone(true);
-      // 받아쓰기 마무리·마이크 정지가 늦거나 실패해도 [다음]은 정한 시간 안에 넘어간다(11/2 QA). 녹음 올리기는 원래 뒤에서 한다.
-      const text = sttActive.current ? await settleWithin(stt.finish(), STT_FINISH_MAX_MS, '') : '';
-      await settleWithin(endTurnRecording(cur.lineIds[cur.index], text), MIC_STOP_MAX_MS, null);
-      sttActive.current = false;
-      setListening(false);
-      const now = runRef.current;
-      if (!now || now.index !== from) return;
-      if (text.trim()) commit(recordSaid(now, text));
-      goNext(from);
+      // 빨리 닫히는 대부분의 차례에서 버튼이 깜빡이지 않게, 닫기가 잠깐(CLOSING_LABEL_DELAY_MS) 넘게 걸릴 때만 「넘기는 중」을 보인다.
+      const closingLabel = setTimeout(() => {
+        if (mounted.current) setClosingTurn(true);
+      }, CLOSING_LABEL_DELAY_MS);
+      try {
+        // 받아쓰기 마무리·마이크 정지가 늦거나 실패해도 [다음]은 정한 시간 안에 넘어간다(11/2 QA). 녹음 올리기는 원래 뒤에서 한다.
+        const text = sttActive.current ? await settleWithin(stt.finish(), STT_FINISH_MAX_MS, '') : '';
+        await settleWithin(endTurnRecording(cur.lineIds[cur.index], text), MIC_STOP_MAX_MS, null);
+        sttActive.current = false;
+        setListening(false);
+        const now = runRef.current;
+        if (!now || now.index !== from) return;
+        if (text.trim()) commit(recordSaid(now, text));
+        goNext(from);
+      } finally {
+        clearTimeout(closingLabel);
+        if (mounted.current) setClosingTurn(false);
+      }
     },
     [session, stt, commit, goNext, endTurnRecording],
   );
@@ -1174,12 +1196,43 @@ export default function ReadingPlay() {
         advanceNow();
       }, ms);
     };
+    // 말 끝(speech_end)이 오지 않아도 글이 기준을 넘긴 채 한동안 새 글이 없으면 넘긴다(11/27). 침묵 넘김 회차의 unmatched
+    // 6,514줄 중 3,946줄은 글이 90% 넘게 찼는데 말 끝이 안 잡혀(잡음 등) 손으로 넘겼다. 대사 중간의 사이는 글이 기준에
+    // 못 미쳐 걸리지 않는다(0.7 로 낮췄다가 「말하는 중에 넘어간다」로 되돌린 11/5). 받아쓰기 있는 침묵 넘김에서만 건다.
+    let stableTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearStable = () => {
+      if (stableTimer) clearTimeout(stableTimer);
+      stableTimer = null;
+    };
+    /** 새 글이 올 때마다 처음부터 잰다. 기준에 못 미치거나 꺼져 있으면(0) 걸지 않는다. */
+    const armStable = () => {
+      clearStable();
+      const ms = getAppConfig().reading.stableAdvanceMs;
+      if (ms <= 0 || session.advance !== 'silence' || !sttActive.current || turnClosing.current) return;
+      if (!saidEnough(turnText, saidRef.current)) return;
+      stableTimer = setTimeout(() => {
+        stableTimer = null;
+        // 말 끝·늦은 넘김이 먼저 넘겼거나(turnClosing) 시트를 연 동안 이미 미뤄 뒀으면 두 번 넘기지 않는다.
+        if (cancelled || turnClosing.current || deferredRef.current) return;
+        shortAtEnd = false;
+        clearLate();
+        logAdvance('advance_stable', {
+          line: from,
+          chars: saidRef.current.length,
+          coverage: Math.round(spokenCoverage(turnText, saidRef.current) * 100) / 100,
+        });
+        advanceNow();
+      }, ms);
+    };
     const onEvent = (event: VadEvent) => {
       if (cancelled) return;
       if (event === 'timeout') setTurnNote('silence');
       if (event === 'speech_start') {
         shortAtEnd = false;
         clearLate();
+        // 다시 처음부터 잰다(끊지 않는다) — 잡음이 「말 시작」으로 잡히고 말 끝은 끝내 안 오는 차례가 이 보조 넘김의 대상이다.
+        // 정말 다시 말하는 중이면 새 중간 결과가 계속 와서 타이머가 계속 밀린다.
+        armStable();
       }
       if (event === 'speech_start' && deferredTimer.current) {
         // 시트를 닫은 뒤 다시 말하기 시작했다 — 미뤄 둔 넘김은 버리고 이번 말이 끝나기를 기다린다.
@@ -1206,6 +1259,7 @@ export default function ReadingPlay() {
           return;
         }
         shortAtEnd = false;
+        clearStable();
         advanceNow();
       }
     };
@@ -1245,6 +1299,7 @@ export default function ReadingPlay() {
               saidRef.current = text;
               setSaid(text);
               if (shortAtEnd && session.advance === 'silence' && saidEnough(turnText, text)) armLate(getAppConfig().reading.speechEndGraceMs);
+              armStable();
             },
             // 인식기가 스스로 끝났거나 오류로 멈추면 음량·말 끝 이벤트도 끊긴다 — 침묵 감지를 마이크로 이어받는다.
             // 이미 말이 끝났는데 글이 모자라 기다리던 중이면, 더 올 글이 없으니 침묵을 한 번 더 잰 뒤 넘긴다.
@@ -1274,6 +1329,9 @@ export default function ReadingPlay() {
         limitTimer = setTimeout(() => {
           const cur = runRef.current;
           if (cancelled || turnClosing.current || !cur || cur.index !== from) return;
+          // 한도에서는 줄을 그대로 두고 [다음]을 기다린다 — 걸어 둔 보조·늦은 넘김이 뒤에 줄을 넘기지 않게 끊는다.
+          clearStable();
+          clearLate();
           turnClosing.current = true;
           setTurnDone(true);
           void (async () => {
@@ -1294,6 +1352,7 @@ export default function ReadingPlay() {
     return () => {
       cancelled = true;
       clearLate();
+      clearStable();
       if (limitTimer) clearTimeout(limitTimer);
       if (deferredTimer.current) clearTimeout(deferredTimer.current);
       deferredTimer.current = null;
@@ -2216,7 +2275,7 @@ export default function ReadingPlay() {
         <View style={[styles.progressFill, { width: `${Math.round((progressOf(run).done / Math.max(1, progressOf(run).total)) * 100)}%` }]} />
       </View>
       {proVoiceHint && (
-        <Pressable style={styles.proHint} onPress={() => router.push('/pro')} accessibilityRole="button" accessibilityLabel={t('reading.proVoiceHint')}>
+        <Pressable style={styles.proHint} onPress={() => router.push({ pathname: '/pro', params: { from: 'reading_voice' } })} accessibilityRole="button" accessibilityLabel={t('reading.proVoiceHint')}>
           <Text style={styles.proHintText}>{t('reading.proVoiceHint')}</Text>
         </Pressable>
       )}
@@ -2471,6 +2530,9 @@ export default function ReadingPlay() {
               style={styles.ctrl}
               label={t(monoNext ? 'reading.monologueNextChunk' : monologue ? 'reading.monologueFinish' : 'reading.next')}
               iconAfter={<Feather name="arrow-right" size={16} color={palette.onAccent} />}
+              // 내 차례를 닫는 동안(받아쓰기 마무리·마이크 정지, 최대 3초)은 눌린 것을 보이고 다시 누름을 받지 않는다(11/27 검토).
+              loading={!monologue && myTurn && closingTurn}
+              loadingLabel={t('reading.nextClosing')}
               onPress={() => {
                 if (tooSoonAfterLineChange(lineShownAt.current)) return;
                 if (monoNext) nextMonoChunk(monoNext.start);

@@ -127,7 +127,10 @@ class PostgresEntryRepository implements EntryRepository {
         if (video.isEmpty()) throw new ApiException(404, "video_not_found");
         if (video.getFirst().get("purged_at", Instant.class) != null) throw new ApiException(422, "video_not_ready");
         if (entries.countLiveWithVideo(challengeId, entry.videoId()) > 0) throw new ApiException(422, "duplicate_entry");
-        if (entries.countCreatedSince(owner, ChallengeRules.koreanMidnight(now)) >= ChallengeRules.DAILY_ENTRIES) {
+        // 하루 한도: 살아 있는 참여작 3개, 지운 것까지 시도 6번. 지우고 다시 올리는 배우는 3번까지 더 올릴 수 있다.
+        Instant midnight = ChallengeRules.koreanMidnight(now);
+        if (entries.countLiveCreatedSince(owner, midnight) >= ChallengeRules.DAILY_ENTRIES
+                || entries.countCreatedSince(owner, midnight) >= ChallengeRules.DAILY_ENTRY_ATTEMPTS) {
             throw new ApiException(429, "daily_entry_limit");
         }
         UUID id = UUID.randomUUID();

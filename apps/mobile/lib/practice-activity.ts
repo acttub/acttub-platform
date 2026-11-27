@@ -51,3 +51,28 @@ export function buildRecentActivity(
   }
   return { days };
 }
+
+/**
+ * 「이번 주 연습」 원에 쓸 날마다 연습 횟수 — max(그 날이 연습한 날이면 1, 그 날 센 연습 기록 수).
+ * days 는 buildRecentActivity 결과(하루 하나로 합친 날짜라 0/1), practices 는 시각이 있는 센 연습(코칭·리딩·챌린지)이다.
+ * 날짜는 dayKey(기기 로컬 자정) 그대로 쓴다.
+ */
+export function withPracticeCounts(days: readonly ActivityDay[], practices: readonly { at: string }[]): ActivityDay[] {
+  const counts = new Map<string, number>();
+  for (const practice of practices) {
+    const at = new Date(practice.at);
+    if (Number.isNaN(at.getTime())) continue; // 잘못된 날짜는 없는 셈 친다
+    const key = dayKey(at);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return days.map((d) => ({ ...d, count: Math.max(d.count > 0 ? 1 : 0, counts.get(d.key) ?? 0) }));
+}
+
+/** 원이 아래에서부터 차오르는 높이(%) — 1번 30, 2번 55, 3~4번 80, 5번 이상 100. 연습 없으면 0. */
+export function practiceFillPercent(count: number): number {
+  if (count >= 5) return 100;
+  if (count >= 3) return 80;
+  if (count === 2) return 55;
+  if (count === 1) return 30;
+  return 0;
+}

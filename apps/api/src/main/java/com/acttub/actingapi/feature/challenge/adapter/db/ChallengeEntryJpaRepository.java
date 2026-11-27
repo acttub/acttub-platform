@@ -164,6 +164,10 @@ interface ChallengeEntryJpaRepository extends Repository<ChallengeEntryEntity, U
     @Query("select count(*) from ChallengeEntryEntity e where e.userId = :userId and e.createdAt >= :since")
     long countCreatedSince(UUID userId, Instant since);
 
+    /** 그 회원이 그 시각부터 올리고 아직 지우지 않은 참여작 수(하루 한도). */
+    @Query("select count(*) from ChallengeEntryEntity e where e.userId = :userId and e.createdAt >= :since and e.deletedAt is null")
+    long countLiveCreatedSince(UUID userId, Instant since);
+
     /** 내용 버전·조회수·시도 수는 표의 기본값에 맡긴다. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

@@ -14759,9 +14759,13 @@
           "monologue_touch_min" : {
             "type" : "integer",
             "title" : "Monologue Touch Min"
+          },
+          "stable_advance_ms" : {
+            "type" : "integer",
+            "title" : "Stable Advance Ms"
           }
         },
-        "required" : [ "advance_coverage", "max_listen_ms", "min_speech_ms", "monologue_missed_below", "monologue_next_at", "monologue_pass", "monologue_touch_min", "silence_ms", "speech_end_grace_ms", "vad_threshold" ],
+        "required" : [ "advance_coverage", "max_listen_ms", "min_speech_ms", "monologue_missed_below", "monologue_next_at", "monologue_pass", "monologue_touch_min", "silence_ms", "speech_end_grace_ms", "stable_advance_ms", "vad_threshold" ],
         "title" : "AppConfigReading"
       },
       "AdCreative" : {

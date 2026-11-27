@@ -25,6 +25,7 @@ import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
+import { logEvent } from '@/lib/analytics';
 import { recordScriptFromCocreated, setRecordScript } from '@/lib/practice/record-script';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { loadIntoCurrent, rememberMyRoles } from '@/lib/reading/store';
@@ -97,7 +98,12 @@ export default function ScriptCocreateScreen() {
   const [busy, setBusy] = useState(false);
   const [edit, setEdit] = useState({ text: '', characterCount: 1, minutes: 1 });
 
-  const fail = (e: unknown) => setError(t(errorKey(e instanceof ApiError ? e.code : undefined)));
+  const fail = (e: unknown) => {
+    const code = e instanceof ApiError ? e.code : undefined;
+    // 무료 대본 한도는 여기서 오류 줄로만 알린다(고를 버튼이 없다). 뜬 횟수만 남긴다(11/27).
+    if (code === 'free_script_limit') logEvent('free_limit_shown', { kind: 'script', from: 'cocreate' });
+    setError(t(errorKey(code)));
+  };
 
   const generation = useRef<{ payload: string; requestId: string } | null>(null);
 

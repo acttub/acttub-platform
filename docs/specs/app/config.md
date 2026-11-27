@@ -16,6 +16,7 @@
 | `reading.vad_threshold` · `silence_ms` · `min_speech_ms` · `max_listen_ms` | 리딩 침묵 감지(소리 크기 기준, 침묵 길이, 최소 말 길이, 최대 듣기) |
 | `reading.speech_end_grace_ms` | 인식기가 말 끝을 알린 뒤 넘기기 전에 더 기다리는 시간 |
 | `reading.advance_coverage` | 대사를 이 비율 이상 말해야 침묵을 줄 끝으로 친다 |
+| `reading.stable_advance_ms` | 받아쓴 글이 `advance_coverage` 를 넘긴 채 새 글이 이 시간(ms) 동안 없으면 말 끝(침묵)이 안 잡혀도 넘긴다. 기본 1800(침묵 기준 `silence_ms` 와 같게), 0 이면 끈다(빠졌거나 0~60000 밖이면 기본값). 2026-11-27: 손으로 넘긴 내 줄의 61%가 이미 90% 넘게 말한 줄이었다 |
 | `reading.monologue_pass` | 독백 문장을 맞게 읽었다고 보는 선 — **서버 판정(LineMatch)과 같은 값, 파일로 못 바꾼다** |
 | `reading.monologue_missed_below` · `monologue_next_at` · `monologue_touch_min` | 독백 빠뜨림 판정·다음 문장으로 강조를 옮기는 비율·읽기 시작으로 보는 글자 수 |
 | `cocreate.emotions` | 대본 같이 만들기 감정 칩(보이는 순서). **서버가 받는 감정 목록 밖의 값은 뺀다** |

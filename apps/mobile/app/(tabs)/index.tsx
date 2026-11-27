@@ -16,7 +16,7 @@ import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
-import { buildRecentActivity } from '@/lib/practice-activity';
+import { buildRecentActivity, practiceFillPercent, withPracticeCounts } from '@/lib/practice-activity';
 import { practiceDayTotal, practiceStreak, sceneTitle } from '@/lib/practice/groups';
 import type { PracticeGroup } from '@/lib/practice/types';
 import { continueActionFor } from '@/lib/practice/resume';
@@ -463,6 +463,9 @@ export default function HomeScreen() {
   );
   // 오늘이 맨 오른쪽인 최근 7일.
   const { days } = useMemo(() => buildRecentActivity(shownDays ?? []), [shownDays]);
+  // 「이번 주 연습」 원에 쓰는 날마다 횟수 — 연습한 날은 최소 1, 그 날 센 연습(코칭·리딩·챌린지)이 더 많으면 그 수.
+  const weekDays = useMemo(() => withPracticeCounts(days, practices), [days, practices]);
+  const weekPracticedDays = weekDays.filter((d) => d.count > 0).length;
   // 연속 연습 일수는 회차 시작 날짜를 한국 시간으로 센다(practice.library).
   const streak = useMemo(() => practiceStreak((shownDays ?? []).map((d) => d.created_at)), [shownDays]);
   // 누적 연습일(SOMA-1003) — 연속이 끊겨도 줄지 않는 숫자. 같은 날 여러 번 해도 하루다.
@@ -806,40 +809,46 @@ export default function HomeScreen() {
       <View style={styles.weekCard} testID="home-week">
         <View style={styles.weekHead}>
           <Text style={styles.weekTitle}>{t('home.weekTitle')}</Text>
-          {/* 연속이 있으면 「🔥 3일째! · 누적 12일」, 끊겼으면 「누적 12일」만 — 연속이 0 이어도 쌓인 날은 보인다(SOMA-1003). */}
+          {/* 「이번 주 3일 · 누적 12일」 — 이번 주는 아래 7칸 중 연습한 날, 누적은 연속이 끊겨도 줄지 않는다(SOMA-1003). */}
           {!weekLoading && totalDays > 0 && (
             <View
               style={styles.streakPill}
-              testID="home-streak"
-              accessibilityLabel={
-                streak > 0
-                  ? `${t('home.streakA11y', { n: streak })}, ${t('home.totalDaysA11y', { n: totalDays })}`
-                  : t('home.totalDaysA11y', { n: totalDays })
-              }>
-              {streak > 0 && <Ionicons name="flame-outline" size={16} color={palette.flame} />}
-              <Text style={styles.streakText}>
-                {streak > 0
-                  ? `${t('home.streakDaysRow', { n: streak })} · ${t('home.totalDays', { n: totalDays })}`
-                  : t('home.totalDays', { n: totalDays })}
-              </Text>
+              testID="home-days-summary"
+              accessible
+              accessibilityLabel={t('home.weekSummaryA11y', { n: weekPracticedDays, total: totalDays })}>
+              <Text style={styles.streakText}>{t('home.weekSummary', { n: weekPracticedDays, total: totalDays })}</Text>
             </View>
           )}
         </View>
         <View style={styles.week}>
-          {days.map((d) => (
-            <View key={d.key} style={styles.weekCol}>
-              {weekLoading ? (
-                <SkeletonBlock width={36} height={36} radius={radius.full} />
-              ) : (
-                <View
-                  testID={d.count > 0 ? 'home-week-done' : d.isToday ? 'home-week-today' : 'home-week-empty'}
-                  style={[styles.weekDot, d.count > 0 && styles.weekDotDone, d.count === 0 && d.isToday && styles.weekDotToday]}>
-                  {d.count > 0 && <Feather name="check" size={18} color={palette.onAccent} />}
-                </View>
-              )}
-              <Text style={[styles.weekLabel, d.isToday && styles.weekLabelToday]}>{d.isToday ? t('home.today') : d.label}</Text>
-            </View>
-          ))}
+          {weekDays.map((d) => {
+            const dayName = d.isToday ? t('home.today') : d.label;
+            // 연습한 날은 회색 원 안에 아래에서부터 파랑이 차오르고(횟수 단계), 가운데에 그날 횟수를 보인다.
+            const fill = practiceFillPercent(d.count);
+            return (
+              <View key={d.key} style={styles.weekCol}>
+                {weekLoading ? (
+                  <SkeletonBlock width={36} height={36} radius={radius.full} />
+                ) : (
+                  <View
+                    testID={d.count > 0 ? 'home-week-done' : d.isToday ? 'home-week-today' : 'home-week-empty'}
+                    accessible
+                    accessibilityLabel={
+                      d.count > 0 ? t('home.weekDayA11y', { day: dayName, n: d.count }) : t('home.weekDayEmptyA11y', { day: dayName })
+                    }
+                    style={[styles.weekDot, d.count === 0 && d.isToday && styles.weekDotToday]}>
+                    {d.count > 0 && (
+                      <>
+                        <View style={[styles.weekFill, { height: `${fill}%` as const }]} />
+                        <Text style={[styles.weekCount, fill >= 80 && styles.weekCountOnFill]}>{d.count}</Text>
+                      </>
+                    )}
+                  </View>
+                )}
+                <Text style={[styles.weekLabel, d.isToday && styles.weekLabelToday]}>{dayName}</Text>
+              </View>
+            );
+          })}
         </View>
       </View>
     </View>
@@ -1456,8 +1465,10 @@ const styles = StyleSheet.create({
   weekTitle: { ...type.headline, color: palette.text },
   week: { flexDirection: 'row', justifyContent: 'space-between' },
   weekCol: { alignItems: 'center', gap: space[1.5], width: 40 },
-  weekDot: { width: 36, height: 36, borderRadius: radius.full, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center' },
-  weekDotDone: { backgroundColor: palette.blue },
+  weekDot: { width: 36, height: 36, borderRadius: radius.full, backgroundColor: palette.bgSoft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  weekFill: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: palette.blue },
+  weekCount: { ...type.captionBold, color: palette.text },
+  weekCountOnFill: { color: palette.onAccent },
   weekDotToday: { backgroundColor: palette.bg, borderWidth: 1.5, borderColor: palette.blue },
   weekLabel: { ...type.micro, color: palette.textMeta },
   weekLabelToday: { color: palette.text },

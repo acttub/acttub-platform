@@ -39,29 +39,52 @@ export function ProBadge() {
  *
  * onRewarded 를 주면 서버가 보상 가능이라고 할 때만 Pro 안내 아래에 「광고 보고 1회 더」가 보인다(SOMA-1067). 광고를 끝까지 보고
  * 서버 지급이 확인되면 onRewarded 를 부른다 — 부르는 화면이 코칭 시작을 다시 한다.
+ *
+ * 뜰 때 free_limit_shown, 고를 때 free_limit_action 을 한 번씩 남긴다(11/27). from 은 띄운 화면의 짧은 이름이다.
  */
 export function CoachingLimitSheet({
   visible,
   onClose,
+  from,
   onRewarded,
 }: {
   visible: boolean;
   onClose: () => void;
+  from: string;
   onRewarded?: () => void;
 }) {
   const router = useRouter();
   const reward = useRewardedCoaching(visible, onRewarded);
   const busy = reward.phase === 'loading' || reward.phase === 'confirming';
+  const acted = useRef(false);
+  useEffect(() => {
+    if (!visible) return;
+    acted.current = false;
+    logEvent('free_limit_shown', { kind: 'coaching', from });
+  }, [visible, from]);
+  const act = (action: 'pro' | 'later' | 'close' | 'reward') => {
+    if (acted.current) return;
+    acted.current = true;
+    logEvent('free_limit_action', { kind: 'coaching', action });
+  };
+  const dismiss = () => {
+    act('close');
+    onClose();
+  };
   return (
     // 광고가 화면에 있는 동안만 확인창을 내린다. 광고가 닫히면 같은 상태(「확인하는 중…」)로 다시 보인다.
-    <DialogModal visible={visible && reward.phase !== 'watching'} onRequestClose={onClose} onBackdropPress={busy ? undefined : onClose}>
+    <DialogModal visible={visible && reward.phase !== 'watching'} onRequestClose={dismiss} onBackdropPress={busy ? undefined : dismiss}>
       <DialogCard title={t('pro.coachingLimitTitle')} message={t('pro.coachingLimitBody')}>
         <DialogButtons
           cancelLabel={t('pro.coachingLimitLater')}
-          onCancel={onClose}
+          onCancel={() => {
+            act('later');
+            onClose();
+          }}
           confirmLabel={t('pro.explore')}
           confirmDisabled={busy}
           onConfirm={() => {
+            act('pro');
             onClose();
             router.push({ pathname: '/pro', params: { from: 'coaching' } });
           }}
@@ -74,7 +97,10 @@ export function CoachingLimitSheet({
               phLabel="coaching_reward_more"
               loading={busy}
               loadingLabel={reward.phase === 'confirming' ? t('pro.rewardConfirming') : t('pro.rewardLoading')}
-              onPress={() => void reward.start()}
+              onPress={() => {
+                act('reward');
+                void reward.start();
+              }}
             />
             {reward.note ? <Text style={styles.rewardNote}>{reward.note}</Text> : null}
           </View>

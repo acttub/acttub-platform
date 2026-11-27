@@ -87,10 +87,13 @@ export function uploadExitParams(state: {
   visibility: EntryVisibility | null;
   openedAt: number;
   now: number;
+  /** 올리는 중에 [올리기]를 눌러 확정을 기다리던 채 떠났는가(11/27). */
+  queued?: boolean;
 }): EventParams {
   return {
     stage: uploadExitStage(state),
     visibility: state.visibility ?? 'none',
     stay_s: String(Math.max(0, Math.round((state.now - state.openedAt) / 1000))),
+    queued: state.queued ? 'yes' : 'no',
   };
 }

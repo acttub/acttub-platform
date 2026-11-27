@@ -63,7 +63,7 @@ class AppConfigController {
                     new RatingResponse(r.coachEvery(), r.readingEvery(), r.minGapDays(), r.maxAsks()),
                     new ReadingResponse(x.vadThreshold(), x.silenceMs(), x.minSpeechMs(), x.maxListenMs(),
                             x.speechEndGraceMs(), x.advanceCoverage(), x.monologuePass(), x.monologueMissedBelow(),
-                            x.monologueNextAt(), x.monologueTouchMin()),
+                            x.monologueNextAt(), x.monologueTouchMin(), x.stableAdvanceMs()),
                     new CocreateResponse(cc.emotions(), cc.situations()),
                     c.homeTips(),
                     new ChallengeResponse(ch.entryMinSeconds(), ch.entryMaxSeconds(), ch.durationsDays()));
@@ -93,7 +93,8 @@ class AppConfigController {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) double monologuePass,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) double monologueMissedBelow,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) double monologueNextAt,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int monologueTouchMin) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int monologueTouchMin,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int stableAdvanceMs) {
     }
 
     @Schema(name = "AppConfigCocreate", additionalProperties = Schema.AdditionalPropertiesValue.FALSE,
