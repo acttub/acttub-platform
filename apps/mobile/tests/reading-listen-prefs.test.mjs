@@ -11,20 +11,36 @@ beforeEach(() => {
   state.broken = false;
 });
 
-test('듣기 설정(SOMA-952·954): 남긴 것이 없으면 자동 넘김 꺼짐·보통 속도·쉬는 시간 2초이고, 고른 값을 다시 읽는다', async () => {
-  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: false, rate: 1, pauseSec: 2 });
-  await prefs.saveListenPrefs({ handsFree: true, rate: 1.2, pauseSec: 3 });
-  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: true, rate: 1.2, pauseSec: 3 });
+const DEFAULTS = { advanceMode: 'voice', rate: 1, pauseSec: 2 };
+
+test('듣기 설정(SOMA-952·954·1053): 남긴 것이 없으면 목소리로 넘기기·보통 속도·쉬는 시간 2초이고, 고른 값을 다시 읽는다', async () => {
+  assert.deepEqual(await prefs.loadListenPrefs(), DEFAULTS);
+  for (const advanceMode of ['timed', 'manual', 'voice']) {
+    await prefs.saveListenPrefs({ advanceMode, rate: 1.2, pauseSec: 3 });
+    assert.deepEqual(await prefs.loadListenPrefs(), { advanceMode, rate: 1.2, pauseSec: 3 });
+    // 앞 판으로 되돌려도 「정한 시간」만 예전 자동 넘김으로 읽히게 handsFree 를 같이 남긴다.
+    assert.equal(JSON.parse(state.items.get(prefs.LISTEN_PREFS_KEY)).handsFree, advanceMode === 'timed');
+  }
+});
+
+test('듣기 설정(SOMA-1053): 예전 판이 남긴 handsFree=true 는 정한 시간, false 는 목소리로 읽는다', async () => {
+  state.items.set(prefs.LISTEN_PREFS_KEY, JSON.stringify({ handsFree: true, rate: 1.5, pauseSec: 4 }));
+  assert.deepEqual(await prefs.loadListenPrefs(), { advanceMode: 'timed', rate: 1.5, pauseSec: 4 });
+  state.items.set(prefs.LISTEN_PREFS_KEY, JSON.stringify({ handsFree: false, rate: 1, pauseSec: 2 }));
+  assert.deepEqual(await prefs.loadListenPrefs(), DEFAULTS);
+  // 새 값이 있으면 그쪽을 믿는다.
+  state.items.set(prefs.LISTEN_PREFS_KEY, JSON.stringify({ advanceMode: 'manual', handsFree: true, rate: 1, pauseSec: 2 }));
+  assert.equal((await prefs.loadListenPrefs()).advanceMode, 'manual');
 });
 
 test('듣기 설정: 모르는 속도·깨진 값·못 읽는 저장소는 기본값으로 돌아간다', async () => {
-  state.items.set(prefs.LISTEN_PREFS_KEY, JSON.stringify({ handsFree: 'yes', rate: 3, pauseSec: 70 }));
-  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: false, rate: 1, pauseSec: 2 });
+  state.items.set(prefs.LISTEN_PREFS_KEY, JSON.stringify({ advanceMode: 'auto', handsFree: 'yes', rate: 3, pauseSec: 70 }));
+  assert.deepEqual(await prefs.loadListenPrefs(), DEFAULTS);
   state.items.set(prefs.LISTEN_PREFS_KEY, '{');
-  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: false, rate: 1, pauseSec: 2 });
+  assert.deepEqual(await prefs.loadListenPrefs(), DEFAULTS);
   state.broken = true;
-  assert.deepEqual(await prefs.loadListenPrefs(), { handsFree: false, rate: 1, pauseSec: 2 });
-  await prefs.saveListenPrefs({ handsFree: true, rate: 1.5, pauseSec: 2 });
+  assert.deepEqual(await prefs.loadListenPrefs(), DEFAULTS);
+  await prefs.saveListenPrefs({ advanceMode: 'timed', rate: 1.5, pauseSec: 2 });
 });
 
 test('자동 넘김 쉬는 시간: 적은 글을 초로 읽고(소수 한 자리, 쉼표 허용), 0.5~30초 밖이나 숫자가 아니면 받지 않는다', () => {
