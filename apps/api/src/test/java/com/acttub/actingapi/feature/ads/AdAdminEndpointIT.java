@@ -172,6 +172,8 @@ class AdAdminEndpointIT {
         assertThat(listed.path("id").stringValue(null)).isEqualTo(id);
         assertThat(LenientJson.longValue(listed.path("impressions"))).isEqualTo(1);
         assertThat(LenientJson.longValue(listed.path("clicks"))).isEqualTo(2);
+        assertThat(listed.has("excluded_user_count")).isTrue();
+        assertThat(LenientJson.longValue(listed.path("excluded_user_count"))).isZero();
 
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
         JsonNode stats = json(admin(get("/v2/admin/ads/" + id + "/stats")

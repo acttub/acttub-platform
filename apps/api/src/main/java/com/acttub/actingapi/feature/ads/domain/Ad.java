@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.ads.domain;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -21,13 +22,20 @@ public record Ad(
         String imageMediumRectangle,
         String linkUrl,
         String appPath,
-        int sharePercent) {
+        int sharePercent,
+        Set<UUID> excludedUserIds) {
 
     public static final String DIRECT = "direct";
     public static final String HOUSE = "house";
 
     public Ad {
         slots = slots == null ? List.of() : List.copyOf(slots);
+        excludedUserIds = excludedUserIds == null ? Set.of() : Set.copyOf(excludedUserIds);
+    }
+
+    /** 이 사람에게는 보이지 않는 광고인가(SOMA-1069, 운영자가 SQL 로 넣은 계정 목록). 사람을 모르면 false. */
+    public boolean excludes(UUID userId) {
+        return userId != null && excludedUserIds.contains(userId);
     }
 
     /** 이 규격의 이미지 주소. 없으면 null. */

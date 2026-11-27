@@ -10,8 +10,9 @@ public final class AdStats {
     private AdStats() {
     }
 
-    /** 저장된 광고와 지금까지 합계. */
-    public record Stored(UUID id, AdDraft draft, Instant createdAt, Instant updatedAt, long impressions, long clicks) {
+    /** 저장된 광고와 지금까지 합계. {@code excludedUserCount} 는 이 광고를 보이지 않을 계정 수다(SOMA-1069, 읽기 전용). */
+    public record Stored(UUID id, AdDraft draft, Instant createdAt, Instant updatedAt, long impressions, long clicks,
+            int excludedUserCount) {
     }
 
     /** 한국 날짜 하루의 노출·클릭. */
