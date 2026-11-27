@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class SlackCommunityReportNotifier implements CommunityReportNotifier {
     static final int DETAIL_PREVIEW_CHARS = 300;
-    private static final Map<String, String> TARGETS = Map.of("post", "커뮤니티 글", "comment", "커뮤니티 댓글");
+    private static final Map<String, String> TARGETS = Map.of("post", "커뮤니티 글", "comment", "커뮤니티 댓글", "conversation", "1:1 메시지 대화");
     private static final Map<String, String> REASONS = Map.of(
             "spam", "스팸", "abuse", "욕설·괴롭힘", "sexual", "성적인 내용", "privacy", "개인정보", "other", "기타",
             "copyright", "저작권", "inappropriate", "부적절", "duplicate", "중복");

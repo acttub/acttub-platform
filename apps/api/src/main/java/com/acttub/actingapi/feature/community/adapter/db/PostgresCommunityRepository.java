@@ -549,6 +549,38 @@ class PostgresCommunityRepository implements CommunityRepository {
         });
     }
 
+    @Override
+    public boolean legacyBlockedEitherWay(UUID first, UUID second) {
+        return !entityManager.createQuery("""
+                        select b.id from CommunityBlockEntity b
+                        where (b.blockerId = :first and b.blockedId = :second)
+                           or (b.blockerId = :second and b.blockedId = :first)
+                        """, UUID.class)
+                .setParameter("first", first)
+                .setParameter("second", second)
+                .setMaxResults(1)
+                .getResultList()
+                .isEmpty();
+    }
+
+    @Override
+    public void createConversationReport(UUID reporterId, UUID conversationId, String reason, String detail) {
+        transaction.executeWithoutResult(status -> {
+            try {
+                reports.saveAndFlush(new CommunityReportEntity(
+                        UUID.randomUUID(),
+                        reporterId,
+                        ReportTargetType.CONVERSATION,
+                        conversationId,
+                        enumValue(ReportReason.class, reason),
+                        detail,
+                        ReportStatus.PENDING));
+            } catch (DataIntegrityViolationException exception) {
+                throw new DuplicateReport(exception);
+            }
+        });
+    }
+
     private CommunityPost loadVisiblePost(UUID postId, UUID viewerId) {
         return loadPost(postId, viewerId, true);
     }

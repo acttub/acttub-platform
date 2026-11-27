@@ -38,4 +38,10 @@ public interface PushTokenRepository {
      * 그보다 옛 앱은 알림을 눌러도 보고서 화면으로 가지 못한다. 판을 모르는 토큰도 뺀다.
      */
     List<PushTarget> pronunciationReportTargets(UUID userId, String minAppVersion);
+
+    /**
+     * 새 1:1 메시지를 알릴 단말(SOMA-1039) — 그 회원의 토큰 전부. 메시지만 따로 끄는 토글은 아직 없어 토글로 거르지 않는다
+     * (토글 셋을 다 끈 회원은 토큰이 없어 받지 않는다).
+     */
+    List<PushTarget> directMessageTargets(UUID userId);
 }

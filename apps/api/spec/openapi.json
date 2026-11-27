@@ -2477,6 +2477,269 @@
         } ]
       }
     },
+    "/v2/messages/conversations" : {
+      "get" : {
+        "tags" : [ "v2-messages" ],
+        "summary" : "List Direct Conversations",
+        "description" : "메시지가 하나라도 있는 내 대화, 마지막 메시지가 최근인 것부터. 깨진 커서 400 invalid_cursor.",
+        "operationId" : "list_conversations_v2_messages_conversations_get",
+        "parameters" : [ {
+          "name" : "cursor",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cursor"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "maximum" : 50,
+              "minimum" : 1
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Limit"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DirectConversationListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-messages" ],
+        "summary" : "Start Direct Conversation",
+        "description" : "게시판 글·댓글의 작성자와 대화를 연다. 방향과 무관하게 두 사람의 대화가 이미 있으면 그 대화를 200 으로 준다(한도를 세지 않는다). 새 대화는 201 이고 하루 20개까지다(429 daily_conversation_limit). 자기 자신 400 cannot_message_self, 없거나 게스트·탈퇴한 상대 404 user_not_found, 보이지 않는 글 404 post_not_found, 어느 쪽이든 차단했으면 403 message_blocked.",
+        "operationId" : "start_conversation_v2_messages_conversations_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StartDirectConversationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DirectConversationPayload"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Existing",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DirectConversationPayload"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/messages/conversations/{conversation_id}/reports" : {
+      "post" : {
+        "tags" : [ "v2-messages" ],
+        "summary" : "Report Direct Conversation",
+        "description" : "대화(상대)를 신고한다. 게시판 신고와 같은 사유를 받고 운영 채널에 알린다. 같은 대화를 다시 신고하면 409 already_reported. 참여자가 아니면 404 conversation_not_found.",
+        "operationId" : "report_conversation_v2_messages_conversations__conversation_id__reports_post",
+        "parameters" : [ {
+          "name" : "conversation_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Conversation Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DirectConversationReportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/messages/conversations/{conversation_id}/read" : {
+      "post" : {
+        "tags" : [ "v2-messages" ],
+        "summary" : "Mark Direct Conversation Read",
+        "description" : "지금까지 온 메시지를 읽은 것으로 둔다. 다시 불러도 같다. 참여자가 아니면 404 conversation_not_found.",
+        "operationId" : "mark_read_v2_messages_conversations__conversation_id__read_post",
+        "parameters" : [ {
+          "name" : "conversation_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Conversation Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/messages/conversations/{conversation_id}/messages" : {
+      "get" : {
+        "tags" : [ "v2-messages" ],
+        "summary" : "List Direct Messages",
+        "description" : "대화의 메시지, 최근 것부터. next_cursor 로 더 옛 것을 읽는다. 참여자가 아니면 404 conversation_not_found.",
+        "operationId" : "list_messages_v2_messages_conversations__conversation_id__messages_get",
+        "parameters" : [ {
+          "name" : "conversation_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Conversation Id"
+          }
+        }, {
+          "name" : "cursor",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cursor"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "maximum" : 50,
+              "minimum" : 1
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Limit"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DirectMessageListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-messages" ],
+        "summary" : "Send Direct Message",
+        "description" : "글자만 보낸다(앞뒤 공백을 걷고 1~1000자). 하루 300개(429 daily_message_limit). 같은 request_id·같은 본문은 같은 메시지(200), 다른 본문은 422 request_fingerprint_mismatch. 상대가 탈퇴했으면 403 partner_unavailable, 어느 쪽이든 차단했으면 403 message_blocked. 받는 사람에게 푸시가 간다(같은 대화는 1분에 한 번).",
+        "operationId" : "send_message_v2_messages_conversations__conversation_id__messages_post",
+        "parameters" : [ {
+          "name" : "conversation_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Conversation Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendDirectMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DirectMessagePayload"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Replay",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DirectMessagePayload"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/me/practice-feedback/claim" : {
       "post" : {
         "tags" : [ "v2-me" ],
@@ -5422,6 +5685,62 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/Portfolio"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/messages/unread-count" : {
+      "get" : {
+        "tags" : [ "v2-messages" ],
+        "summary" : "Count Unread Direct Messages",
+        "description" : "내 모든 대화에서 상대가 보냈고 아직 읽지 않은 메시지 수(프로필 탭의 「메시지」 배지).",
+        "operationId" : "unread_count_v2_messages_unread_count_get",
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DirectUnreadCountResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/messages/conversations/{conversation_id}" : {
+      "get" : {
+        "tags" : [ "v2-messages" ],
+        "summary" : "Get Direct Conversation",
+        "description" : "대화방 머리(상대, 시작 글, 보낼 수 있는지). 참여자가 아니면 404 conversation_not_found.",
+        "operationId" : "get_conversation_v2_messages_conversations__conversation_id__get",
+        "parameters" : [ {
+          "name" : "conversation_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Conversation Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DirectConversationPayload"
                 }
               }
             }
@@ -10813,6 +11132,319 @@
         },
         "required" : [ "user_id" ],
         "title" : "BlockRequest"
+      },
+      "StartDirectConversationRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "user_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "대화 상대(게시판 글·댓글의 작성자)",
+            "title" : "User Id"
+          },
+          "post_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid",
+              "description" : "대화를 연 게시판 글. 새 대화일 때만 남고 대화방 머리에 제목 한 줄로 보인다"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Post Id"
+          }
+        },
+        "required" : [ "user_id" ],
+        "title" : "StartDirectConversationRequest"
+      },
+      "DirectConversationPartner" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "name" : {
+            "type" : "string",
+            "description" : "공개 이름(게시판과 같다, 없으면 \"배우\"). 탈퇴했으면 \"탈퇴한 사용자\"",
+            "title" : "Name"
+          },
+          "photo_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "프로필 사진을 볼 짧은 주소(1시간). 없거나 탈퇴했으면 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Photo Url"
+          },
+          "withdrawn" : {
+            "type" : "boolean",
+            "title" : "Withdrawn"
+          }
+        },
+        "required" : [ "id", "name", "photo_url", "withdrawn" ],
+        "title" : "DirectConversationPartner"
+      },
+      "DirectConversationOriginPost" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          }
+        },
+        "required" : [ "id", "title" ],
+        "title" : "DirectConversationOriginPost"
+      },
+      "DirectConversationPayload" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "partner" : {
+            "$ref" : "#/components/schemas/DirectConversationPartner"
+          },
+          "origin_post" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/DirectConversationOriginPost"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "can_send" : {
+            "type" : "boolean",
+            "title" : "Can Send"
+          },
+          "unavailable_reason" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "보낼 수 없는 까닭. 상대가 탈퇴했으면 partner_unavailable, 어느 쪽이든 차단했으면 message_blocked",
+              "enum" : [ "partner_unavailable", "message_blocked" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Unavailable Reason"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          },
+          "last_message_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Last Message At"
+          }
+        },
+        "required" : [ "can_send", "created_at", "id", "last_message_at", "origin_post", "partner", "unavailable_reason" ],
+        "title" : "DirectConversationPayload"
+      },
+      "DirectLastMessage" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "preview" : {
+            "type" : "string",
+            "description" : "본문 앞 80자",
+            "title" : "Preview"
+          },
+          "mine" : {
+            "type" : "boolean",
+            "title" : "Mine"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          }
+        },
+        "required" : [ "created_at", "mine", "preview" ],
+        "title" : "DirectLastMessage"
+      },
+      "DirectConversationSummary" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "partner" : {
+            "$ref" : "#/components/schemas/DirectConversationPartner"
+          },
+          "last_message" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/DirectLastMessage"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "unread_count" : {
+            "type" : "integer",
+            "description" : "상대가 보냈고 내가 아직 읽지 않은 수",
+            "title" : "Unread Count"
+          },
+          "last_message_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Last Message At"
+          }
+        },
+        "required" : [ "id", "last_message", "last_message_at", "partner", "unread_count" ],
+        "title" : "DirectConversationSummary"
+      },
+      "DirectConversationListResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "conversations" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DirectConversationSummary"
+            },
+            "title" : "Conversations"
+          },
+          "next_cursor" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Next Cursor"
+          }
+        },
+        "required" : [ "conversations", "next_cursor" ],
+        "title" : "DirectConversationListResponse"
+      },
+      "SendDirectMessageRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "body" : {
+            "type" : "string",
+            "description" : "앞뒤 공백을 걷고 1~1000자(코드 포인트). 글자만이다",
+            "title" : "Body"
+          }
+        },
+        "required" : [ "body", "request_id" ],
+        "title" : "SendDirectMessageRequest"
+      },
+      "DirectMessagePayload" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "conversation_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Conversation Id"
+          },
+          "body" : {
+            "type" : "string",
+            "title" : "Body"
+          },
+          "mine" : {
+            "type" : "boolean",
+            "title" : "Mine"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          }
+        },
+        "required" : [ "body", "conversation_id", "created_at", "id", "mine" ],
+        "title" : "DirectMessagePayload"
+      },
+      "DirectMessageListResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "messages" : {
+            "type" : "array",
+            "description" : "최근 것부터",
+            "items" : {
+              "$ref" : "#/components/schemas/DirectMessagePayload"
+            },
+            "title" : "Messages"
+          },
+          "next_cursor" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "더 옛 메시지를 읽을 커서"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Next Cursor"
+          }
+        },
+        "required" : [ "messages", "next_cursor" ],
+        "title" : "DirectMessageListResponse"
+      },
+      "DirectConversationReportRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "reason" : {
+            "type" : "string",
+            "enum" : [ "copyright", "inappropriate", "spam", "duplicate", "other", "abuse", "sexual", "privacy" ],
+            "title" : "Reason"
+          },
+          "detail" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 500
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Detail"
+          }
+        },
+        "required" : [ "reason" ],
+        "title" : "DirectConversationReportRequest"
+      },
+      "DirectUnreadCountResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "unread_count" : {
+            "type" : "integer",
+            "title" : "Unread Count"
+          }
+        },
+        "required" : [ "unread_count" ],
+        "title" : "DirectUnreadCountResponse"
       },
       "CoachStartRequest" : {
         "type" : "object",

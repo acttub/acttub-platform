@@ -452,6 +452,16 @@ final class AccountLifecycleSeed {
                 """, id(pair + "/게시글 익명 번호"), post, user, post);
         jdbc.update("INSERT INTO community_reports(id,reporter_id,target_type,target_id,reason) VALUES (?,?,'post',?,'spam')",
                 id(pair + "/게시글 신고"), user, post);
+        // 1:1 메시지(V105): 상대의 글에서 연 대화와 보낸 메시지 하나. 반대 방향의 cross 가 상대가 연 대화를 따로 만든다.
+        UUID conversation = id(pair + "/메시지 대화");
+        jdbc.update("""
+                INSERT INTO direct_conversations(id,starter_user_id,recipient_user_id,origin_post_id,starter_read_at,last_message_at,created_at)
+                VALUES (?,?,?,?,?,?,?)
+                """, conversation, user, counterpart, post, at(Duration.ofHours(-1)), at(Duration.ofHours(-1)), at(Duration.ofHours(-2)));
+        jdbc.update("""
+                INSERT INTO direct_messages(id,conversation_id,sender_user_id,body,request_id,request_fingerprint,created_at)
+                VALUES (?,?,?,'안녕하세요',?,?,?)
+                """, id(pair + "/메시지"), conversation, user, id(pair + "/메시지/요청"), hash(pair + "/메시지"), at(Duration.ofHours(-1)));
     }
 
     private void identity(String who, UUID user, String provider, String appleToken, String naverToken) {

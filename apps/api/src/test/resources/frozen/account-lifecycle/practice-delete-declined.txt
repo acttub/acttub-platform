@@ -91,6 +91,14 @@ community_reports: 2행 → 2행
 deleted_practice_videos: 2행 → 2행
   user_id=본인: 1 → 1
   user_id=남: 1 → 1
+direct_conversations: 2행 → 2행
+  recipient_user_id=본인: 1 → 1
+  recipient_user_id=남: 1 → 1
+  starter_user_id=본인: 1 → 1
+  starter_user_id=남: 1 → 1
+direct_messages: 2행 → 2행
+  sender_user_id=본인: 1 → 1
+  sender_user_id=남: 1 → 1
 entry_ai_reports: 2행 → 2행
   user_id=본인: 1 → 1
   user_id=남: 1 → 1

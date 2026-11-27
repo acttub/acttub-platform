@@ -27,4 +27,18 @@ class PostgresUserBlocking implements UserBlocking {
                 .setParameter("blockedId", blockedId)
                 .executeUpdate();
     }
+
+    @Override
+    public boolean blockedEitherWay(UUID first, UUID second) {
+        return !entityManager.createQuery("""
+                        select b.id from UserBlockEntity b
+                        where (b.blockerId = :first and b.blockedId = :second)
+                           or (b.blockerId = :second and b.blockedId = :first)
+                        """, UUID.class)
+                .setParameter("first", first)
+                .setParameter("second", second)
+                .setMaxResults(1)
+                .getResultList()
+                .isEmpty();
+    }
 }

@@ -108,6 +108,7 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 | `feature/reading` | `scripts`, `script_lines`, `script_characters`, `script_imports`, `script_uploads`, `script_cocreations`, `reading_sessions`, `reading_recordings`, `reading_session_ratings`, `reading_recording_retranscripts`, `reading_pronunciation_reports`, `reading_voice_cache`, `reading_voice_usage`, `reading_examples`, `line_memorization` |
 | `feature/challenge` | `challenges`, `challenge_entries`, `entry_likes`, `entry_comments`, `entry_reports`, `entry_saves`, `entry_ai_reports`, `entry_view_events`, `entry_ranking_snapshots`, `notifications`, `notification_pushes`, `user_blocks` |
 | `feature/community` | `community_posts`, `community_comments`, `community_post_likes`, `community_post_images`, `community_anonymous_aliases`, `community_reports`, `community_blocks`, `community_categories` |
+| `feature/message` | `direct_conversations`, `direct_messages` |
 | `feature/billing` | `billing_subscriptions`, `billing_checkouts`, `billing_payments`, `billing_pro_grants` |
 | `feature/ads` | `ads`, `ad_events`, `ad_serves`, `ad_settings`, `ad_slot_switches` |
 | `feature/poster` | `app_posters` |

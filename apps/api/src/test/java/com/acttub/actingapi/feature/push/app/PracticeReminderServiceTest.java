@@ -100,6 +100,7 @@ class PracticeReminderServiceTest {
             @Override public List<PushTarget> analysisDoneTargets(UUID sessionId) { return List.of(); }
             @Override public List<PushTarget> scriptSplitTargets(UUID userId) { return List.of(); }
             @Override public List<PushTarget> pronunciationReportTargets(UUID userId, String minAppVersion) { return List.of(); }
+            @Override public List<PushTarget> directMessageTargets(UUID userId) { return List.of(); }
         };
     }
 
@@ -112,6 +113,7 @@ class PracticeReminderServiceTest {
             @Override public List<PushTarget> analysisDoneTargets(UUID sessionId) { return List.of(); }
             @Override public List<PushTarget> scriptSplitTargets(UUID userId) { return List.of(); }
             @Override public List<PushTarget> pronunciationReportTargets(UUID userId, String minAppVersion) { return List.of(); }
+            @Override public List<PushTarget> directMessageTargets(UUID userId) { return List.of(); }
         };
         new PracticeReminderService(repo, tokens, sender, failures, clock, "0.1.2", holdoutPercent).sendDue();
     }

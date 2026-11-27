@@ -220,6 +220,9 @@ BEGIN
   select practice_feedback
   select actor_memories
   select actor_memory_entries
+  select direct_conversations
+  select direct_conversations
+  select direct_messages
   select practices
   select practice_sessions
   select account_cleanup_operations

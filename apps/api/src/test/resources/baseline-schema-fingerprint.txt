@@ -383,6 +383,23 @@ COLUMN consent_documents.version ord=3 type=text len=- null=NO default=-
 COLUMN deleted_practice_videos.deleted_at ord=3 type=timestamptz len=- null=NO default=-
 COLUMN deleted_practice_videos.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN deleted_practice_videos.video_id ord=1 type=uuid len=- null=NO default=-
+COLUMN direct_conversations.created_at ord=10 type=timestamptz len=- null=NO default=-
+COLUMN direct_conversations.id ord=1 type=uuid len=- null=NO default=-
+COLUMN direct_conversations.last_message_at ord=9 type=timestamptz len=- null=YES default=-
+COLUMN direct_conversations.origin_post_id ord=4 type=uuid len=- null=YES default=-
+COLUMN direct_conversations.recipient_pushed_at ord=8 type=timestamptz len=- null=YES default=-
+COLUMN direct_conversations.recipient_read_at ord=6 type=timestamptz len=- null=YES default=-
+COLUMN direct_conversations.recipient_user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN direct_conversations.starter_pushed_at ord=7 type=timestamptz len=- null=YES default=-
+COLUMN direct_conversations.starter_read_at ord=5 type=timestamptz len=- null=YES default=-
+COLUMN direct_conversations.starter_user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN direct_messages.body ord=4 type=text len=- null=NO default=-
+COLUMN direct_messages.conversation_id ord=2 type=uuid len=- null=NO default=-
+COLUMN direct_messages.created_at ord=7 type=timestamptz len=- null=NO default=-
+COLUMN direct_messages.id ord=1 type=uuid len=- null=NO default=-
+COLUMN direct_messages.request_fingerprint ord=6 type=text len=- null=NO default=-
+COLUMN direct_messages.request_id ord=5 type=uuid len=- null=NO default=-
+COLUMN direct_messages.sender_user_id ord=3 type=uuid len=- null=NO default=-
 COLUMN entry_ai_reports.attempt_count ord=8 type=int4 len=- null=NO default=0
 COLUMN entry_ai_reports.completed_at ord=11 type=timestamptz len=- null=YES default=-
 COLUMN entry_ai_reports.entry_id ord=2 type=uuid len=- null=NO default=-
@@ -1387,7 +1404,7 @@ CONSTRAINT community_posts community_posts_updated_at_not_null NOT NULL updated_
 CONSTRAINT community_posts community_posts_view_count_not_null NOT NULL view_count
 CONSTRAINT community_reports ck_community_reports_reason CHECK ((reason = ANY (ARRAY['spam'::text, 'abuse'::text, 'sexual'::text, 'privacy'::text, 'other'::text, 'copyright'::text, 'inappropriate'::text, 'duplicate'::text])))
 CONSTRAINT community_reports ck_community_reports_status CHECK ((status = ANY (ARRAY['pending'::text, 'actioned'::text, 'dismissed'::text])))
-CONSTRAINT community_reports ck_community_reports_target_type CHECK ((target_type = ANY (ARRAY['post'::text, 'comment'::text])))
+CONSTRAINT community_reports ck_community_reports_target_type CHECK ((target_type = ANY (ARRAY['post'::text, 'comment'::text, 'conversation'::text])))
 CONSTRAINT community_reports community_reports_created_at_not_null NOT NULL created_at
 CONSTRAINT community_reports community_reports_id_not_null NOT NULL id
 CONSTRAINT community_reports community_reports_pkey PRIMARY KEY (id)
@@ -1415,6 +1432,28 @@ CONSTRAINT deleted_practice_videos deleted_practice_videos_user_id_fkey FOREIGN 
 CONSTRAINT deleted_practice_videos deleted_practice_videos_user_id_not_null NOT NULL user_id
 CONSTRAINT deleted_practice_videos deleted_practice_videos_video_id_fkey FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
 CONSTRAINT deleted_practice_videos deleted_practice_videos_video_id_not_null NOT NULL video_id
+CONSTRAINT direct_conversations ck_direct_conversations_not_self CHECK ((starter_user_id <> recipient_user_id))
+CONSTRAINT direct_conversations direct_conversations_created_at_not_null NOT NULL created_at
+CONSTRAINT direct_conversations direct_conversations_id_not_null NOT NULL id
+CONSTRAINT direct_conversations direct_conversations_origin_post_id_fkey FOREIGN KEY (origin_post_id) REFERENCES community_posts(id)
+CONSTRAINT direct_conversations direct_conversations_pkey PRIMARY KEY (id)
+CONSTRAINT direct_conversations direct_conversations_recipient_user_id_fkey FOREIGN KEY (recipient_user_id) REFERENCES users(id)
+CONSTRAINT direct_conversations direct_conversations_recipient_user_id_not_null NOT NULL recipient_user_id
+CONSTRAINT direct_conversations direct_conversations_starter_user_id_fkey FOREIGN KEY (starter_user_id) REFERENCES users(id)
+CONSTRAINT direct_conversations direct_conversations_starter_user_id_not_null NOT NULL starter_user_id
+CONSTRAINT direct_conversations uq_direct_conversations_pair UNIQUE (starter_user_id, recipient_user_id)
+CONSTRAINT direct_messages ck_direct_messages_body_length CHECK (((char_length(body) >= 1) AND (char_length(body) <= 1000)))
+CONSTRAINT direct_messages direct_messages_body_not_null NOT NULL body
+CONSTRAINT direct_messages direct_messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES direct_conversations(id)
+CONSTRAINT direct_messages direct_messages_conversation_id_not_null NOT NULL conversation_id
+CONSTRAINT direct_messages direct_messages_created_at_not_null NOT NULL created_at
+CONSTRAINT direct_messages direct_messages_id_not_null NOT NULL id
+CONSTRAINT direct_messages direct_messages_pkey PRIMARY KEY (id)
+CONSTRAINT direct_messages direct_messages_request_fingerprint_not_null NOT NULL request_fingerprint
+CONSTRAINT direct_messages direct_messages_request_id_not_null NOT NULL request_id
+CONSTRAINT direct_messages direct_messages_sender_user_id_fkey FOREIGN KEY (sender_user_id) REFERENCES users(id)
+CONSTRAINT direct_messages direct_messages_sender_user_id_not_null NOT NULL sender_user_id
+CONSTRAINT direct_messages uq_direct_messages_sender_request UNIQUE (sender_user_id, request_id)
 CONSTRAINT entry_ai_reports ck_entry_ai_reports_attempts CHECK (((attempt_count >= 0) AND (attempt_count <= 3)))
 CONSTRAINT entry_ai_reports ck_entry_ai_reports_purged CHECK (((purged_at IS NULL) OR (result IS NULL)))
 CONSTRAINT entry_ai_reports ck_entry_ai_reports_ready CHECK (((status <> 'ready'::text) OR (purged_at IS NOT NULL) OR (result IS NOT NULL)))
@@ -2108,6 +2147,9 @@ INDEX CREATE INDEX idx_community_posts_created ON public.community_posts USING b
 INDEX CREATE INDEX idx_community_reports_status_created ON public.community_reports USING btree (status, created_at DESC)
 INDEX CREATE INDEX idx_consent_documents_latest ON public.consent_documents USING btree (type, locale, published_at DESC)
 INDEX CREATE INDEX idx_deleted_practice_videos_user ON public.deleted_practice_videos USING btree (user_id)
+INDEX CREATE INDEX idx_direct_conversations_recipient ON public.direct_conversations USING btree (recipient_user_id)
+INDEX CREATE INDEX idx_direct_messages_conversation_created ON public.direct_messages USING btree (conversation_id, created_at DESC, id DESC)
+INDEX CREATE INDEX idx_direct_messages_sender_created ON public.direct_messages USING btree (sender_user_id, created_at)
 INDEX CREATE INDEX idx_external_operations_claimable ON public.external_operations USING btree (kind, status, created_at)
 INDEX CREATE INDEX idx_external_operations_session ON public.external_operations USING btree (session_id)
 INDEX CREATE INDEX idx_external_operations_status_attempt_lease ON public.external_operations USING btree (status, attempt_count, lease_expires_at)
@@ -2227,6 +2269,8 @@ INDEX CREATE UNIQUE INDEX community_posts_pkey ON public.community_posts USING b
 INDEX CREATE UNIQUE INDEX community_reports_pkey ON public.community_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX consent_documents_pkey ON public.consent_documents USING btree (id)
 INDEX CREATE UNIQUE INDEX deleted_practice_videos_pkey ON public.deleted_practice_videos USING btree (video_id)
+INDEX CREATE UNIQUE INDEX direct_conversations_pkey ON public.direct_conversations USING btree (id)
+INDEX CREATE UNIQUE INDEX direct_messages_pkey ON public.direct_messages USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_ai_reports_pkey ON public.entry_ai_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_comments_pkey ON public.entry_comments USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_likes_pkey ON public.entry_likes USING btree (id)
@@ -2308,6 +2352,8 @@ INDEX CREATE UNIQUE INDEX uq_community_post_images_post_order ON public.communit
 INDEX CREATE UNIQUE INDEX uq_community_post_likes ON public.community_post_likes USING btree (post_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_community_reports_reporter_target ON public.community_reports USING btree (reporter_id, target_type, target_id)
 INDEX CREATE UNIQUE INDEX uq_consent_documents_type_version ON public.consent_documents USING btree (type, version, locale)
+INDEX CREATE UNIQUE INDEX uq_direct_conversations_pair ON public.direct_conversations USING btree (starter_user_id, recipient_user_id)
+INDEX CREATE UNIQUE INDEX uq_direct_messages_sender_request ON public.direct_messages USING btree (sender_user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_entry_ai_reports_entry ON public.entry_ai_reports USING btree (entry_id)
 INDEX CREATE UNIQUE INDEX uq_entry_comments_parent ON public.entry_comments USING btree (id, entry_id)
 INDEX CREATE UNIQUE INDEX uq_entry_comments_request ON public.entry_comments USING btree (user_id, request_id)
@@ -2401,6 +2447,8 @@ TABLE community_posts
 TABLE community_reports
 TABLE consent_documents
 TABLE deleted_practice_videos
+TABLE direct_conversations
+TABLE direct_messages
 TABLE entry_ai_reports
 TABLE entry_comments
 TABLE entry_likes
