@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HexFormat;
@@ -125,7 +126,7 @@ final class AccountLifecycleSeed {
                                           photo_upload_key,photo_upload_mime_type,photo_upload_size_bytes,
                                           photo_upload_expires_at,signup_client,created_at,updated_at)
                 VALUES (?,?,'female',?,'exam_prep','audition',?,'입시 준비 중입니다',true,true,true,?,'image/jpeg',10,?,'app/0.1.0',?,?)
-                """, user, who + " 배우", Date.valueOf(LocalDate.of(1999, 3, 2)), key(who, "profile/photo.jpg"),
+                """, user, who + " 배우", Date.valueOf(LocalDate.of(today().getYear() - 27, 3, 2)), key(who, "profile/photo.jpg"),
                 key(who, "profile/pending.jpg"), at(Duration.ofHours(1)), at(Duration.ofDays(-60)), at(Duration.ofDays(-60)));
         for (String direction : List.of("media", "stage")) {
             jdbc.update("INSERT INTO user_profile_directions(id,user_id,direction) VALUES (?,?,?)",
@@ -150,9 +151,9 @@ final class AccountLifecycleSeed {
                 id(who + "/푸시 연 기록"), user, at(Duration.ofDays(-1)));
         jdbc.update("""
                 INSERT INTO practice_reminder_sends(user_id,day,slot,kind,skipped_days,template_id,sent_at)
-                VALUES (?,DATE '2026-11-19','practice','daily',0,'t1',?)
-                """, user, at(Duration.ofDays(-1)));
-        jdbc.update("INSERT INTO user_active_days(user_id,day) VALUES (?,DATE '2026-11-19')", user);
+                VALUES (?,?,'practice','daily',0,'t1',?)
+                """, user, yesterday(), at(Duration.ofDays(-1)));
+        jdbc.update("INSERT INTO user_active_days(user_id,day) VALUES (?,?)", user, yesterday());
         jdbc.update("""
                 INSERT INTO user_signup_attributions(user_id,source,platform,channel,campaign,recorded_via,recorded_at)
                 VALUES (?,'airbridge','ios','instagram','launch','app',?)
@@ -160,10 +161,10 @@ final class AccountLifecycleSeed {
         jdbc.update("INSERT INTO user_airbridge_device_lookups(user_id,platform,device_uuid) VALUES (?,'ios',?)",
                 user, "device-" + who);
         jdbc.update("INSERT INTO user_discovery_answers(user_id,source,other_text) VALUES (?,'other','지인 소개')", user);
-        jdbc.update("INSERT INTO ad_events(id,ad_id,user_id,slot,event,day) VALUES (?,?,?,'home','impression',DATE '2026-11-19')",
-                id(who + "/광고 노출"), ad, user);
+        jdbc.update("INSERT INTO ad_events(id,ad_id,user_id,slot,event,day) VALUES (?,?,?,'home','impression',?)",
+                id(who + "/광고 노출"), ad, user, yesterday());
         jdbc.update("INSERT INTO ad_serves(id,user_id) VALUES (?,?)", id(who + "/광고 내보냄"), user);
-        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,DATE '2026-11-19',3)", user);
+        jdbc.update("INSERT INTO reading_voice_usage(user_id,day,lines) VALUES (?,?,3)", user, yesterday());
         // 쓰인 코드는 심지 않는다. 쓰인 코드는 「옮겨진 게스트」의 표식이라 닫힌 계정의 요청이 guest_transferred 로 막힌다.
         jdbc.update("INSERT INTO guest_transfer_codes(id,user_id,code_hash,expires_at) VALUES (?,?,?,?)",
                 id(who + "/이전 코드/살아 있음"), user, hash(who + "/이전 코드/살아 있음"), at(Duration.ofMinutes(10)));
@@ -500,6 +501,15 @@ final class AccountLifecycleSeed {
         String key = "users/" + who + "/" + path;
         objectKeys.add(key);
         return key;
+    }
+
+    /** 시계가 가리키는 한국 날짜. 하루 단위 표({@code day})와 생일은 이것에서 끌어낸다 — 시각을 옮겨도 같은 관계가 남는다. */
+    private LocalDate today() {
+        return LocalDate.ofInstant(now, ZoneId.of("Asia/Seoul"));
+    }
+
+    private Date yesterday() {
+        return Date.valueOf(today().minusDays(1));
     }
 
     private OffsetDateTime at(Duration fromNow) {

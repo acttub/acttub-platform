@@ -84,7 +84,12 @@ import tools.jackson.databind.ObjectMapper;
 })
 class AccountLifecycleFreezeIT {
 
-    private static final Instant NOW = Instant.parse("2026-11-20T03:00:00Z");
+    /**
+     * 테스트 시계. DB 의 {@code now()} 는 실제 시각이라, 시계로 잰 시각이 실제 시각 가까이 오면 기준 파일에 {@code <DB 시각>} 으로
+     * 잘못 적힌다(2026-11-27 03:00Z 에 {@code <now+PT168H>} 가 그랬다, SOMA-1176). 그래서 실제와 먼 과거에 둔다. 2026-11-20 의
+     * 28년 전이라 요일과 윤년 자리가 같다.
+     */
+    private static final Instant NOW = Instant.parse("1998-11-20T03:00:00Z");
 
     /** 사람을 가리키는 칸의 이름. {@code users} 를 가리키는 외래 키의 칸은 모두 이 모양이어야 한다. */
     private static final Pattern USER_COLUMN = Pattern.compile("(\\w+_)?user_id|(author|uploader|reporter|blocker|blocked|viewer)_id");
