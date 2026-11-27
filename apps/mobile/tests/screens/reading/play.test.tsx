@@ -18,6 +18,7 @@ import { missingModelBytes, removeDownloadedAssets } from '@/lib/reading/tts/ass
 import { hasDeviceVoice, speakWithDevice } from '@/lib/reading/tts/device-voice';
 import { NEXT_TAP_GUARD_MS, setNextTapGuardMs } from '@/lib/reading/next-tap-guard';
 import * as tts from '@/lib/reading/tts/engine';
+import { notifyPlaybackStart } from '@/lib/reading/tts/playback-start';
 import { VoicePrepareError } from '@/lib/reading/tts/voice-errors';
 import { exampleLineUri, loadExampleAudio, prefetchExampleLines } from '@/lib/reading/example-audio-runtime';
 import type { SessionDetail } from '@/lib/reading/types';
@@ -1281,6 +1282,97 @@ test('줄이 막 바뀐 직후 [다음]을 한 번 더 눌러도 새로 시작�
 
   expect(screen.getByText('읽는 중')).toBeOnTheScreen();
   expect(screen.getByText('서연')).toBeOnTheScreen();
+});
+
+test('내 차례 [다음]은 받아쓰기를 마무리하는 동안 「넘기는 중」으로 보이고 다시 누름을 받지 않는다(11/27 검토)', async () => {
+  jest.mocked(detectSttPolicy).mockResolvedValue({ kind: 'stt' });
+  mockMic.stop.mockResolvedValue(null);
+  let resolveFinish: (text: string) => void = () => undefined;
+  mockStt.finish.mockImplementationOnce(() => new Promise<string>((resolve) => (resolveFinish = resolve)));
+  await startPlay();
+  await waitFor(() => expect(recognizer).not.toBeNull());
+
+  await fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText('넘기는 중…')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  expect(mockStt.finish).toHaveBeenCalledTimes(1);
+
+  await act(async () => resolveFinish('오늘 왔구나'));
+  expect(await screen.findByText('서연')).toBeOnTheScreen();
+  expect(screen.queryByText('넘기는 중…')).toBeNull();
+  // 받아쓴 글과 녹음은 원래 줄로 남는다
+  await waitFor(() => expect(enqueueLineRecording).toHaveBeenCalledWith(expect.objectContaining({ lineId: 'l2', transcript: '오늘 왔구나' })));
+});
+
+test('회차가 끝나면 reading_run_summary 를 숫자만으로 한 번 보내고, 화면을 떠나도 다시 보내지 않는다', async () => {
+  jest.mocked(tts.play).mockImplementation(async () => notifyPlaybackStart());
+  await startPlay();
+  await speechEnds();
+  await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
+  await speechEnds();
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+
+  const sent = () => jest.mocked(logEvent).mock.calls.filter(([name]) => name === 'reading_run_summary');
+  expect(sent()).toHaveLength(1);
+  const params = sent()[0][1] as Record<string, unknown>;
+  expect(params).toEqual(expect.objectContaining({
+    advance: 'silence',
+    hands_free: false,
+    engine: expect.any(String),
+    mine_auto: 2,
+    mine_manual: 0,
+    mine_late: 0,
+    partner_full: 1,
+    partner_skip: 0,
+    partner_skip_before_audio: 0,
+    partner_wait_ms_p50: expect.any(Number),
+    partner_wait_ms_max: expect.any(Number),
+    close_timeouts: 0,
+    stt_errors: 0,
+    lines: 3,
+    ended: 'completed',
+  }));
+  expect('close_ms_p50' in params).toBe(false); // 손으로 넘긴 적이 없다
+  expect(Object.values(params).every((v) => typeof v === 'number' || typeof v === 'boolean' || (typeof v === 'string' && v.length <= 100))).toBe(true);
+
+  screen.unmount();
+  expect(sent()).toHaveLength(1);
+});
+
+test('중간에 떠나면 left 로 보내고, 손으로 넘긴 내 줄과 소리 전에 건너뛴 상대 줄을 센다', async () => {
+  jest.mocked(tts.play).mockImplementation(() => new Promise<void>(() => undefined)); // 상대 소리가 아직 나지 않았다
+  await startPlay();
+  await screen.findByText('듣는 중');
+  await fireEvent.press(screen.getByText('다음'));
+  expect(await screen.findByText('읽는 중')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('다음'));
+  await waitFor(() => expect(screen.getByText('괜찮아.')).toBeOnTheScreen());
+
+  screen.unmount();
+  // 화면 정리(효과의 정리 함수)는 unmount 뒤에 비동기로 흐를 수 있다.
+  const summaries = () => jest.mocked(logEvent).mock.calls.filter(([name]) => name === 'reading_run_summary');
+  await waitFor(() => expect(summaries()).toHaveLength(1));
+  const sent = summaries();
+  expect(sent[0][1]).toEqual(expect.objectContaining({
+    ended: 'left',
+    mine_manual: 1,
+    mine_auto: 0,
+    partner_skip: 1,
+    partner_skip_before_audio: 1,
+    partner_full: 0,
+    close_ms_p50: expect.any(Number),
+    close_ms_max: expect.any(Number),
+    lines: 3,
+  }));
+  expect('partner_wait_ms_p50' in (sent[0][1] as object)).toBe(false);
+});
+
+test('[시작]을 누르기 전에 떠나면 회차 요약을 보내지 않는다', async () => {
+  await startPlay({}, undefined, { begin: false });
+  await screen.findByText('시작');
+  screen.unmount();
+  expect(logEvent).not.toHaveBeenCalledWith('reading_run_summary', expect.anything());
 });
 
 test('너무 커서 못 보낸 녹음은 위쪽에 잠깐 알린다', async () => {

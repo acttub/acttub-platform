@@ -1663,6 +1663,7 @@ const en: DeepStringShape<typeof ko> = {
     yesterday: 'Yesterday',
     untitled: 'Untitled script',
     next: 'Next',
+    nextClosing: 'Moving on…',
     prev: 'Previous line',
     maskNone: 'Show every line',
     maskMine: 'Hide my lines',
