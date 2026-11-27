@@ -30,7 +30,7 @@ test('기본값은 오늘까지 앱에 박혀 있던 값과 같다', () => {
   assert.deepEqual(DEFAULT_APP_CONFIG.rating, { coachEvery: 2, readingEvery: 2, minGapDays: 7, maxAsks: 3 });
   assert.deepEqual(DEFAULT_APP_CONFIG.reading, {
     vadThreshold: 0.015, silenceMs: 1800, minSpeechMs: 400, maxListenMs: 60000,
-    speechEndGraceMs: 1300, advanceCoverage: 0.9, stableAdvanceMs: 1500,
+    speechEndGraceMs: 1300, advanceCoverage: 0.9, stableAdvanceMs: 1800,
     monologuePass: 0.72, monologueMissedBelow: 0.3, monologueNextAt: 0.8, monologueTouchMin: 3,
   });
   assert.deepEqual(DEFAULT_APP_CONFIG.cocreate.emotions, ['서운함', '설렘', '분노', '슬픔', '긴장', '담담함']);
@@ -71,15 +71,15 @@ test('parseAppConfig: 맞는 칸은 쓰고, 빠지거나 이상한 칸만 그 �
   assert.deepEqual(c.challenge.durationsDays, [7, 14], '0일은 안 된다');
 });
 
-test('parseAppConfig: stable_advance_ms — 서버가 안 보내면 1500, 0 은 끄기로 받고, 범위 밖·이상한 값은 기본값', () => {
+test('parseAppConfig: stable_advance_ms — 서버가 안 보내면 1800, 0 은 끄기로 받고, 범위 밖·이상한 값은 기본값', () => {
   const stable = (value) => parseAppConfig({ reading: { stable_advance_ms: value } }).reading.stableAdvanceMs;
-  assert.equal(parseAppConfig({}).reading.stableAdvanceMs, 1500, '아직 서버가 보내지 않는 칸');
-  assert.equal(parseAppConfig(SERVER).reading.stableAdvanceMs, 1500);
+  assert.equal(parseAppConfig({}).reading.stableAdvanceMs, 1800, '아직 서버가 보내지 않는 칸');
+  assert.equal(parseAppConfig(SERVER).reading.stableAdvanceMs, 1800);
   assert.equal(stable(0), 0, '0 은 거르지 않는다 — 끄는 길');
   assert.equal(stable(2500), 2500);
   assert.equal(stable(60_000), 60_000, '상한까지는 받는다');
   for (const bad of [60_001, -1, Number.NaN, Number.POSITIVE_INFINITY, '1500', null]) {
-    assert.equal(stable(bad), 1500, String(bad));
+    assert.equal(stable(bad), 1800, String(bad));
   }
 });
 

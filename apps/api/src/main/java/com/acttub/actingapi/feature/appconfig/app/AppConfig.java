@@ -25,7 +25,7 @@ public record AppConfig(Rating rating, Reading reading, Cocreate cocreate, Cocre
      */
     public record Reading(double vadThreshold, int silenceMs, int minSpeechMs, int maxListenMs, int speechEndGraceMs,
             double advanceCoverage, double monologuePass, double monologueMissedBelow, double monologueNextAt,
-            int monologueTouchMin, int stableAdvanceMs) {
+            int monologueTouchMin, Integer stableAdvanceMs) {
     }
 
     /** 대본 같이 만들기 칩. 감정은 서버가 받는 목록 안에서만 고른다(보이는 순서만 바꾼다). 상황은 자유 글이다. */
@@ -98,9 +98,10 @@ public record AppConfig(Rating rating, Reading reading, Cocreate cocreate, Cocre
         return value > 0 ? value : fallback;
     }
 
-    /** 0(끔)부터 60초까지만 받는다. 밖이면 기본값. */
-    private static int millisOrOff(int value, int fallback) {
-        return value >= 0 && value <= 60_000 ? value : fallback;
+    /** 0(끔)부터 60초까지만 받는다. 없거나(null) 밖이면 기본값 — 빠진 값이 조용히 「끔」이 되지 않게. */
+    private static int millisOrOff(Integer value, Integer fallback) {
+        int base = fallback == null ? 1800 : fallback;
+        return value != null && value >= 0 && value <= 60_000 ? value : base;
     }
 
     private static double fraction(double value, double fallback) {

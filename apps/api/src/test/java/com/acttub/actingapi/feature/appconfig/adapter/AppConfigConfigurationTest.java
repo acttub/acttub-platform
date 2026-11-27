@@ -28,7 +28,7 @@ class AppConfigConfigurationTest {
         assertThat(c.rating()).isEqualTo(new AppConfig.Rating(2, 2, 7, 3));
         // 넘김 받아쓰기 비율은 앱 기본값과 같은 0.9다(SOMA-804). 11/2 0.7로 낮췄지만 앱 설정이 401이라 내려가지 않다가
         // 11/3 401을 고친 뒤 모든 앱이 0.7을 받자, 대사 중간의 사이에서 다음 줄로 넘어간다는 제보가 왔다(11/5).
-        assertThat(c.reading()).isEqualTo(new AppConfig.Reading(0.015, 1800, 400, 60000, 1300, 0.9, 0.72, 0.3, 0.8, 3, 1500));
+        assertThat(c.reading()).isEqualTo(new AppConfig.Reading(0.015, 1800, 400, 60000, 1300, 0.9, 0.72, 0.3, 0.8, 3, 1800));
         assertThat(c.cocreate().emotions()).containsExactly("서운함", "설렘", "분노", "슬픔", "긴장", "담담함");
         assertThat(c.cocreate().situations()).containsExactly("오랜만의 재회", "이별", "오디션 직전", "가족 다툼", "고백", "사과");
         // 한국어가 아닌 기기용 칩(SOMA-1033) — 보이는 순서는 한국어 칩과 같은 뜻 순서다.
@@ -51,6 +51,29 @@ class AppConfigConfigurationTest {
         assertThat(AppConfigConfiguration.RULES.allowedEmotionsEn()).containsExactlyInAnyOrderElementsOf(CocreateRules.EMOTIONS_EN);
     }
 
+    @Test
+    void 말끝_없는_보조_넘김은_0이면_끄고_빠졌거나_범위_밖이면_기본값이다() throws Exception {
+        Path off = dir.resolve("off.json");
+        Files.writeString(off, """
+                { "reading": { "stable_advance_ms": 0 } }
+                """);
+        assertThat(load(off.toString()).reading().stableAdvanceMs()).as("0 은 끔").isEqualTo(0);
+        Path nulled = dir.resolve("null.json");
+        Files.writeString(nulled, """
+                { "reading": { "stable_advance_ms": null } }
+                """);
+        assertThat(load(nulled.toString()).reading().stableAdvanceMs()).as("null 은 끔이 아니라 기본값").isEqualTo(1800);
+        Path big = dir.resolve("big.json");
+        Files.writeString(big, """
+                { "reading": { "stable_advance_ms": 60001 } }
+                """);
+        assertThat(load(big.toString()).reading().stableAdvanceMs()).isEqualTo(1800);
+        Path negative = dir.resolve("negative.json");
+        Files.writeString(negative, """
+                { "reading": { "stable_advance_ms": -1 } }
+                """);
+        assertThat(load(negative.toString()).reading().stableAdvanceMs()).isEqualTo(1800);
+    }
     @Test
     void 덮을_파일은_칸마다_덮고_잘못된_칸은_기본값으로_돌린다() throws Exception {
         Path file = dir.resolve("app-config.json");

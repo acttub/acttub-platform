@@ -45,7 +45,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     speechEndGraceMs: 1300,
     advanceCoverage: 0.9,
     // 서버 기본값과 같다(app-config/defaults.json). 서버가 이 칸을 안 주는 예전 서버에서도 이 값으로 돈다(11/27).
-    stableAdvanceMs: 1500,
+    stableAdvanceMs: 1800,
     monologuePass: 0.72,
     monologueMissedBelow: 0.3,
     monologueNextAt: 0.8,

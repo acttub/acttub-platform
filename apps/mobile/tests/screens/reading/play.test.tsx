@@ -416,7 +416,7 @@ test('말 끝에 글이 모자란 채로 인식기가 끝나면 침묵을 한 �
 });
 
 /**
- * 말 끝 없이 글이 다 찬 채 멈추면 넘기는 보조 넘김(11/27, stable_advance_ms 기본 1500ms). 받아쓰기 차례를 연 뒤
+ * 말 끝 없이 글이 다 찬 채 멈추면 넘기는 보조 넘김(11/27, stable_advance_ms 기본 1800ms). 받아쓰기 차례를 연 뒤
  * 가짜 타이머로 시간을 민다. 넘기기 시작하면 stt.finish 가 곧바로 불리므로 그것으로 넘김을 본다.
  */
 async function openSttTurn() {
@@ -440,11 +440,11 @@ async function withFakeTimers(body: () => Promise<void>) {
 
 const tick = (ms: number) => act(async () => jest.advanceTimersByTime(ms));
 
-test('글이 90% 넘게 찬 뒤 말 끝 없이 1.5초 동안 새 글이 없으면 넘기고, 요약에 mine_stable 로 센다(11/27)', async () => {
+test('글이 90% 넘게 찬 뒤 말 끝 없이 1.8초 동안 새 글이 없으면 넘기고, 요약에 mine_stable 로 센다(11/27)', async () => {
   const listener = await openSttTurn();
   await withFakeTimers(async () => {
     await act(async () => listener.onInterim!(SAID_WHOLE_LINE));
-    await tick(1499);
+    await tick(1799);
     expect(mockStt.finish).not.toHaveBeenCalled();
     await tick(1);
     expect(mockStt.finish).toHaveBeenCalledTimes(1);
@@ -467,7 +467,7 @@ test('글이 90%에 못 미치면 새 글이 없어도 말 끝 없이 넘기지 
   expect(screen.getByText(ME)).toBeOnTheScreen();
 });
 
-test('1.5초 안에 새 중간 결과가 오면 그때부터 다시 잰다(11/27)', async () => {
+test('1.8초 안에 새 중간 결과가 오면 그때부터 다시 잰다(11/27)', async () => {
   const listener = await openSttTurn();
   await withFakeTimers(async () => {
     await act(async () => listener.onInterim!(SAID_WHOLE_LINE));
@@ -475,20 +475,29 @@ test('1.5초 안에 새 중간 결과가 오면 그때부터 다시 잰다(11/27
     await act(async () => listener.onInterim!(`${SAID_WHOLE_LINE}가`));
     await tick(1000);
     expect(mockStt.finish).not.toHaveBeenCalled();
-    await tick(500);
+    await tick(800);
     expect(mockStt.finish).toHaveBeenCalledTimes(1);
   });
 });
 
-test('글이 찬 뒤 다시 말하기 시작하면(speech_start) 말 끝 없이 넘기지 않는다(11/27)', async () => {
+test('글이 찬 뒤 말 시작(speech_start)이 오면 처음부터 다시 재고, 새 글이 계속 오는 동안은 넘기지 않는다(11/27)', async () => {
   const listener = await openSttTurn();
   await withFakeTimers(async () => {
     await act(async () => listener.onInterim!(SAID_WHOLE_LINE));
+    await tick(1500);
+    // 잡음이 「말 시작」으로 잡혀도 말 끝이 안 오는 차례 — 끊지 않고 처음부터 다시 잰다.
     await act(async () => listener.onEvent('speech_start'));
-    await tick(5000);
+    await tick(1500);
+    expect(mockStt.finish).not.toHaveBeenCalled();
+    // 정말 다시 말하는 중이면 새 글이 와서 계속 밀린다.
+    await act(async () => listener.onInterim!(`${SAID_WHOLE_LINE}가`));
+    await tick(1500);
+    await act(async () => listener.onInterim!(`${SAID_WHOLE_LINE}가 나`));
+    await tick(1500);
+    expect(mockStt.finish).not.toHaveBeenCalled();
+    await tick(300);
+    expect(mockStt.finish).toHaveBeenCalledTimes(1);
   });
-  expect(mockStt.finish).not.toHaveBeenCalled();
-  expect(screen.getByText(ME)).toBeOnTheScreen();
 });
 
 test('stable_advance_ms 가 0 이면 글이 다 차도 말 끝 없이 넘기지 않는다(11/27)', async () => {

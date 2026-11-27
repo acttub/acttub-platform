@@ -355,6 +355,11 @@ export default function ReadingPlay() {
   }, []);
   // 대본을 끝까지 읽으면 세고, 그 회차를 「좋았어요」로 고르면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494 · 11/27).
   const { count: countRating, askIfDue: askRatingIfDue, element: ratingCard } = useAppRating();
+  // 별점 카드가 뜨면 완료 화면을 카드까지 내린다 — 「아쉬웠어요」에서 「좋았어요」로 바꾼 경우 카드가 화면 밖에 그려졌다.
+  const ratingCardShown = ratingCard !== null;
+  useEffect(() => {
+    if (ratingCardShown) liftRatingInput();
+  }, [ratingCardShown, liftRatingInput]);
   const onReadingRated = useCallback(
     (value: ReadingRatingValue) => {
       if (value === 'good') void askRatingIfDue();
@@ -575,11 +580,10 @@ export default function ReadingPlay() {
       }
       setPhase({ kind: 'done' });
       sendRunSummary(stoppedEarlyRef.current ? 'stopped' : 'completed');
-      // 결과로 넘어갈 때 전면 광고(SOMA-1085) — 별점용 세기는 광고를 닫은 뒤에 한다. 묻는 건 「좋았어요」를 고른 뒤다.
-      void (async () => {
-        await showFullScreenAd('reading_done_full');
-        if (completed) void countRating({ kind: 'reading' });
-      })();
+      // 별점용 세기는 화면에 아무것도 띄우지 않으므로 광고(SOMA-1085)를 기다리지 않고 바로 센다 — 광고가 늦게 닫혀도
+      // 「좋았어요」의 묻기 판정에 이번 회차가 들어가게. 묻는 건 「좋았어요」를 고른 뒤다(11/27).
+      if (completed) void countRating({ kind: 'reading' });
+      void showFullScreenAd('reading_done_full');
       return;
     }
     // 이어하기의 앞 상대 대사(leadIn)는 저장하지 않는다 — 서버 위치가 뒤로 가지 않게.
@@ -1290,7 +1294,9 @@ export default function ReadingPlay() {
       if (event === 'speech_start') {
         shortAtEnd = false;
         clearLate();
-        clearStable();
+        // 다시 처음부터 잰다(끊지 않는다) — 잡음이 「말 시작」으로 잡히고 말 끝은 끝내 안 오는 차례가 이 보조 넘김의 대상이다.
+        // 정말 다시 말하는 중이면 새 중간 결과가 계속 와서 타이머가 계속 밀린다.
+        armStable();
       }
       if (event === 'speech_start' && deferredTimer.current) {
         // 시트를 닫은 뒤 다시 말하기 시작했다 — 미뤄 둔 넘김은 버리고 이번 말이 끝나기를 기다린다.
@@ -1391,6 +1397,9 @@ export default function ReadingPlay() {
         limitTimer = setTimeout(() => {
           const cur = runRef.current;
           if (cancelled || turnClosing.current || !cur || cur.index !== from) return;
+          // 한도에서는 줄을 그대로 두고 [다음]을 기다린다 — 걸어 둔 보조·늦은 넘김이 뒤에 줄을 넘기지 않게 끊는다.
+          clearStable();
+          clearLate();
           turnClosing.current = true;
           setTurnDone(true);
           void (async () => {
