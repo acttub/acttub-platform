@@ -14,7 +14,9 @@ test('대본 탭 — 목록을 받기 전에는 「내 대본」 머리·고품�
   assert.match(src, /const listSkeleton = listPending && skeletonHints\.reading === 'list';/);
   assert.match(src, /const entrySkeleton = listPending && !listSkeleton && !entryHint;/);
   assert.match(src, /title=\{showEntry \|\| entrySkeleton \? '' : t\('reading\.listTitle'\)\}/);
-  assert.match(src, /\{!showEntry && !entrySkeleton && \(\s*<FloatingAdd\b/);
+  // 「새 대본」은 떠 있는 버튼 대신 목록 화면 안 이어 하기 아래에 둔다(SOMA-1123) — 입구·입구 뼈대에는 없다.
+  assert.doesNotMatch(src, /<FloatingAdd\b/);
+  assert.match(src, /testID="reading-new-entry"/);
   assert.match(src, /\{!showEntry && !entrySkeleton && voiceBar\}/);
   // 몸통은 받기 전 → 뼈대, 비었으면 입구, 아니면 목록 순서로 고른다.
   const pending = src.indexOf('{listPending && !showEntry ? (');

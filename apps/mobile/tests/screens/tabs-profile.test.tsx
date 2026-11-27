@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import * as SecureStore from 'expo-secure-store';
 
 import ProfileScreen from '@/app/(tabs)/profile';
@@ -37,7 +37,12 @@ jest.mock('expo-router', () => {
 });
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn() }));
 // 친구 초대 칸(SOMA-865)은 tests/components/invite-card 가 본다. 여기 useFocusEffect 목은 마지막 등록 하나만 기억해 칸을 뺀다.
-jest.mock('@/components/invite-card', () => ({ InviteCard: () => null }));
+jest.mock('@/components/invite-card', () => ({
+  InviteCard: () => {
+    const { View } = require('react-native');
+    return <View testID="profile-invite" />;
+  },
+}));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: mockUser, profile: { me: mockMe } }) }));
 // 머리 알림 종(SOMA-1120)이 읽는 안 읽은 알림 수.
 jest.mock('@/hooks/use-unread-notifications', () => ({ useUnreadNotifications: () => ({ count: 0, badge: null }) }));
@@ -258,7 +263,8 @@ test('설정·편집으로 보내고, 탭을 바꾸면 그 카드와 전체 보�
   await render(<ProfileScreen />);
   await screen.findByText('actor');
 
-  await fireEvent.press(screen.getByRole('button', { name: '설정' }));
+  // 머리 톱니와 맨 아래 설정 줄(SOMA-1123)이 같은 곳으로 간다 — 여기서는 머리 톱니.
+  await fireEvent.press(screen.getAllByRole('button', { name: '설정' })[0]);
   await fireEvent.press(screen.getByText('편집'));
   // 「코치가 기억하는 것」 바로가기는 뺐다(10/25) — 기억은 배우에게 보여 주지 않는다.
   expect(screen.queryByText('코치가 기억하는 것')).not.toBeOnTheScreen();
@@ -286,6 +292,30 @@ test('설정·편집으로 보내고, 탭을 바꾸면 그 카드와 전체 보�
     ['/challenge-entries'],
     [{ pathname: '/challenge-play', params: { entryId: 's1' } }],
   ]);
+});
+
+test('순서는 내 카드 → 이번 주 연습 → 이번 달 숫자 → 연습 기록 → 참여작·저장됨 → 친구 초대 → 설정이다(SOMA-1123)', async () => {
+  mockMe = { profile: { name: '하늘' } };
+  await render(<ProfileScreen />);
+  await act(async () => undefined);
+
+  const hosts = screen.container.queryAll((node) => typeof node.type === 'string');
+  const at = (el: unknown) => hosts.indexOf(el as (typeof hosts)[number]);
+  const order = [
+    at(screen.getByText('하늘')),
+    at(screen.getByTestId('home-week')),
+    at(screen.getByTestId('profile-month')),
+    at(screen.getByRole('tab', { name: '연습 기록' })),
+    at(screen.getByRole('tab', { name: '참여작' })),
+    at(screen.getByRole('tab', { name: '저장됨' })),
+    at(screen.getByTestId('profile-invite')),
+    at(screen.getByTestId('profile-settings-row')),
+  ];
+  expect(order.every((i) => i >= 0)).toBe(true);
+  expect([...order].sort((a, b) => a - b)).toEqual(order);
+
+  await fireEvent.press(within(screen.getByTestId('profile-settings-row')).getByRole('button', { name: '설정' }));
+  expect(mockRouter.push).toHaveBeenLastCalledWith('/settings');
 });
 
 describe('예전 홈에서 옮겨 온 것(SOMA-1120)', () => {

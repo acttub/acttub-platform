@@ -275,19 +275,17 @@ export default function ProfileScreen() {
           loading={!records.activityLoaded}
         />
 
-        <AdSlot slot="profile_top" />
-
         {/* 「코치가 기억하는 것」 바로가기는 뺐다(10/25 결정) — 기억은 코치가 계속 쓰지만 배우에게 화면으로 보여 주지 않는다. */}
-        <View style={styles.month}>
+        <View style={styles.month} testID="profile-month">
           <MonthCell label={t('profileTab.monthLabel')} count={counts?.total ?? null} />
           <MonthCell label={t('profileTab.kindCoaching')} count={counts?.coaching ?? null} />
           <MonthCell label={t('profileTab.kindReading')} count={counts?.reading ?? null} />
           <MonthCell label={t('profileTab.kindChallenge')} count={counts?.challenge ?? null} />
         </View>
 
-        {/* 친구 초대(SOMA-865). 서버가 기능을 닫아 두었으면 그리지 않는다. */}
-        <InviteCard />
+        <AdSlot slot="profile_top" />
 
+        {/* 연습 기록 → 참여작·저장 영상(SOMA-1123). 메시지 칸은 아직 없어 두지 않는다. */}
         <UnderlineTabs
           tabs={[
             { key: 'practice', label: t('profileTab.tabPractice') },
@@ -356,6 +354,14 @@ export default function ProfileScreen() {
             }))}
           />
         )}
+
+        {/* 친구 초대(SOMA-865). 서버가 기능을 닫아 두었으면 그리지 않는다. */}
+        <InviteCard />
+
+        {/* 맨 아래 설정 — 머리 톱니와 같은 곳으로 간다(SOMA-1123 순서의 끝). */}
+        <View testID="profile-settings-row">
+          <Button variant="secondary" size="md" label={t('settings.title')} phLabel="profile_settings_row" onPress={() => router.push('/settings')} />
+        </View>
       </ScrollView>
       {dialog}
     </SafeAreaView>

@@ -121,6 +121,30 @@ test('이어 읽을 회차가 있으면 pen R1.3처럼 「이전에 하던 데�
   expect(screen.queryByText('한 번 더 하기')).not.toBeOnTheScreen();
 });
 
+test('순서는 이어 하기 → 새 대본 → 지난 기록(업로드한 대본)이고, 이어 할 회차가 없으면 새 대본이 맨 위다(SOMA-1123)', async () => {
+  (listSessions as jest.Mock).mockResolvedValue([{ id: 'r1', status: 'in_progress', progress: { done: 8, total: 15 } }]);
+  const view = await render(<ReadingList />);
+  await screen.findByText('이전에 하던 대본부터');
+  const indexOf = () => {
+    const hosts = screen.container.queryAll((node) => typeof node.type === 'string');
+    return (el: unknown) => hosts.indexOf(el as (typeof hosts)[number]);
+  };
+  let at = indexOf();
+  const resume = at(screen.getByText('이전에 하던 대본부터'));
+  const fresh = at(screen.getByTestId('reading-new-entry'));
+  const past = at(screen.getByText('업로드한 대본'));
+  expect(resume).toBeLessThan(fresh);
+  expect(fresh).toBeLessThan(past);
+  await view.unmount();
+
+  (listSessions as jest.Mock).mockResolvedValue([]);
+  await render(<ReadingList />);
+  await screen.findByText('업로드한 대본');
+  expect(screen.queryByText('이전에 하던 대본부터')).not.toBeOnTheScreen();
+  at = indexOf();
+  expect(at(screen.getByTestId('reading-new-entry'))).toBeLessThan(at(screen.getByText('업로드한 대본')));
+});
+
 test('대본이 없으면 새 대본으로 시작하라고 안내한다', async () => {
   (listScripts as jest.Mock).mockResolvedValue({ scripts: [], total_count: 0, in_progress_count: 0 });
   await render(<ReadingList />);

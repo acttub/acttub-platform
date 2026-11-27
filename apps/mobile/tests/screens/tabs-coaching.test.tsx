@@ -130,6 +130,20 @@ test('노트가 있는 묶음이 있으면 저번 코치 메모 카드와 입구
   expect(screen.queryByRole('button', { name: '전체 보기' })).not.toBeOnTheScreen();
 });
 
+test('순서는 이어 하기(저번 코치 메모) → 새 코칭 → 지난 기록(최근 코칭·연습 기록 화면)이다(SOMA-1123)', async () => {
+  listPracticeGroups.mockResolvedValue({
+    groups: [group({ title: '이별 장면', practices: [round('p1', '2026-10-01T00:00:00Z', true)] })],
+  });
+  await render(<CoachingTab />);
+  await screen.findByText('저번 코치 메모');
+
+  const hosts = screen.container.queryAll((node) => typeof node.type === 'string');
+  const at = (el: unknown) => hosts.indexOf(el as (typeof hosts)[number]);
+  const order = [at(screen.getByText('저번 코치 메모')), at(screen.getByRole('button', { name: '새 영상으로 코칭 받기' })), at(screen.getByText('최근 코칭'))];
+  expect(order.every((i) => i >= 0)).toBe(true);
+  expect([...order].sort((a, b) => a - b)).toEqual(order);
+});
+
 test('저장한 대본이 있어도 코칭 탭에는 「내 대본으로 찍기」 줄을 따로 두지 않는다(SOMA-984)', async () => {
   mockListScripts.mockResolvedValue({ scripts: [{ id: 's1' }], total_count: 1, in_progress_count: 0 });
   listPracticeGroups.mockResolvedValue({

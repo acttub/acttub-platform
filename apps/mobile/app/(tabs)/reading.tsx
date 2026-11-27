@@ -10,7 +10,7 @@ import { AdSlot } from '@/components/ad-slot';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { SplitJobRow } from '@/components/reading/split-job-row';
 import { BandGradient } from '@/components/ui/band-gradient';
-import { FLOATING_ADD_HEIGHT, FloatingAdd, useTabFloatingAddBottom } from '@/components/ui/floating-add';
+import { Button } from '@/components/ui/buttons';
 import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { BlueSwitch } from '@/components/ui/list-rows';
@@ -72,7 +72,6 @@ const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guid
 
 export default function ReadingList() {
   const tabBarSpace = useTabBarSpace();
-  const floatingAddBottom = useTabFloatingAddBottom();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
   const insets = useSafeAreaInsets();
@@ -301,7 +300,7 @@ export default function ReadingList() {
       <ScrollView
       // 입구 위 띠의 첫 색은 위 여백(당기기 표시 자리)까지 스크롤 배경으로 칠한다 — 내용 안에 두면 당기기 표시를 덮는다.
       style={[styles.root, (showEntry || entrySkeleton) && styles.rootEmpty]}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top - iosTopInset, paddingBottom: tabBarSpace + 20 + (showEntry || entrySkeleton ? 0 : FLOATING_ADD_HEIGHT + space[3]) }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top - iosTopInset, paddingBottom: tabBarSpace + 20 }]}
       contentInset={{ top: iosTopInset }}
       contentOffset={{ x: 0, y: -iosTopInset }}
       automaticallyAdjustContentInsets={false}
@@ -416,6 +415,20 @@ export default function ReadingList() {
             </Pressable>
           )}
 
+          {/* 이어 하기 → 새 대본 → 지난 기록(업로드한 대본) 순서(SOMA-1123). 이어 읽을 회차가 없으면 새 대본이 맨 위다. */}
+          {!searching && (
+            <View testID="reading-new-entry">
+              <Button
+                variant="secondary"
+                size="md"
+                label={t('reading.titleNew')}
+                icon={<Feather name="plus" size={18} color={palette.blue} />}
+                phLabel="reading_new"
+                onPress={() => router.push('/reading/new')}
+              />
+            </View>
+          )}
+
           <AdSlot slot="reading_tab_top" />
 
           {list && (
@@ -496,15 +509,6 @@ export default function ReadingList() {
       </ScrollView>
       {/* 내리면 내용이 상태 표시줄 밑으로 비쳐 겹쳐 보였다(11/2 QA) — 상태 표시줄 자리를 바탕색으로 덮는다. */}
       <View pointerEvents="none" style={[styles.statusCover, { height: insets.top }, (showEntry || entrySkeleton) && styles.statusCoverEmpty]} />
-      {!showEntry && !entrySkeleton && (
-        <FloatingAdd
-          label={t('reading.titleNew')}
-          bottom={floatingAddBottom}
-          phLabel="reading_new"
-          target={newTarget}
-          onPress={() => router.push('/reading/new')}
-        />
-      )}
     </View>
   );
 }
