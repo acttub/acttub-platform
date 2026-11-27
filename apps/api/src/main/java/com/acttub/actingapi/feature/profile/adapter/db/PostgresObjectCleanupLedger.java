@@ -1,7 +1,7 @@
 package com.acttub.actingapi.feature.profile.adapter.db;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,6 +14,7 @@ import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository;
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
 import com.acttub.actingapi.feature.video.app.VideoObjectCleanup;
+import com.acttub.actingapi.platform.schema.AccountCleanupKind;
 import com.acttub.actingapi.platform.security.AccountSecrets;
 import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
@@ -88,21 +89,27 @@ class PostgresObjectCleanupLedger
     UUID enqueue(UUID userId, String kind, String payloadEncrypted, Instant now, Instant notBefore) {
         UUID id = UUID.randomUUID();
         Instant firstAttempt = notBefore.isAfter(now) ? notBefore : now;
-        entityManager.createNativeQuery("""
-                INSERT INTO account_cleanup_operations(
-                    id,user_id,kind,payload_encrypted,next_attempt_at,expires_at,created_at,updated_at)
-                VALUES (:id,:userId,:kind,:payload,:firstAttempt,:expiresAt,:now,:now)
-                """)
+        entityManager.createQuery("""
+                        insert into AccountCleanupOperationEntity
+                            (id, userId, kind, payloadEncrypted, nextAttemptAt, expiresAt, createdAt, updatedAt)
+                        values (:id, :userId, :kind, :payload, :firstAttempt, :expiresAt, :now, :now)
+                        """)
                 .setParameter("id", id)
                 .setParameter("userId", userId)
-                .setParameter("kind", kind)
+                .setParameter("kind", kind(kind))
                 .setParameter("payload", payloadEncrypted)
-                .setParameter("firstAttempt", firstAttempt.atOffset(ZoneOffset.UTC))
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("expiresAt",
-                        firstAttempt.plus(AccountCleanupRepository.RETRY_WINDOW).atOffset(ZoneOffset.UTC))
+                .setParameter("firstAttempt", firstAttempt)
+                .setParameter("now", now)
+                .setParameter("expiresAt", firstAttempt.plus(AccountCleanupRepository.RETRY_WINDOW))
                 .executeUpdate();
         return id;
+    }
+
+    private static AccountCleanupKind kind(String dbValue) {
+        return Arrays.stream(AccountCleanupKind.values())
+                .filter(kind -> kind.dbValue().equals(dbValue))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("unknown cleanup kind: " + dbValue));
     }
 
     private static String json(List<String> values) {
