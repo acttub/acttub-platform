@@ -59,7 +59,7 @@ export default function RefundPage() {
       <aside className="bg-[#191f28] px-5 py-2.5 text-xs leading-5 text-[#d1d6db] sm:px-8">
         <div className="mx-auto max-w-4xl">
           <span className="mr-2 rounded-full bg-[#3182f6] px-2 py-0.5 text-[11px] font-black text-white">11월 1일 결제 시작</span>
-          2026년 11월 1일부터 결제를 시작해요. {NOTICE_SCOPE}
+          2026년 11월 1일부터 결제를 시작했어요. {NOTICE_SCOPE}
         </div>
       </aside>
       <ProTopBar backHref="/pricing" backLabel="ACTTUB Pro 구독 안내" />
