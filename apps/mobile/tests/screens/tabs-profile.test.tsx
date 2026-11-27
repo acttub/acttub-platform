@@ -36,6 +36,8 @@ jest.mock('expo-router', () => {
   };
 });
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn() }));
+// 친구 초대 칸(SOMA-865)은 tests/components/invite-card 가 본다. 여기 useFocusEffect 목은 마지막 등록 하나만 기억해 칸을 뺀다.
+jest.mock('@/components/invite-card', () => ({ InviteCard: () => null }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: mockUser, profile: { me: mockMe } }) }));
 jest.mock('@/lib/api', () => ({
   api: {

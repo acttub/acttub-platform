@@ -38,4 +38,12 @@ public interface PushTokenRepository {
      * 그보다 옛 앱은 알림을 눌러도 보고서 화면으로 가지 못한다. 판을 모르는 토큰도 뺀다.
      */
     List<PushTarget> pronunciationReportTargets(UUID userId, String minAppVersion);
+
+    /**
+     * 친구 초대 보상(Pro 1개월)을 알릴 단말(SOMA-865). 새 토글을 만들지 않고 대본 나누기와 같은 단말·토글(분석 완료 알림)을 따른다 —
+     * 꺼 두었으면 빈 목록이다.
+     */
+    default List<PushTarget> inviteRewardTargets(UUID userId) {
+        return scriptSplitTargets(userId);
+    }
 }

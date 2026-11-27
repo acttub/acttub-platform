@@ -157,6 +157,34 @@ class PushServiceTest {
         assertThat(PushService.PLATFORMS).containsExactlyInAnyOrder("ios", "android");
     }
 
+    @Test
+    @DisplayName("친구 초대 보상은 받은 사람의 단말 전부에 역할별 문구로 한 번 보내고, 상대를 알아볼 값은 싣지 않는다(SOMA-865)")
+    void inviteRewardSendsRoleSpecificCopyToTheReceiver() {
+        UUID inviter = UUID.randomUUID();
+        tokens.forUser = List.of(new PushTarget("ExponentPushToken[ko]", "ko"), new PushTarget("ExponentPushToken[en]", "en"));
+
+        service.onInviteRewarded(inviter, true);
+
+        assertThat(tokens.askedUser).isEqualTo(inviter);
+        assertThat(sender.sent).extracting(PushMessage::title)
+                .containsExactly("친구가 첫 연습을 끝냈어요", "Your friend finished their first practice");
+        assertThat(sender.sent).allSatisfy(message -> assertThat(message.data()).isEqualTo(Map.of("kind", "invite_reward")));
+
+        sender.sent.clear();
+        service.onInviteRewarded(UUID.randomUUID(), false);
+        assertThat(sender.sent).extracting(PushMessage::title).containsExactly("Pro 1개월을 받았어요", "You got 1 month of Pro");
+    }
+
+    @Test
+    @DisplayName("친구 초대 보상 알림의 실패는 보고만 하고 밖으로 내보내지 않는다")
+    void inviteRewardFailureIsReportedNotThrown() {
+        tokens.forUser = List.of(new PushTarget("ExponentPushToken[ko]", "ko"));
+        sender.failure = new IllegalStateException("expo down");
+
+        assertThatCode(() -> service.onInviteRewarded(UUID.randomUUID(), false)).doesNotThrowAnyException();
+        assertThat(failures.contexts()).containsExactly("PushService.onInviteRewarded");
+    }
+
     private static final class RecordingRepository implements PushTokenRepository {
         private List<PushTarget> forSession = List.of();
         private List<PushTarget> forUser = List.of();

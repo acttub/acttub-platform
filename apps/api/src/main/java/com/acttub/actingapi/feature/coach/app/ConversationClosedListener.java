@@ -21,4 +21,26 @@ public interface ConversationClosedListener {
      *        무엇이 확인 연습인지는 듣는 쪽이 노트로 판정한다
      */
     void onConversationClosed(UUID userId, UUID practiceId);
+
+    /**
+     * 여럿에게 차례로 알린다(SOMA-865: 배우 기억과 친구 초대). 하나가 실패해도 나머지는 받고, 실패는 모아 마지막에 던진다 —
+     * 하나뿐일 때와 같은 것이 밖으로 나간다. 없으면 null 이다.
+     */
+    static ConversationClosedListener all(java.util.List<ConversationClosedListener> listeners) {
+        if (listeners == null || listeners.isEmpty()) return null;
+        if (listeners.size() == 1) return listeners.getFirst();
+        var each = java.util.List.copyOf(listeners);
+        return (userId, practiceId) -> {
+            RuntimeException first = null;
+            for (ConversationClosedListener listener : each) {
+                try {
+                    listener.onConversationClosed(userId, practiceId);
+                } catch (RuntimeException failure) {
+                    if (first == null) first = failure;
+                    else first.addSuppressed(failure);
+                }
+            }
+            if (first != null) throw first;
+        };
+    }
 }

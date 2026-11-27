@@ -5,6 +5,30 @@
  */
 const ko = {
   uploadReason: {"title":"영상 올리기가 망설여지나요?"},
+  // 친구 초대(SOMA-865). 보상 조건은 한 줄만 보인다 — 약관·안내 문구는 따로 고친다.
+  invite: {
+    title: '친구 초대',
+    reward: '친구가 가입하고 첫 연습을 끝내면 둘 다 Pro 1개월',
+    myCode: '내 초대 코드 {{code}}',
+    share: '친구 초대하기',
+    shareIntro: 'ACTTUB에서 같이 연기 연습해요.',
+    shareCode: '초대 코드: {{code}}',
+    shareReward: '가입하고 첫 연습을 끝내면 둘 다 Pro 1개월을 받아요.',
+    redeemLabel: '초대 코드 입력',
+    redeemPlaceholder: '받은 코드 6자리',
+    redeemSubmit: '확인',
+    redeemChecking: '확인하고 있어요',
+    redeemUntil: '{{date}}까지 넣을 수 있어요',
+    redeemed: '초대 코드를 넣었어요. 첫 연습을 끝내면 Pro 1개월을 받아요.',
+    rewarded: '친구 초대 보상으로 Pro 1개월을 받았어요.',
+    failNotFound: '없는 코드예요. 다시 확인해 주세요.',
+    failOwnCode: '내 코드는 넣을 수 없어요.',
+    failAlready: '이미 초대 코드를 넣었어요.',
+    failWindowClosed: '코드를 넣을 수 있는 기간이 지났어요.',
+    failRateLimited: '잠시 뒤 다시 해 주세요.',
+    failNetwork: '연결이 불안정해요. 잠시 뒤 다시 해 주세요.',
+    failUnknown: '지금은 확인하지 못했어요. 잠시 뒤 다시 해 주세요.',
+  },
   // 버튼을 누른 뒤 기다릴 때 로딩 표시 대신 보여 주는 문구(SOMA-828). 화면을 열 때 데이터를 기다리는 동안에는 아무것도 띄우지 않는다.
   loadingText: {
     wait: '잠시만요…',

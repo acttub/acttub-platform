@@ -469,6 +469,20 @@ COLUMN guest_transfer_codes.expires_at ord=5 type=timestamptz len=- null=NO defa
 COLUMN guest_transfer_codes.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN guest_transfer_codes.used_at ord=6 type=timestamptz len=- null=YES default=-
 COLUMN guest_transfer_codes.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN handoff_confirmations.coaching_handoff_id ord=1 type=uuid len=- null=NO default=-
+COLUMN handoff_confirmations.confirmed ord=2 type=bool len=- null=NO default=false
+COLUMN handoff_confirmations.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN handoff_confirmations.rebuttal_text ord=3 type=text len=- null=YES default=-
+COLUMN handoff_confirmations.updated_at ord=5 type=timestamptz len=- null=NO default=now()
+COLUMN invite_codes.code ord=2 type=text len=- null=NO default=-
+COLUMN invite_codes.created_at ord=3 type=timestamptz len=- null=NO default=now()
+COLUMN invite_codes.user_id ord=1 type=uuid len=- null=NO default=-
+COLUMN invite_redemptions.code ord=3 type=text len=- null=NO default=-
+COLUMN invite_redemptions.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN invite_redemptions.invitee_id ord=1 type=uuid len=- null=NO default=-
+COLUMN invite_redemptions.inviter_id ord=2 type=uuid len=- null=YES default=-
+COLUMN invite_redemptions.inviter_rewarded ord=6 type=bool len=- null=NO default=false
+COLUMN invite_redemptions.rewarded_at ord=5 type=timestamptz len=- null=YES default=-
 COLUMN line_memorization.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN line_memorization.id ord=1 type=uuid len=- null=NO default=-
 COLUMN line_memorization.line_id ord=3 type=uuid len=- null=NO default=-
@@ -1539,6 +1553,25 @@ CONSTRAINT guest_transfer_codes guest_transfer_codes_id_not_null NOT NULL id
 CONSTRAINT guest_transfer_codes guest_transfer_codes_pkey PRIMARY KEY (id)
 CONSTRAINT guest_transfer_codes guest_transfer_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT guest_transfer_codes guest_transfer_codes_user_id_not_null NOT NULL user_id
+CONSTRAINT handoff_confirmations handoff_confirmations_coaching_handoff_id_fkey FOREIGN KEY (coaching_handoff_id) REFERENCES coaching_handoffs(id) ON DELETE CASCADE
+CONSTRAINT handoff_confirmations handoff_confirmations_coaching_handoff_id_not_null NOT NULL coaching_handoff_id
+CONSTRAINT handoff_confirmations handoff_confirmations_confirmed_not_null NOT NULL confirmed
+CONSTRAINT handoff_confirmations handoff_confirmations_created_at_not_null NOT NULL created_at
+CONSTRAINT handoff_confirmations handoff_confirmations_pkey PRIMARY KEY (coaching_handoff_id)
+CONSTRAINT handoff_confirmations handoff_confirmations_updated_at_not_null NOT NULL updated_at
+CONSTRAINT invite_codes invite_codes_code_not_null NOT NULL code
+CONSTRAINT invite_codes invite_codes_created_at_not_null NOT NULL created_at
+CONSTRAINT invite_codes invite_codes_pkey PRIMARY KEY (user_id)
+CONSTRAINT invite_codes invite_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT invite_codes invite_codes_user_id_not_null NOT NULL user_id
+CONSTRAINT invite_codes uq_invite_codes_code UNIQUE (code)
+CONSTRAINT invite_redemptions invite_redemptions_code_not_null NOT NULL code
+CONSTRAINT invite_redemptions invite_redemptions_created_at_not_null NOT NULL created_at
+CONSTRAINT invite_redemptions invite_redemptions_invitee_id_fkey FOREIGN KEY (invitee_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT invite_redemptions invite_redemptions_invitee_id_not_null NOT NULL invitee_id
+CONSTRAINT invite_redemptions invite_redemptions_inviter_id_fkey FOREIGN KEY (inviter_id) REFERENCES users(id) ON DELETE SET NULL
+CONSTRAINT invite_redemptions invite_redemptions_inviter_rewarded_not_null NOT NULL inviter_rewarded
+CONSTRAINT invite_redemptions invite_redemptions_pkey PRIMARY KEY (invitee_id)
 CONSTRAINT line_memorization ck_line_memorization_status CHECK ((status = ANY (ARRAY['memorized'::text, 'not_yet'::text])))
 CONSTRAINT line_memorization line_memorization_created_at_not_null NOT NULL created_at
 CONSTRAINT line_memorization line_memorization_id_not_null NOT NULL id
@@ -2191,6 +2224,7 @@ INDEX CREATE INDEX ix_entry_reports_queue ON public.entry_reports USING btree (s
 INDEX CREATE INDEX ix_entry_reports_reporter_created ON public.entry_reports USING btree (reporter_id, created_at)
 INDEX CREATE INDEX ix_entry_saves_user ON public.entry_saves USING btree (user_id, created_at DESC, id DESC)
 INDEX CREATE INDEX ix_entry_view_events_created ON public.entry_view_events USING btree (created_at)
+INDEX CREATE INDEX ix_invite_redemptions_inviter ON public.invite_redemptions USING btree (inviter_id, rewarded_at)
 INDEX CREATE INDEX ix_notification_pushes_created ON public.notification_pushes USING btree (created_at)
 INDEX CREATE INDEX ix_notifications_due ON public.notifications USING btree (push_after) WHERE (push_status = 'pending'::text)
 INDEX CREATE INDEX ix_notifications_entry ON public.notifications USING btree (entry_id)
@@ -2247,6 +2281,9 @@ INDEX CREATE UNIQUE INDEX entry_saves_pkey ON public.entry_saves USING btree (id
 INDEX CREATE UNIQUE INDEX entry_view_events_pkey ON public.entry_view_events USING btree (event_id)
 INDEX CREATE UNIQUE INDEX external_operations_pkey ON public.external_operations USING btree (id)
 INDEX CREATE UNIQUE INDEX guest_transfer_codes_pkey ON public.guest_transfer_codes USING btree (id)
+INDEX CREATE UNIQUE INDEX handoff_confirmations_pkey ON public.handoff_confirmations USING btree (coaching_handoff_id)
+INDEX CREATE UNIQUE INDEX invite_codes_pkey ON public.invite_codes USING btree (user_id)
+INDEX CREATE UNIQUE INDEX invite_redemptions_pkey ON public.invite_redemptions USING btree (invitee_id)
 INDEX CREATE UNIQUE INDEX line_memorization_pkey ON public.line_memorization USING btree (id)
 INDEX CREATE UNIQUE INDEX note_ratings_pkey ON public.note_ratings USING btree (id)
 INDEX CREATE UNIQUE INDEX notification_pushes_pkey ON public.notification_pushes USING btree (id)
@@ -2330,6 +2367,7 @@ INDEX CREATE UNIQUE INDEX uq_entry_saves_actor ON public.entry_saves USING btree
 INDEX CREATE UNIQUE INDEX uq_external_operations_user_request ON public.external_operations USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_code_hash ON public.guest_transfer_codes USING btree (code_hash) WHERE (used_at IS NULL)
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_user ON public.guest_transfer_codes USING btree (user_id) WHERE (used_at IS NULL)
+INDEX CREATE UNIQUE INDEX uq_invite_codes_code ON public.invite_codes USING btree (code)
 INDEX CREATE UNIQUE INDEX uq_line_memorization_user_line ON public.line_memorization USING btree (user_id, line_id)
 INDEX CREATE UNIQUE INDEX uq_note_ratings_note_user ON public.note_ratings USING btree (note_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_notification_pushes_stage ON public.notification_pushes USING btree (group_key, stage)
@@ -2423,6 +2461,9 @@ TABLE entry_saves
 TABLE entry_view_events
 TABLE external_operations
 TABLE guest_transfer_codes
+TABLE handoff_confirmations
+TABLE invite_codes
+TABLE invite_redemptions
 TABLE line_memorization
 TABLE note_ratings
 TABLE notification_pushes

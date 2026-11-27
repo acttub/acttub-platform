@@ -115,7 +115,10 @@ class PackageLayerTest {
             // 앱 광고 칸(SOMA-876). 칸 목록·고르는 순서·A/B 배정이 domain 에 산다. 표는 JPA 로 읽고 쓴다(SOMA-1172).
             Map.entry("ads", FOUR_LAYERS),
             // 앱 설정(SOMA-939). 운영 값 묶음과 칸 검사만 있어 저장소·규칙 층이 없다 — 파일을 읽어 내려준다.
-            Map.entry("appconfig", Set.of("app", "adapter")));
+            Map.entry("appconfig", Set.of("app", "adapter")),
+            // 친구 초대(SOMA-865). 코드 모양·넣기 규칙은 app 의 서비스가 갖고, 지급은 행 잠금과 조건부 갱신이라 저장소가 한
+            // 트랜잭션으로 한다. 남의 표(계정·리딩·노트·Pro 기간)는 주인의 Port 로만 닿는다.
+            Map.entry("invite", Set.of("app", "adapter", "schema")));
 
     /**
      * {@code domain}이 알아서는 안 되는 것들. docs/ARCHITECTURE.md의 <b>Domain Model</b>은 "프레임워크를

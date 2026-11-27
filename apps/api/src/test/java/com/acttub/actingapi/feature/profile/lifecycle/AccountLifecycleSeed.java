@@ -196,6 +196,11 @@ final class AccountLifecycleSeed {
                 """, id(who + "/결제"), subscription, user, "order-" + who, at(Duration.ofDays(-5)), at(Duration.ofDays(25)));
         jdbc.update("INSERT INTO billing_pro_grants(id,user_id,starts_at,ends_at,reason) VALUES (?,?,?,?,'promo')",
                 id(who + "/Pro 지급"), user, at(Duration.ofDays(-5)), at(Duration.ofDays(25)));
+        // 보상형 광고로 받은 코칭 1회(SOMA-1067)와 내 초대 코드(SOMA-865). 넣은 초대 기록은 상대가 있어야 해 cross 에서 심는다.
+        jdbc.update("INSERT INTO coaching_rewards(transaction_id,user_id,request_id,created_at) VALUES (?,?,?,?)",
+                "reward-" + who, user, id(who + "/광고 보상/요청"), at(Duration.ofHours(-3)));
+        jdbc.update("INSERT INTO invite_codes(user_id,code,created_at) VALUES (?,?,?)",
+                user, "code-" + who, at(Duration.ofDays(-30)));
         for (String status : List.of("open", "done")) {
             jdbc.update("""
                     INSERT INTO billing_checkouts(id,user_id,state_hash,purpose,customer_key,order_id,status,expires_at)
@@ -452,6 +457,12 @@ final class AccountLifecycleSeed {
                 """, id(pair + "/게시글 익명 번호"), post, user, post);
         jdbc.update("INSERT INTO community_reports(id,reporter_id,target_type,target_id,reason) VALUES (?,?,'post',?,'spam')",
                 id(pair + "/게시글 신고"), user, post);
+        // 친구 초대(SOMA-865): who 가 other 의 코드를 넣었다. 사람당 한 줄이라 두 번째 상대부터는 넣지 않는다.
+        jdbc.update("""
+                INSERT INTO invite_redemptions(invitee_id,inviter_id,code,created_at,rewarded_at,inviter_rewarded)
+                VALUES (?,?,?,?,?,true)
+                ON CONFLICT (invitee_id) DO NOTHING
+                """, user, counterpart, "code-" + other, at(Duration.ofDays(-30)), at(Duration.ofDays(-29)));
     }
 
     private void identity(String who, UUID user, String provider, String appleToken, String naverToken) {

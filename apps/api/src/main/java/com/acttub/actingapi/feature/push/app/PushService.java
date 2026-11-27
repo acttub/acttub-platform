@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.analysis.app.AnalysisCompletionListener;
+import com.acttub.actingapi.feature.invite.app.InviteRewardListener;
 import com.acttub.actingapi.feature.reading.app.PronunciationReportListener;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitListener;
 import com.acttub.actingapi.platform.observability.FailureContext;
@@ -22,7 +23,8 @@ import org.springframework.stereotype.Service;
  * 하지 않는다.
  */
 @Service
-public class PushService implements AnalysisCompletionListener, ScriptSplitListener, PronunciationReportListener {
+public class PushService
+        implements AnalysisCompletionListener, ScriptSplitListener, PronunciationReportListener, InviteRewardListener {
 
     /** 아는 플랫폼만 받는다. 밖의 값은 등록을 조용히 거르지 않고 요청 검증(web)이 막는다. */
     public static final Set<String> PLATFORMS = Set.of("ios", "android");
@@ -148,6 +150,34 @@ public class PushService implements AnalysisCompletionListener, ScriptSplitListe
             sender.send(messages).forEach(tokens::unregister);
         } catch (RuntimeException failure) {
             failureReporter.report(failure, new FailureContext("PushService.onPronunciationReportReady"));
+        }
+    }
+
+    /**
+     * 친구 초대 보상(Pro 1개월)이 지급된 순간 받은 사람의 토큰 전부에 한 번 보낸다(SOMA-865). 상대의 이름은 싣지 않는다.
+     * 다른 알림과 같이 어떤 실패도 밖으로 내보내지 않는다.
+     */
+    @Override
+    public void onInviteRewarded(UUID userId, boolean asInviter) {
+        try {
+            List<PushTarget> targets = tokens.inviteRewardTargets(userId);
+            if (targets.isEmpty()) {
+                return;
+            }
+            List<PushMessage> messages = targets.stream()
+                    .map(target -> new PushMessage(
+                            target.token(),
+                            target.korean()
+                                    ? (asInviter ? "친구가 첫 연습을 끝냈어요" : "Pro 1개월을 받았어요")
+                                    : (asInviter ? "Your friend finished their first practice" : "You got 1 month of Pro"),
+                            target.korean()
+                                    ? (asInviter ? "초대 보상으로 Pro 1개월을 받았어요." : "친구 초대 보상이에요. 한 달 동안 Pro로 연습해 보세요.")
+                                    : (asInviter ? "You got 1 month of Pro as an invite reward." : "It's your invite reward. Enjoy Pro for a month."),
+                            Map.of("kind", "invite_reward")))
+                    .toList();
+            sender.send(messages).forEach(tokens::unregister);
+        } catch (RuntimeException failure) {
+            failureReporter.report(failure, new FailureContext("PushService.onInviteRewarded"));
         }
     }
 }

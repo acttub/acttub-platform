@@ -135,13 +135,13 @@ class EntityMappingIT {
             "push_opens");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 86개 활성 엔티티를 포함한다")
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 88개 활성 엔티티를 포함한다")
     void mapsExactlyThirtyEightActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개, 블로그 글·앱 공지 포스터를 매핑해 50개, 리딩 회차 평가를 매핑해 51개, 분석 기록을 매핑해 52개, 대본 원본 파일·나누기 요청·예시 대본을 매핑해 55개, 게시판 글 사진을 매핑해 56개, 영상 받아쓰기 묶음을 매핑해 57개, 리딩의 같이 만들기·발음 보고서·다시 받아쓰기를 매핑해 60개, 배우 기억을 매핑해 61개, 연습 회차를 매핑해 62개, 결제 표 넷을 매핑해 66개, 코치 대화와 턴을 매핑해 68개, 조회수 사건·좋아요순의 굳힌 순서를 매핑해 70개, 연습 노트를 매핑해 71개, 노트 평가를 매핑해 72개, 배우 일지를 매핑해 73개, 광고 표 다섯을 매핑해 78개, 이탈 설문을 매핑해 79개, 작업 장부를 매핑해 80개, 연습 삭제의 두 장부를 매핑해 82개, 가입 유입 출처·Airbridge 기기 ID·유입 경로 답을 매핑해 85개, 보상형 광고로 받은 코칭 1회를 매핑해 86개다.
-        assertThat(entities).hasSize(86);
+        // 게시판 일곱(SOMA-873)이 돌아와 47개였고, 저녁 고정 알림 장부의 매핑을 내려 46개, 웹 문의·오디션 공고를 매핑해 48개, 블로그 글·앱 공지 포스터를 매핑해 50개, 리딩 회차 평가를 매핑해 51개, 분석 기록을 매핑해 52개, 대본 원본 파일·나누기 요청·예시 대본을 매핑해 55개, 게시판 글 사진을 매핑해 56개, 영상 받아쓰기 묶음을 매핑해 57개, 리딩의 같이 만들기·발음 보고서·다시 받아쓰기를 매핑해 60개, 배우 기억을 매핑해 61개, 연습 회차를 매핑해 62개, 결제 표 넷을 매핑해 66개, 코치 대화와 턴을 매핑해 68개, 조회수 사건·좋아요순의 굳힌 순서를 매핑해 70개, 연습 노트를 매핑해 71개, 노트 평가를 매핑해 72개, 배우 일지를 매핑해 73개, 광고 표 다섯을 매핑해 78개, 이탈 설문을 매핑해 79개, 작업 장부를 매핑해 80개, 연습 삭제의 두 장부를 매핑해 82개, 가입 유입 출처·Airbridge 기기 ID·유입 경로 답을 매핑해 85개, 보상형 광고로 받은 코칭 1회를 매핑해 86개, 친구 초대 표 둘을 매핑해 88개다.
+        assertThat(entities).hasSize(88);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())

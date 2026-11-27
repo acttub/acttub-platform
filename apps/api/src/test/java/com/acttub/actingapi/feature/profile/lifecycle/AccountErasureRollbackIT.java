@@ -101,6 +101,9 @@ class AccountErasureRollbackIT {
     @MockitoSpyBean(name = "postgresBillingAccountErasure")
     AccountErasure billingErasure;
 
+    @MockitoSpyBean(name = "postgresInviteAccountErasure")
+    AccountErasure inviteErasure;
+
     @MockitoSpyBean(name = "postgresFeedbackAccountErasure")
     AccountErasure feedbackErasure;
 
@@ -154,7 +157,7 @@ class AccountErasureRollbackIT {
     @EnumSource(value = AccountErasureStep.class, names = {
         "READING", "VIDEO_FILES", "AI_JOBS", "ACTOR_JOURNALS", "PRACTICE_FEEDBACK", "NOTE_RATINGS",
         "DELETED_PRACTICES", "CHALLENGE", "COMMUNITY_IMAGES", "READING_VOICE_USAGE", "SIGNUP_ATTRIBUTION", "BILLING",
-        "DISCOVERY_ANSWER", "IDENTITIES", "BILLING_CUSTOMER", "EMAIL", "PROFILE", "PORTFOLIO", "TRANSFER_CODES",
+        "INVITES", "DISCOVERY_ANSWER", "IDENTITIES", "BILLING_CUSTOMER", "EMAIL", "PROFILE", "PORTFOLIO", "TRANSFER_CODES",
         "SESSIONS", "PUSH", "LEGACY_PRACTICES", "LEGACY_OPERATIONS"
     })
     @DisplayName("구현 하나가 예외를 던지면 탈퇴 전체가 되돌아간다: 계정은 활성 그대로이고 어느 표도 달라지지 않는다")
@@ -188,6 +191,7 @@ class AccountErasureRollbackIT {
             case COMMUNITY_IMAGES -> communityErasure;
             case VIDEO_FILES -> videoErasure;
             case BILLING, BILLING_CUSTOMER -> billingErasure;
+            case INVITES -> inviteErasure;
             case PRACTICE_FEEDBACK -> feedbackErasure;
             case AI_JOBS, LEGACY_OPERATIONS -> operationErasure;
             case DELETED_PRACTICES, LEGACY_PRACTICES -> practiceErasure;

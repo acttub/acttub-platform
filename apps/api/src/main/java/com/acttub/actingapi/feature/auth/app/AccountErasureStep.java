@@ -40,6 +40,8 @@ public enum AccountErasureStep {
     SIGNUP_ATTRIBUTION,
     /** 구독 끝내기, Pro 지급, 열린 결제창. */
     BILLING,
+    /** 내 초대 코드와 내가 넣은 초대 기록, 내가 초대한 기록의 초대한 사람(SOMA-865). */
+    INVITES,
     /** 가입 직후 답한 유입 경로. */
     DISCOVERY_ANSWER,
     /** 신원을 해시로 바꾸고 제공자 해제를 장부에 올린다. 게스트 신원은 지운다. */

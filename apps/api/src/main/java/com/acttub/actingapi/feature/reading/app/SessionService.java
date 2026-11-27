@@ -29,13 +29,21 @@ public class SessionService {
     private final ReadingRecordingCleanup cleanup;
     private final RecordingPlayback playback;
     private final Clock clock;
+    private final ReadingCompletionListener completion;
 
     public SessionService(
             SessionRepository sessions, ReadingRecordingCleanup cleanup, RecordingPlayback playback, Clock clock) {
+        this(sessions, cleanup, playback, clock, null);
+    }
+
+    /** @param completion 회차가 완료로 바뀐 뒤 알릴 곳(SOMA-865 친구 초대). 없으면 {@code null} */
+    public SessionService(SessionRepository sessions, ReadingRecordingCleanup cleanup, RecordingPlayback playback, Clock clock,
+            ReadingCompletionListener completion) {
         this.sessions = sessions;
         this.cleanup = cleanup;
         this.playback = playback;
         this.clock = clock;
+        this.completion = completion;
     }
 
     /**
@@ -89,7 +97,13 @@ public class SessionService {
         return switch (progress.outcome()) {
             case CLOSED -> throw new ApiException(409, "session_closed");
             case INVALID_LINE -> throw invalidLine();
-            default -> progress.view();
+            default -> {
+                // 이번 저장이 회차를 완료로 바꿨다(진행 중이던 회차에만 반영되므로 APPLIED + complete 가 그 순간이다).
+                if (completion != null && change.complete() && progress.outcome() == SessionRepository.ProgressOutcome.APPLIED) {
+                    completion.onReadingCompleted(userId, sessionId);
+                }
+                yield progress.view();
+            }
         };
     }
 

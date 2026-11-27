@@ -138,6 +138,7 @@ import type { AdSlotPick } from '@/lib/ads';
 import { currentLanguage, translate } from './i18n.ts';
 
 import type { BillingMe } from '@/lib/billing';
+import type { InviteMe } from '@/lib/invite';
 export { ApiError } from '@/lib/api-request';
 import type { DiscoveryPayload } from '@/lib/discovery';
 import type { AirbridgeDevicePayload } from '@/lib/airbridge-device';
@@ -483,6 +484,16 @@ export const api = {
    */
   syncStorePurchases(): Promise<BillingMe> {
     return request('/v2/billing/store/sync', jsonInit({}), { auth: true, timeoutMs: 20_000 });
+  },
+
+  // 친구 초대(SOMA-865) --------------------------------------------------------
+  /** 내 초대 코드와 코드 넣기 가능 여부. 서버가 기능을 닫아 두었으면 404 invite_unavailable — 앱은 초대 칸을 숨긴다. */
+  inviteMe(): Promise<InviteMe> {
+    return request('/v2/invite/me', {}, { auth: true, timeoutMs: 10_000 });
+  },
+  /** 받은 초대 코드 넣기. 거절은 404 invite_code_not_found, 409 own_invite_code·invite_already_redeemed·invite_window_closed. */
+  redeemInviteCode(code: string): Promise<InviteMe> {
+    return request('/v2/invite/redeem', jsonInit({ code }), { auth: true, timeoutMs: 10_000 });
   },
 
 

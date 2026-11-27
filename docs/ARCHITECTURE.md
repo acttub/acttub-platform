@@ -100,7 +100,7 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 | `feature/portfolio` | `portfolios`, `portfolio_credits`, `portfolio_photos` |
 | `feature/push` | `push_tokens`, `push_opens`, `practice_reminder_sends` |
 | `feature/video` | `videos`, `video_transcripts`, `upload_intents` |
-| `feature/practice` | `practices`, `practice_sessions`, `coach_sessions`, `coach_turns`, `coaching_handoffs`, `practice_reports`, `practice_deletion_marks`, `deleted_practice_videos`, `practice_migration_entries` |
+| `feature/practice` | `practices`, `practice_sessions`, `coach_sessions`, `coach_turns`, `coaching_handoffs`, `practice_reports`, `practice_deletion_marks`, `deleted_practice_videos`, `practice_migration_entries`, `coaching_rewards` |
 | `feature/analysis` | `analyses`, `summaries`, `transcripts`, `anomalies` |
 | `feature/coach` | `coach_conversations`, `coach_messages`, `coach_notes`, `note_ratings`, `actor_journals` |
 | `feature/memory` | `actor_memories`, `actor_memory_entries` |
@@ -109,6 +109,7 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 | `feature/challenge` | `challenges`, `challenge_entries`, `entry_likes`, `entry_comments`, `entry_reports`, `entry_saves`, `entry_ai_reports`, `entry_view_events`, `entry_ranking_snapshots`, `notifications`, `notification_pushes`, `user_blocks` |
 | `feature/community` | `community_posts`, `community_comments`, `community_post_likes`, `community_post_images`, `community_anonymous_aliases`, `community_reports`, `community_blocks`, `community_categories` |
 | `feature/billing` | `billing_subscriptions`, `billing_checkouts`, `billing_payments`, `billing_pro_grants` |
+| `feature/invite` | `invite_codes`, `invite_redemptions` |
 | `feature/ads` | `ads`, `ad_events`, `ad_serves`, `ad_settings`, `ad_slot_switches` |
 | `feature/poster` | `app_posters` |
 | `feature/audition` | `audition_postings` |
