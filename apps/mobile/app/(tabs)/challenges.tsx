@@ -8,8 +8,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { ChallengeOthersRow } from '@/components/challenge-others-row';
-import { CommunityBoard } from '@/components/community/community-board';
-import { CommunityTabs, type CommunitySection } from '@/components/community/community-tabs';
 import { MASCOT } from '@/components/ui/mascot';
 import { LoadingText } from '@/components/ui/loading-text';
 import { PrimaryButton } from '@/components/ui/buttons';
@@ -48,7 +46,6 @@ import { skipsChallengeFirstPick } from '@/lib/returning-account';
 import { useExampleUrl } from '@/lib/challenge/use-example-url';
 import { lastWeekResult } from '@/lib/challenge/week-result';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
-import { useBoardNewDot } from '@/hooks/use-board-new-dot';
 import type { ChallengeCard, ChallengeListResponse, ChallengeTab, MyEntriesResponse } from '@/lib/challenge/types';
 import { lastRead } from '@/lib/last-reads';
 import type { PracticeGroupDetail } from '@/lib/practice/types';
@@ -66,8 +63,8 @@ import { translate as t } from '@/lib/i18n';
  * SOMA-748 새 디자인(ZxMmEh): 맨 위 「지난주 결과」 띠(끝난 지 7일 안의 공식 챌린지) → 이번 주 대사 카드 → 탭 →
  * 줄 카드. 파란 「누를 것 안내」는 첫 참여를 끝낼 때까지만 보인다.
  *
- * SOMA-873: 이 탭은 「커뮤니티」다. 큰 제목 대신 맨 위 밑줄 탭 「챌린지」「게시판」을 두고(기본은 챌린지), 챌린지 내용은 그대로다.
- * 라우트 이름(challenges)은 그대로 두어 챌린지 탭으로 오는 딥링크·푸시가 계속 열린다. `?section=board` 로 오면 게시판을 연다.
+ * SOMA-1121: 게시판은 커뮤니티 탭(app/(tabs)/community)으로 나가 이 탭은 다시 「챌린지」 하나다. 라우트 이름(challenges)은
+ * 그대로 두어 챌린지 탭으로 오는 딥링크·푸시가 계속 열린다. 예전 `?section=board` 주소로 오면 커뮤니티 탭으로 넘긴다.
  */
 const TABS: { key: ChallengeTab; label: string }[] = [
   { key: 'popular', label: 'challenges.tabPopular' },
@@ -98,9 +95,11 @@ export default function ChallengesScreen() {
   const floatingAddBottom = useTabFloatingAddBottom();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
+  // 예전 주소 `?section=board`(게시판)로 오면 커뮤니티 탭으로 넘긴다 — 게시판은 독립 탭이 됐다(SOMA-1121).
   const { section: sectionParam } = useLocalSearchParams<{ section?: string }>();
-  const [section, setSection] = useState<CommunitySection>(sectionParam === 'board' ? 'board' : 'challenge');
-  const boardDot = useBoardNewDot();
+  useEffect(() => {
+    if (sectionParam === 'board') router.navigate('/community');
+  }, [sectionParam, router]);
   const [tab, setTab] = useState<ChallengeTab>('popular');
   // 앱을 켠 뒤 미리 받아 둔 인기 목록이 있으면 그것으로 바로 그린다. 들어올 때마다 새로 받아 칸만 바꾼다(lib/last-reads).
   const [sharedPopular] = useState(() => {
@@ -262,10 +261,6 @@ export default function ChallengesScreen() {
     if (challenges !== null || error) setFirstLoadDone(true);
   }, [challenges, error]);
 
-  useEffect(() => {
-    if (sectionParam === 'board' || sectionParam === 'challenge') setSection(sectionParam);
-  }, [sectionParam]);
-
   const featuredId = featured?.id ?? null;
   const exampleUrl = useExampleUrl(featuredId);
 
@@ -295,31 +290,10 @@ export default function ChallengesScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      {/* 머리 — 「챌린지」 제목(게시판은 SOMA-1121에서 커뮤니티 탭으로 나갔다)과 검색·알림함. */}
       <View style={styles.header}>
-        <View style={styles.titleGrow}>
-          <CommunityTabs
-            value={section}
-            dot={boardDot.hasNew}
-            onChange={(next) => {
-              setSection(next);
-              logEvent('community_section', { section: next });
-            }}
-          />
-        </View>
-        {section === 'board' ? (
-          <View style={styles.headerRight}>
-            <Pressable
-              style={styles.iconBtn}
-              onPress={() => router.push('/notifications')}
-              hitSlop={6}
-              accessibilityRole="button"
-              accessibilityLabel={t('notifications.title')}
-              ph-label="community_bell">
-              <Feather name="bell" size={22} color={palette.text} />
-              {unread.count > 0 && <View style={styles.badgeDot} />}
-            </Pressable>
-          </View>
-        ) : !selectMode && !deciding && (
+        <Text style={styles.title} accessibilityRole="header">{t('tabs.challenge')}</Text>
+        {!selectMode && !deciding && (
         <View style={styles.headerRight}>
           <Pressable
             style={styles.iconBtn}
@@ -346,9 +320,7 @@ export default function ChallengesScreen() {
       </View>
       <View style={styles.headerDivider} />
 
-      {section === 'board' ? (
-        <CommunityBoard bottomSpace={tabBarSpace} onWrite={() => router.push('/community-new')} onSeen={boardDot.markSeen} />
-      ) : deciding ? (
+      {deciding ? (
         <SkeletonRows count={4} avatar={false} style={styles.flush} />
       ) : selectMode && featured ? (
         <>
@@ -471,7 +443,7 @@ export default function ChallengesScreen() {
         )}
       </ScrollView>
       )}
-      {section === 'challenge' && !selectMode && !deciding && (
+      {!selectMode && !deciding && (
         <FloatingAdd
           label={t('challenges.addLine')}
           bottom={floatingAddBottom}
@@ -664,7 +636,7 @@ const styles = StyleSheet.create({
     height: 56,
     paddingHorizontal: space.gutter,
   },
-  titleGrow: { flex: 1, alignSelf: 'stretch' },
+  title: { ...type.title2, flex: 1, color: palette.text },
   headerDivider: { height: 1, backgroundColor: palette.border },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: space[4] },
   iconBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },

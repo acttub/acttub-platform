@@ -2,7 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { CommunityBoard } from '@/components/community/community-board';
-import { CommunityTabs } from '@/components/community/community-tabs';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import type { CommunityPost } from '@/lib/community';
@@ -106,17 +105,12 @@ test('공지 카드를 누르면 이용 규칙을 다이얼로그로 보인다',
   expect(await screen.findByText(/연락처는 올릴 수 없어요/)).toBeOnTheScreen();
 });
 
-test('밑줄 탭은 고른 탭을 알리고, 새 글이 있으면 게시판 옆에 점을 단다', async () => {
-  const onChange = jest.fn();
-  const view = await render(<CommunityTabs value="challenge" onChange={onChange} dot />);
-  expect(screen.getByRole('tab', { name: '챌린지', selected: true })).toBeOnTheScreen();
-  expect(screen.getByTestId('community-board-dot')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('tab', { name: '게시판, 새 글 있음' }));
-  expect(onChange).toHaveBeenCalledWith('board');
-
-  await view.rerender(<CommunityTabs value="board" onChange={onChange} dot />);
-  expect(screen.queryByTestId('community-board-dot')).not.toBeOnTheScreen();
-  expect(screen.getByRole('tab', { name: '게시판', selected: true })).toBeOnTheScreen();
+test('맨 위 칸(top)은 공지 위에 목록과 함께 그린다(커뮤니티 탭 「오디션·입시」 입구, SOMA-1121)', async () => {
+  communityPosts.mockResolvedValue({ posts: [], next_cursor: null });
+  const { Text } = require('react-native');
+  await render(<CommunityBoard bottomSpace={0} onWrite={onWrite} onSeen={onSeen} top={<Text>맨 위 칸</Text>} />);
+  expect(await screen.findByText('맨 위 칸')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '게시판 이용 규칙' })).toBeOnTheScreen();
 });
 
 test('사진이 있는 글은 오른쪽에 첫 장 썸네일, 2장 이상이면 장수 배지를 단다', async () => {

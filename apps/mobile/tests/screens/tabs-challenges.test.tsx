@@ -546,19 +546,22 @@ describe('첫 사용자', () => {
 });
 
 
-// SOMA-873 — 챌린지 탭은 커뮤니티 탭이다. 큰 제목 대신 밑줄 탭이고, 게시판으로 바꾸면 글쓰기 버튼과 게시판이 나온다.
-test('커뮤니티 탭은 챌린지가 기본이고 게시판으로 바꾸면 글쓰기·게시판이 보인다', async () => {
+// SOMA-1121 — 게시판은 커뮤니티 탭으로 나갔다. 챌린지 탭에는 「챌린지 | 게시판」 전환이 없다.
+test('챌린지 탭은 「챌린지」 제목에 검색·알림함만 두고 게시판 전환이 없다', async () => {
   listChallenges.mockResolvedValue(page([card()]));
   await markFirstChallengeFinished();
   await render(<ChallengesScreen />);
 
-  expect(await screen.findByRole('tab', { name: '챌린지', selected: true })).toBeOnTheScreen();
+  expect(await screen.findByRole('header', { name: '챌린지' })).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '대사 검색' })).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('tab', { name: '게시판' }));
+  expect(screen.queryByRole('tab', { name: '게시판' })).not.toBeOnTheScreen();
+  expect(screen.queryByText('아직 글이 없어요')).not.toBeOnTheScreen();
+});
 
-  expect(await screen.findByText('아직 글이 없어요')).toBeOnTheScreen();
-  expect(screen.queryByRole('button', { name: '대사 검색' })).not.toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('button', { name: '글쓰기' }));
-  expect(mockRouter.push).toHaveBeenCalledWith('/community-new');
-  expect(logEvent).toHaveBeenCalledWith('community_section', { section: 'board' });
+test('예전 게시판 주소(?section=board)로 오면 커뮤니티 탭으로 넘긴다', async () => {
+  mockParams.section = 'board';
+  listChallenges.mockResolvedValue(page([card()]));
+  await render(<ChallengesScreen />);
+  expect(mockRouter.navigate).toHaveBeenCalledWith('/community');
+  delete mockParams.section;
 });
