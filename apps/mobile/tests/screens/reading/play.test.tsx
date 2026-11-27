@@ -43,6 +43,8 @@ jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useNavigation: ()
 jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
 jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined), currentFirstUseOwner: () => null }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
+let mockAccountType: 'member' | 'guest' = 'member';
+jest.mock('@/lib/auth', () => ({ useAuth: () => ({ profile: { me: { account_type: mockAccountType } } }) }));
 // 지문 멈춤(SOMA-937)은 기본 0초로 두고 기존 흐름을 본다. 멈춤 자체는 아래 SOMA-937 테스트가 시간을 정해 본다.
 const mockBeatMs = { value: 0 };
 jest.mock('@/lib/reading/direction-beat', () => ({
@@ -1673,6 +1675,45 @@ test('완료 화면이 뜬 직후에는 다시 연습·완료를 받지 않고, 
   expect(server.startSession).not.toHaveBeenCalled();
   expect(mockRouter.dismissTo).not.toHaveBeenCalledWith('/(tabs)');
   await waitFor(() => expect(screen.getByRole('button', { name: '다시 읽기' })).toBeEnabled(), { timeout: 2000 });
+});
+
+test('완료 화면에 상대역 구하기·물어보기 줄이 있고, 누르면 미리 채운 글쓰기를 연다(SOMA-1054)', async () => {
+  await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
+  await screen.findByText('듣는 중');
+  await speechEnds();
+
+  expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+  expect(logEvent).toHaveBeenCalledWith('community_prompt_shown', { from: 'reading_done' });
+  await fireEvent.press(screen.getByRole('button', { name: '이 장면 같이 할 상대역 구하기' }));
+  expect(logEvent).toHaveBeenCalledWith('community_prompt_tap', { from: 'reading_done', kind: 'partner' });
+  expect(mockRouter.push).toHaveBeenLastCalledWith({
+    pathname: '/community-new',
+    params: expect.objectContaining({ category: 'free', from: 'reading_done', kind: 'partner', title: expect.stringMatching(/^\[상대역 구함\] /) }),
+  });
+  const partner = jest.mocked(mockRouter.push).mock.calls.at(-1)?.[0] as { params: { body: string } };
+  expect(partner.params.body).toMatch(/^같이 리딩할 상대역을 구해요\.\n작품: .+\n제 배역: .+\n원하는 방법·시간: $/);
+
+  await fireEvent.press(screen.getByRole('button', { name: '다른 배우한테 물어보기' }));
+  expect(mockRouter.push).toHaveBeenLastCalledWith({
+    pathname: '/community-new',
+    params: expect.objectContaining({ category: 'question', from: 'reading_done', kind: 'question', title: expect.stringMatching(/ 질문$/) }),
+  });
+});
+
+test('게스트는 완료 화면에 게시판으로 이어 주는 줄이 없다(SOMA-1054)', async () => {
+  mockAccountType = 'guest';
+  try {
+    await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
+    await screen.findByText('듣는 중');
+    await speechEnds();
+
+    expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
+    expect(screen.queryByText('이 장면 같이 할 상대역 구하기')).not.toBeOnTheScreen();
+    expect(screen.queryByText('다른 배우한테 물어보기')).not.toBeOnTheScreen();
+    expect(logEvent).not.toHaveBeenCalledWith('community_prompt_shown', expect.anything());
+  } finally {
+    mockAccountType = 'member';
+  }
 });
 
 test('올리는 중인 녹음이 있으면 완료 화면에 수를 보인다', async () => {

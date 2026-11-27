@@ -49,7 +49,8 @@ jest.mock('@/lib/challenge/share-native', () => ({
   openSystemShareWithVideo: jest.fn(),
   openUrl: jest.fn(),
 }));
-jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
+let mockAccountType: 'member' | 'guest' = 'member';
+jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' }, profile: { me: { account_type: mockAccountType } } }) }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/challenge/intro-state', () => ({
   hasFinishedFirstChallenge: jest.fn(async () => false),
@@ -157,6 +158,50 @@ test('처음이 아니면 완료 화면에 SNS 공유·이 영상으로 코칭 �
   expect(mockRouter.push).toHaveBeenCalledWith('/upload');
   await fireEvent.press(screen.getByRole('button', { name: '다른 참여작 보기' }));
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/challenge-play', params: { id: 'c1' } });
+});
+
+test('완료 화면의 상대역 구하기·물어보기 줄은 그 주 대사로 글쓰기를 미리 채워 연다(SOMA-1054)', async () => {
+  await render(<ChallengeUploadScreen />);
+  await screen.findByText('미리보기 영상').catch(() => undefined);
+  expect(logEvent).not.toHaveBeenCalledWith('community_prompt_shown', expect.anything());
+  await fireEvent.press(submitButton());
+
+  expect(await screen.findByRole('button', { name: '이 장면 같이 할 상대역 구하기' })).toBeOnTheScreen();
+  expect(logEvent).toHaveBeenCalledWith('community_prompt_shown', { from: 'challenge_done' });
+  await fireEvent.press(screen.getByRole('button', { name: '이 장면 같이 할 상대역 구하기' }));
+  expect(logEvent).toHaveBeenCalledWith('community_prompt_tap', { from: 'challenge_done', kind: 'partner' });
+  expect(mockRouter.push).toHaveBeenLastCalledWith({
+    pathname: '/community-new',
+    params: {
+      category: 'free',
+      title: '[상대역 구함] “사느냐 죽느냐”',
+      body: '같이 리딩할 상대역을 구해요.\n대사: “사느냐 죽느냐”\n원하는 방법·시간: ',
+      from: 'challenge_done',
+      kind: 'partner',
+    },
+  });
+
+  await fireEvent.press(screen.getByRole('button', { name: '다른 배우한테 물어보기' }));
+  expect(mockRouter.push).toHaveBeenLastCalledWith({
+    pathname: '/community-new',
+    params: { category: 'question', title: '“사느냐 죽느냐” 질문', body: '대사: “사느냐 죽느냐”\n', from: 'challenge_done', kind: 'question' },
+  });
+});
+
+test('게스트는 챌린지 완료 화면에 게시판으로 이어 주는 줄이 없다(SOMA-1054)', async () => {
+  mockAccountType = 'guest';
+  try {
+    await render(<ChallengeUploadScreen />);
+    await screen.findByText('미리보기 영상').catch(() => undefined);
+    await fireEvent.press(submitButton());
+
+    expect(await screen.findByRole('button', { name: '이 영상으로 코칭 받기' })).toBeOnTheScreen();
+    expect(screen.queryByText('이 장면 같이 할 상대역 구하기')).not.toBeOnTheScreen();
+    expect(screen.queryByText('다른 배우한테 물어보기')).not.toBeOnTheScreen();
+    expect(logEvent).not.toHaveBeenCalledWith('community_prompt_shown', expect.anything());
+  } finally {
+    mockAccountType = 'member';
+  }
 });
 
 test('공개를 고르면 얼굴 모자이크를 켤 수 있고(기본 꺼짐), 켜면 요청에 싣고 만드는 중이라고 알린다', async () => {

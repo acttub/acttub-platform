@@ -81,7 +81,49 @@ test('분류·제목·내용을 다 채워야 올리기가 켜지고, 올리면 
     }),
   );
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/community-post', params: { id: 'p9' } });
-  expect(logEvent).toHaveBeenCalledWith('community_post_create', { category: 'question', images: 0 });
+  expect(logEvent).toHaveBeenCalledWith('community_post_create', { category: 'question', images: 0, from: 'board', kind: 'none' });
+});
+
+test('연습 완료에서 온 상대역 글은 미리 채워져 열리고, 메시지 안내를 보이며, 올리면 from·kind 를 남기고 그 글로 간다(SOMA-1054)', async () => {
+  createPost.mockResolvedValue({ id: 'p7' });
+  mockParams = {
+    category: 'free',
+    title: '[상대역 구함] 갈매기 · 니나',
+    body: '같이 리딩할 상대역을 구해요.\n작품: 갈매기\n제 배역: 니나\n원하는 방법·시간: ',
+    from: 'reading_done',
+    kind: 'partner',
+  };
+  await render(<CommunityNewScreen />);
+
+  expect(await screen.findByRole('radio', { name: '자유', selected: true })).toBeOnTheScreen();
+  expect(screen.getByLabelText('제목')).toHaveDisplayValue('[상대역 구함] 갈매기 · 니나');
+  expect(screen.getByText('글을 보고 메시지로 연락이 와요')).toBeOnTheScreen();
+  // 손대지 않은 채로 나가면 버릴지 묻지 않는다.
+  await fireEvent.press(screen.getByLabelText('뒤로'));
+  expect(screen.queryByText('쓰던 글을 지울까요?')).not.toBeOnTheScreen();
+  expect(mockRouter.back).toHaveBeenCalled();
+
+  await fireEvent.changeText(screen.getByLabelText('내용'), `${mockParams.body}주말 저녁 영상통화`);
+  await fireEvent.press(submit());
+  await waitFor(() =>
+    expect(createPost).toHaveBeenCalledWith({
+      category_slug: 'free',
+      title: '[상대역 구함] 갈매기 · 니나',
+      body: '같이 리딩할 상대역을 구해요.\n작품: 갈매기\n제 배역: 니나\n원하는 방법·시간: 주말 저녁 영상통화',
+      image_ids: [],
+    }),
+  );
+  expect(logEvent).toHaveBeenCalledWith('community_post_create', { category: 'free', images: 0, from: 'reading_done', kind: 'partner' });
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/community-post', params: { id: 'p7' } });
+});
+
+test('물어보기로 온 글은 질문 칸으로 열리고 메시지 안내는 없다(SOMA-1054)', async () => {
+  mockParams = { category: 'question', title: '“여기서 쉬어요” 질문', body: '대사: “여기서 쉬어요”\n', from: 'challenge_done', kind: 'question' };
+  await render(<CommunityNewScreen />);
+
+  expect(await screen.findByRole('radio', { name: '질문', selected: true })).toBeOnTheScreen();
+  expect(screen.getByLabelText('제목')).toHaveDisplayValue('“여기서 쉬어요” 질문');
+  expect(screen.queryByText('글을 보고 메시지로 연락이 와요')).not.toBeOnTheScreen();
 });
 
 test('연락처가 든 글(422 community_contact_info)은 내용 칸 아래에 한 줄로 알린다', async () => {
