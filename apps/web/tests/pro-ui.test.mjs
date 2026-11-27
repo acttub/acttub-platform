@@ -44,7 +44,7 @@ test("요금 안내는 무료와 Pro의 차이를 같은 말로 보인다", () =
 
   const pro = screen.getByRole("heading", { name: "Pro" }).closest("section");
   assert.match(pro.textContent, /월 3,900원/);
-  assert.match(pro.textContent, /발음 보고서 \(Pro 전용 · 준비 중\)/);
+  assert.match(pro.textContent, /리딩 발음 보고서 \(Pro 전용\)/);
   assert.match(pro.textContent, /구독 표시이며 배우의 실력이나 자격을 인증하는 표시는 아니에요\./);
   // 웹 연 구독 스위치(SOMA-1068)는 기본 꺼짐 — 월/연 선택이 없고 안내 문구도 지금 그대로다.
   assert.match(pro.textContent, /웹은 월 구독 · 결제일부터 1개월마다 자동결제/);
@@ -96,14 +96,14 @@ test("요금 안내는 11월 1일 결제 시작, 앱 연 구독, 고품질 목�
   render(h(PricingPage));
 
   assert.equal(screen.queryByText(/11월 시작을 준비/), null);
-  assert.match(screen.getByRole("complementary", { name: "결제 시작 안내" }).textContent, /2026년 11월 1일부터 결제를 시작해요\./);
+  assert.match(screen.getByRole("complementary", { name: "결제 시작 안내" }).textContent, /2026년 11월 1일부터 결제를 시작했어요\./);
   const pro = screen.getByRole("heading", { name: "Pro" }).closest("section");
   assert.match(pro.textContent, /연 32,500원\(부가세 포함\) 연 구독/);
   assert.match(pro.textContent, /리딩 고품질 목소리/);
   const table = screen.getByRole("table");
   assert.equal(
     within(table).getByRole("rowheader", { name: "리딩 고품질 목소리" }).closest("tr").textContent,
-    "리딩 고품질 목소리10월 31일까지 무료포함",
+    "리딩 고품질 목소리—포함",
   );
   assert.equal(screen.queryByText(/딕션/), null);
 });
