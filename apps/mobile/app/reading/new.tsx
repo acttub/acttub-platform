@@ -60,6 +60,7 @@ import { newRequestId } from '@/lib/request-id';
 import { useFirstReading } from '@/hooks/use-first-reading';
 import { FIRST_READING_HREF } from '@/lib/reading/first-reading';
 import { translate as t } from '@/lib/i18n';
+import { logEvent } from '@/lib/analytics';
 
 /**
  * 대본 넣기(R2, reading.script). 「파일로 넣기 | 글로 붙여넣기」 탭 하나를 골라 [다음]을 누르면 입력 화면 버튼에
@@ -318,6 +319,19 @@ export default function ReadingNew() {
   // 「다음」을 빠르게 두 번 눌러도 대본을 한 번만 나눈다.
   const splitLock = useRef(false);
   const checking = popup?.kind === 'checking';
+  // 무료 대본 한도 팝업이 몇 번 떴고 무엇을 골랐는지 남긴다(11/27). 지울 대본을 읽는 동안(busy) 다시 그려져도 한 번만 센다.
+  const freeLimitOpen = popup?.kind === 'free_limit';
+  const freeLimitActed = useRef(false);
+  useEffect(() => {
+    if (!freeLimitOpen) return;
+    freeLimitActed.current = false;
+    logEvent('free_limit_shown', { kind: 'script', from: 'reading_new' });
+  }, [freeLimitOpen]);
+  const freeLimitAction = (action: 'pro' | 'replace' | 'close') => {
+    if (freeLimitActed.current) return;
+    freeLimitActed.current = true;
+    logEvent('free_limit_action', { kind: 'script', action });
+  };
   // 안드로이드는 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 리딩 탭에 진행 행이 보인다(SOMA-976).
   // iOS 는 막지 않고 아래 화면으로 그대로 내려간다 — 막으면 밀어서 나가기가 움직이다 취소된 뒤 다시 이동해 부자연스럽다(SOMA-966).
   const splitting = popup?.kind === 'splitting';
@@ -534,7 +548,11 @@ export default function ReadingNew() {
           />
         </DialogCard>
       </DialogModal>
-      <DialogModal visible={!!popup && (popup.kind !== 'checking' || popup.keepModal)} onRequestClose={() => !checking && setPopup(null)}>
+      <DialogModal visible={!!popup && (popup.kind !== 'checking' || popup.keepModal)} onRequestClose={() => {
+          if (checking) return;
+          if (popup?.kind === 'free_limit') freeLimitAction('close');
+          setPopup(null);
+        }}>
         {popup?.kind === 'alert' && (
           <DialogCard title={popup.title} message={popup.message}>
             <DialogButtons confirmLabel={t('common.confirm')} onConfirm={() => setPopup(null)} />
@@ -558,9 +576,14 @@ export default function ReadingNew() {
             {/* 지울 대본 목록을 읽는 동안(busy)은 어느 버튼도 다시 받지 않는다. */}
             <DialogButtons
               cancelLabel={t('pro.scriptLimitReplace')}
-              onCancel={() => !popup.busy && void askReplace(popup.resume)}
+              onCancel={() => {
+                if (popup.busy) return;
+                freeLimitAction('replace');
+                void askReplace(popup.resume);
+              }}
               confirmLabel={t('pro.scriptLimitPro')}
               onConfirm={() => {
+                freeLimitAction('pro');
                 setPopup(null);
                 router.push({ pathname: '/pro', params: { from: 'script' } });
               }}

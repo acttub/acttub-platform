@@ -1,5 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { PRO_STOPS } from '@/components/home-plan-badge';
@@ -7,6 +8,7 @@ import { BandGradient } from '@/components/ui/band-gradient';
 import { DialogButtons, DialogCard, DialogModal } from '@/components/ui/dialog';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
+import { logEvent } from '@/lib/analytics';
 import { translate as t } from '@/lib/i18n';
 
 /** PRO 배지 — 디자인 시스템 pen 「PlanBadge/Pro」. 높이 28 알약, 그라데이션 + 왕관 14, micro `on-accent`. */
@@ -23,17 +25,37 @@ export function ProBadge() {
 /**
  * 「오늘 무료 코칭 3회를 다 썼어요」 확인창. 서버가 429 free_daily_coaching_limit 을 줄 때만 뜬다(무료 한도 플래그가 꺼져 있으면
  * 서버가 이 코드를 보내지 않는다). [Pro 알아보기]는 코칭 한도에서 온 Pro 안내로, [내일 할게요]·바깥은 닫는다.
+ * 뜰 때 free_limit_shown, 고를 때 free_limit_action 을 한 번씩 남긴다(11/27). from 은 띄운 화면의 짧은 이름이다.
  */
-export function CoachingLimitSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+export function CoachingLimitSheet({ visible, onClose, from }: { visible: boolean; onClose: () => void; from: string }) {
   const router = useRouter();
+  const acted = useRef(false);
+  useEffect(() => {
+    if (!visible) return;
+    acted.current = false;
+    logEvent('free_limit_shown', { kind: 'coaching', from });
+  }, [visible, from]);
+  const act = (action: 'pro' | 'later' | 'close') => {
+    if (acted.current) return;
+    acted.current = true;
+    logEvent('free_limit_action', { kind: 'coaching', action });
+  };
+  const dismiss = () => {
+    act('close');
+    onClose();
+  };
   return (
-    <DialogModal visible={visible} onRequestClose={onClose} onBackdropPress={onClose}>
+    <DialogModal visible={visible} onRequestClose={dismiss} onBackdropPress={dismiss}>
       <DialogCard title={t('pro.coachingLimitTitle')} message={t('pro.coachingLimitBody')}>
         <DialogButtons
           cancelLabel={t('pro.coachingLimitLater')}
-          onCancel={onClose}
+          onCancel={() => {
+            act('later');
+            onClose();
+          }}
           confirmLabel={t('pro.explore')}
           onConfirm={() => {
+            act('pro');
             onClose();
             router.push({ pathname: '/pro', params: { from: 'coaching' } });
           }}

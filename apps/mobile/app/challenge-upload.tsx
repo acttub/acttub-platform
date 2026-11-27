@@ -89,6 +89,16 @@ export default function ChallengeUploadScreen() {
   const entryShare = useEntryShare(params.line ?? '', () => void alert({ title: t('entryShare.title'), message: t('entryShare.none') }));
   const attemptRef = useRef<RequestAttempt | null>(null);
   const lockRef = useRef(false);
+  /**
+   * 올리는 중에 [올리기]를 눌러 두면 영상이 확정되는 대로 그대로 올린다(11/27 — 올리는 중에 떠난 사람이 많았다).
+   * ref 는 다시 누름을 바로 막고, 화면이 정리되면 내려 떠난 뒤에는 올리지 않는다.
+   */
+  const [queued, setQueued] = useState(false);
+  const queuedRef = useRef(false);
+  const releaseQueue = () => {
+    queuedRef.current = false;
+    setQueued(false);
+  };
 
   // 제출 없이 떠나면 어디까지 왔는지 남긴다(SOMA-698). 마지막 상태를 ref 에 두고 화면이 정리될 때 보낸다.
   const exitRef = useRef({
@@ -97,6 +107,7 @@ export default function ChallengeUploadScreen() {
     uploading: false,
     visibility: null as EntryVisibility | null,
     created: false,
+    queued: false,
   });
   useEffect(() => {
     exitRef.current = {
@@ -105,10 +116,12 @@ export default function ChallengeUploadScreen() {
       uploading: Boolean(pendingId && !videoId),
       visibility,
       created: Boolean(created),
+      queued,
     };
   });
   useEffect(
     () => () => {
+      queuedRef.current = false;
       const last = exitRef.current;
       if (last.created) return;
       logEvent(CHALLENGE_FUNNEL_EVENTS.uploadExit, uploadExitParams({ ...last, now: Date.now() }));
@@ -200,10 +213,17 @@ export default function ChallengeUploadScreen() {
     if (!challengeId || lockRef.current || submitting) return;
     if (!visibility) return;
     if (!videoId) {
-      // 아직 올리는 중이면 한 번 밀어 보고 안내한다.
+      // 아직 올리는 중이면 기다림으로 바꾸고 한 번 밀어 본다. 확정되면 아래 효과가 이 경로를 다시 부른다.
+      // 밀기가 끝났는데도 확정이 없으면 이번 업로드는 실패한 것이라 안내하고 기다림을 푼다.
+      if (queuedRef.current) return;
+      queuedRef.current = true;
+      setQueued(true);
+      setError(null);
       if (pendingId && user?.id) await flushLibraryUploads(user.id);
+      if (!queuedRef.current) return; // 떠났거나 이미 확정돼 올리기로 넘어갔다
       const confirmed = pendingId ? confirmedVideoFor(pendingId) : null;
       if (!confirmed) {
+        releaseQueue();
         logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('still_uploading'));
         setError(t('challengeUpload.waitingVideo'));
         return;
@@ -233,6 +253,15 @@ export default function ChallengeUploadScreen() {
       setSubmitting(false);
     }
   }, [caption, challengeId, faceMosaic, pendingId, submitting, user?.id, videoId, visibility]);
+
+  // 기다리던 영상이 확정되면 곧바로 같은 올리기 경로로 한 번 보낸다. 그사이 캡션이 길어졌거나 챌린지가 끝났으면 올리지 않고 푼다.
+  const ended = challenge ? isEnded(challenge) : false;
+  useEffect(() => {
+    if (!queued || !videoId || !queuedRef.current) return;
+    releaseQueue();
+    if (!challenge || ended || !canSubmitEntry({ videoId, visibility, caption })) return;
+    void submit();
+  }, [queued, videoId, submit, challenge, ended, visibility, caption]);
 
   // 올리기를 마친 뒤 뒤로 가면 촬영 화면으로 돌아갔다(10/28 폰 확인). 완료 화면에서 뒤로는 챌린지(없으면 홈)로 간다.
   useEffect(() => {
@@ -298,8 +327,8 @@ export default function ChallengeUploadScreen() {
   }
 
   const uploading = Boolean(pendingId && !videoId);
-  const ready = canSubmitEntry({ videoId, visibility, caption }) && !uploading;
-  const ended = challenge ? isEnded(challenge) : false;
+  // 올리는 중이어도 공개 범위가 골라져 있으면 누를 수 있다 — 눌러 두면 확정되는 대로 올린다.
+  const ready = canSubmitEntry({ videoId: videoId ?? pendingId, visibility, caption });
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -377,7 +406,7 @@ export default function ChallengeUploadScreen() {
         />
         <Text style={styles.counter}>{t('challengeUpload.captionCounter', { count: [...caption].length, max: CAPTION_MAX })}</Text>
 
-        {uploading && <Text style={styles.hint}>{t('challengeUpload.waitingVideo')}</Text>}
+        {uploading && <Text style={styles.hint}>{t(queued ? 'challengeUpload.queuedHint' : 'challengeUpload.uploadingHint')}</Text>}
         {captionTooLong(caption) && <InlineErrorLine message={t('challengeUpload.errInvalid')} />}
         {ended && <InlineErrorLine message={t('challengeUpload.errClosed')} />}
         {!!error && <InlineErrorLine message={error} />}
@@ -389,8 +418,8 @@ export default function ChallengeUploadScreen() {
           label={t('challengeUpload.submit')}
           onPress={() => void submit()}
           disabled={!ready || ended || !challenge}
-          loading={submitting}
-          loadingLabel={t('challengeUpload.submitting')}
+          loading={submitting || queued}
+          loadingLabel={t(queued ? 'challengeUpload.queued' : 'challengeUpload.submitting')}
         />
       </CtaBar>
       </KeyboardLift>

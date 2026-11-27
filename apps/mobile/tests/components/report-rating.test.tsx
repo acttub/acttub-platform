@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
+import { ReadingRating } from '@/components/reading-rating';
 import { RatingBox, ReportRating } from '@/components/report-rating';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
@@ -11,10 +12,11 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
   default: require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 }));
-jest.mock('@/lib/api', () => ({ api: { putNoteRating: jest.fn() } }));
+jest.mock('@/lib/api', () => ({ api: { putNoteRating: jest.fn(), putReadingSessionRating: jest.fn() } }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 
 const putNoteRating = api.putNoteRating as jest.Mock;
+const putReadingRating = api.putReadingSessionRating as jest.Mock;
 const log = logEvent as jest.Mock;
 
 function deferred<T>() {
@@ -29,6 +31,7 @@ function deferred<T>() {
 
 beforeEach(async () => {
   putNoteRating.mockReset().mockResolvedValue({});
+  putReadingRating.mockReset().mockResolvedValue({});
   log.mockReset();
   await AsyncStorage.clear();
 });
@@ -176,4 +179,74 @@ test('한 줄 칸을 누르면 부른 화면에 알려 칸을 키보드 위로 �
   );
   await fireEvent(screen.getByPlaceholderText('한 줄'), 'focus');
   expect(onInputFocus).toHaveBeenCalledTimes(1);
+});
+
+// ── 리딩 「아쉬웠어요」 이유 칩(11/27) ─────────────────────────────────────────────────────
+
+const reason = (name: string) => screen.getByRole('checkbox', { name });
+const readingBodies = () => putReadingRating.mock.calls.map(([id, body]) => [id, { ...body, request_id: typeof body.request_id }]);
+
+test('노트 평가는 아쉬웠어요를 골라도 이유 칩이 없다', async () => {
+  await render(<ReportRating practiceId="p1" initial={null} />);
+  await fireEvent.press(bad());
+  expect(screen.queryAllByRole('checkbox')).toEqual([]);
+  expect(screen.queryByText('느려요')).toBeNull();
+});
+
+test('리딩은 아쉬웠어요를 고를 때만 이유 칩을 보이고, 좋았어요면 숨긴다', async () => {
+  await render(<ReadingRating sessionId="s1" />);
+  expect(screen.queryAllByRole('checkbox')).toEqual([]);
+  await fireEvent.press(screen.getByRole('button', { name: /좋았어요/ }));
+  expect(screen.queryAllByRole('checkbox')).toEqual([]);
+  await fireEvent.press(screen.getByRole('button', { name: /아쉬웠어요/ }));
+  expect(screen.getAllByRole('checkbox').map((c) => c.props.accessibilityLabel)).toEqual([
+    '상대 목소리가 어색해요',
+    '다음 줄로 안 넘어가요',
+    '말하는 중에 넘어가요',
+    '느려요',
+  ]);
+});
+
+test('이유 칩은 여럿 고르고 다시 눌러 풀 수 있으며, 칩만 골라도 보내고 reasons 를 기록한다', async () => {
+  await render(<ReadingRating sessionId="s1" />);
+  await fireEvent.press(screen.getByRole('button', { name: /아쉬웠어요/ }));
+  await fireEvent.press(reason('느려요'));
+  await fireEvent.press(reason('상대 목소리가 어색해요'));
+  await fireEvent.press(reason('말하는 중에 넘어가요'));
+  await fireEvent.press(reason('말하는 중에 넘어가요'));
+  expect(reason('느려요')).toBeChecked();
+  expect(reason('말하는 중에 넘어가요')).not.toBeChecked();
+
+  await fireEvent.press(screen.getByRole('button', { name: '보내기' }));
+
+  expect(screen.getByText('고마워요! 다음 리딩에 반영할게요.')).toBeOnTheScreen();
+  // 칩 순서대로 붙는다(누른 순서와 상관없이).
+  expect(readingBodies()[1]).toEqual(['s1', { request_id: 'string', rating: 'bad', comment: '상대 목소리가 어색해요, 느려요' }]);
+  expect(log.mock.calls[0]).toEqual(['reading_rating_submit', { rating: 'bad', length: 0, result: 'sent', reasons: '' }]);
+  expect(log.mock.calls[1]).toEqual(['reading_rating_submit', { rating: 'bad', length: 17, result: 'sent', reasons: 'voice,slow' }]);
+});
+
+test('이유와 글을 같이 보내면 이유 뒤에 글을 붙이고, 100자를 넘으면 자른다', async () => {
+  await render(<ReadingRating sessionId="s1" />);
+  await fireEvent.press(screen.getByRole('button', { name: /아쉬웠어요/ }));
+  await fireEvent.press(reason('다음 줄로 안 넘어가요'));
+  await fireEvent.changeText(screen.getByPlaceholderText('한 줄 더 남겨주실래요? (선택)'), '가'.repeat(100));
+  await fireEvent.press(screen.getByRole('button', { name: '보내기' }));
+
+  const comment = readingBodies()[1][1].comment as string;
+  expect(comment).toHaveLength(100);
+  expect(comment.startsWith('다음 줄로 안 넘어가요 / 가')).toBe(true);
+  expect(log.mock.calls[1][1]).toEqual(expect.objectContaining({ length: 100, reasons: 'no_advance' }));
+});
+
+test('좋았어요로 바꿔 보내면 고른 이유를 붙이지 않는다', async () => {
+  await render(<ReadingRating sessionId="s1" />);
+  await fireEvent.press(screen.getByRole('button', { name: /아쉬웠어요/ }));
+  await fireEvent.press(reason('느려요'));
+  await fireEvent.press(screen.getByRole('button', { name: /좋았어요/ }));
+  await fireEvent.changeText(screen.getByPlaceholderText('한 줄 더 남겨주실래요? (선택)'), '좋아요');
+  await fireEvent.press(screen.getByRole('button', { name: '보내기' }));
+
+  expect(readingBodies()[2]).toEqual(['s1', { request_id: 'string', rating: 'good', comment: '좋아요' }]);
+  expect(log.mock.calls[2][1]).toEqual(expect.objectContaining({ reasons: '' }));
 });

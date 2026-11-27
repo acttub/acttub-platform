@@ -77,8 +77,10 @@ test('챌린지 올리기를 제출 없이 떠난 단계를 가른다', () => {
   // 2026-10-12 녹화: "저장만 하기 · 비공개"를 고르고 저장 버튼을 누르지 않고 나감
   assert.deepEqual(
     challengeExitParams({ hasVideo: true, uploading: false, visibility: 'private', openedAt: 0, now: 10_200 }),
-    { stage: 'ready', visibility: 'private', stay_s: '10' },
+    { stage: 'ready', visibility: 'private', stay_s: '10', queued: 'no' },
   );
+  // 올리는 중에 [올리기]를 눌러 두고 기다리다 떠났는지(11/27)
+  assert.equal(challengeExitParams({ hasVideo: true, uploading: true, visibility: 'public', openedAt: 0, now: 0, queued: true }).queued, 'yes');
 });
 
 test('업로드 화면과 챌린지 올리기 화면에 이벤트가 걸려 있다', () => {

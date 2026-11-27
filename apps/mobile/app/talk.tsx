@@ -101,7 +101,7 @@ export default function TalkScreen() {
         </View>
         {error ? <InlineErrorLine message={error} /> : null}
       </ScrollView>
-      <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />
+      <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} from="talk" />
       <CtaBar>
         <PrimaryButton
           label={t('talk.next')}

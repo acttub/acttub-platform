@@ -3,13 +3,14 @@ import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/ui/buttons';
+import { Chip } from '@/components/ui/chip';
 import { TextField } from '@/components/ui/text-field';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { logEvent } from '@/lib/analytics';
 import { translate as t } from '@/lib/i18n';
 import { noteRatings } from '@/lib/note-rating';
-import { buildNoteRatingBody, NOTE_RATING_COMMENT_MAX, noteRatingCommentText } from '@/lib/practice/note-rating';
+import { buildNoteRatingBody, NOTE_RATING_COMMENT_MAX, ratingCommentWithReasons } from '@/lib/practice/note-rating';
 import type { NoteRating, NoteRatingValue } from '@/lib/practice/types';
 import { newRequestId } from '@/lib/request-id';
 
@@ -44,6 +45,8 @@ export function ReportRating({ practiceId, initial, onInputFocus }: { practiceId
 /**
  * 칩 둘 + 선택 한 줄 평가 상자. 칩을 누르는 순간 저장하고(낙관적 표시), 한 줄은 보내면 같은 평가에 덧붙는다.
  * 저장이 4xx 로 버려지면 앞 선택으로 되돌린다. 노트 평가와 리딩 평가(components/reading-rating)가 같이 쓴다.
+ * `reasons`를 주면 그 평가(for)를 고른 동안 한 줄 칸 위에 이유 칩(여럿 고름)을 보이고, 고른 문구를 한 줄 앞에 붙여 보낸다.
+ * 노트 평가는 주지 않으므로 그대로다.
  */
 export function RatingBox<Value extends string>({
   initial,
@@ -55,6 +58,7 @@ export function RatingBox<Value extends string>({
   commentMax,
   save: persist,
   onInputFocus,
+  reasons,
 }: {
   initial: { rating: Value; comment: string | null } | null;
   title: string;
@@ -63,46 +67,67 @@ export function RatingBox<Value extends string>({
   sendLabel: string;
   thanks: string;
   commentMax: number;
-  save: (requestId: string, rating: Value, comment: string | null) => Promise<'sent' | 'queued' | 'dropped'>;
+  /** reasons 는 이번에 보낸 한 줄에 붙은 이유 코드다(이유 칩이 없으면 늘 빈 배열). */
+  save: (requestId: string, rating: Value, comment: string | null, reasons: readonly string[]) => Promise<'sent' | 'queued' | 'dropped'>;
   /** 한 줄 칸을 눌렀을 때 — 부른 화면이 칸을 키보드 위로 올린다. */
   onInputFocus?: () => void;
+  /** 이유 칩 — for 평가를 골랐을 때만 보인다. options 는 [코드, 문구]. */
+  reasons?: { for: Value; options: readonly (readonly [string, string])[] };
 }) {
   const [rating, setRating] = useState<Value | null>(initial?.rating ?? null);
   // 서버에 붙어 있는(또는 보내는 중인) 한 줄. 칩을 바꿔도 이 한 줄은 그대로 함께 보낸다.
   const [comment, setComment] = useState<string | null>(initial?.comment ?? null);
+  // 그 한 줄에 붙은 이유 코드 — 평가 칩을 바꿔 다시 보낼 때 기록에도 그대로 남긴다.
+  const [commentReasons, setCommentReasons] = useState<readonly string[]>([]);
   const [draft, setDraft] = useState(initial?.comment ?? '');
+  const [picked, setPicked] = useState<readonly string[]>([]);
   const [thanked, setThanked] = useState(false);
   // 겹쳐 누른 칩의 늦은 실패가 나중 선택을 되돌리지 않게, 마지막 요청만 화면을 바꾼다.
   const latest = useRef<string | null>(null);
+  // 지금 보일 이유 칩 — reasons 를 받았고 그 평가를 골랐을 때만 있다.
+  const reasonOptions = reasons && rating === reasons.for ? reasons.options : null;
 
-  const save = async (next: Value, nextComment: string | null, previous: { rating: Value | null; comment: string | null }) => {
+  const save = async (
+    next: Value,
+    nextComment: string | null,
+    nextReasons: readonly string[],
+    previous: { rating: Value | null; comment: string | null; reasons: readonly string[] },
+  ) => {
     const requestId = newRequestId();
     latest.current = requestId;
-    const result = await persist(requestId, next, nextComment);
+    const result = await persist(requestId, next, nextComment, nextReasons);
     // 4xx 는 다시 보내도 소용없다 — 저장되지 않은 선택을 보여 두지 않는다.
     if (result === 'dropped' && latest.current === requestId) {
       setRating(previous.rating);
       setComment(previous.comment);
+      setCommentReasons(previous.reasons);
       setThanked(false);
     }
   };
 
   const choose = (next: Value) => {
     if (next === rating) return;
-    const previous = { rating, comment };
+    const previous = { rating, comment, reasons: commentReasons };
     setRating(next);
     // 처음 고르면 한 줄 칸이 새로 생긴다 — 아래 광고·버튼에 가리지 않게 부른 화면이 칸까지 올린다.
     if (!previous.rating) onInputFocus?.();
-    void save(next, comment, previous);
+    void save(next, comment, commentReasons, previous);
   };
+
+  const toggleReason = (code: string) =>
+    setPicked((now) => (now.includes(code) ? now.filter((c) => c !== code) : [...now, code]));
 
   const send = () => {
     if (!rating) return;
-    const text = noteRatingCommentText(draft);
-    const previous = { rating, comment };
+    // 칩 순서대로 붙인다(누른 순서와 상관없이 같은 글이 되게).
+    const chosen = (reasonOptions ?? []).filter(([code]) => picked.includes(code));
+    const codes = chosen.map(([code]) => code);
+    const text = ratingCommentWithReasons(chosen.map(([, label]) => label), draft, commentMax);
+    const previous = { rating, comment, reasons: commentReasons };
     setComment(text);
+    setCommentReasons(codes);
     setThanked(true);
-    void save(rating, text, previous);
+    void save(rating, text, codes, previous);
   };
 
   return (
@@ -122,6 +147,21 @@ export function RatingBox<Value extends string>({
         ))}
       </View>
       {rating && thanked && <Text style={styles.thanks}>{thanks}</Text>}
+      {reasonOptions && !thanked && (
+        <View style={styles.reasons}>
+          {reasonOptions.map(([code, label]) => (
+            <Chip
+              key={code}
+              label={label}
+              size="sm"
+              role="checkbox"
+              selected={picked.includes(code)}
+              onPress={() => toggleReason(code)}
+              phLabel={`rating_reason_${code}`}
+            />
+          ))}
+        </View>
+      )}
       {rating && !thanked && (
         <View style={styles.inputRow}>
           {/* 허용 범위 밖 글자는 TextField 가 거르고 칸 아래에 알린다. */}
@@ -154,6 +194,7 @@ const styles = StyleSheet.create({
   chipOn: { borderWidth: 1.5, borderColor: palette.blue, backgroundColor: palette.blueSoft, paddingHorizontal: space[4] - 0.5 },
   chipText: { ...type.body2Bold, color: palette.textSub },
   chipTextOn: { color: palette.blueDeep },
+  reasons: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
   inputRow: { flexDirection: 'row', gap: space[2], alignItems: 'flex-start' },
   inputCell: { flex: 1 },
   // 버튼(32)을 입력칸(48) 가운데에 맞춘다 — 칸 아래 알림 줄이 생겨도 버튼은 칸 옆에 남는다.

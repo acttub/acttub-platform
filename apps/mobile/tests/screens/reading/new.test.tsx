@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 
 import ReadingNew from '@/app/reading/new';
+import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import { SAMPLE_SCRIPT } from '@/lib/reading/sample';
@@ -75,6 +76,11 @@ beforeEach(async () => {
 /** 화면 머리 뒤로·안드로이드 뒤로·iOS 밀기는 모두 usePreventRemove 콜백으로 들어온다. */
 async function pressStackBack() {
   await act(async () => jest.mocked(usePreventRemove).mock.calls.at(-1)![1]({ data: { action: { type: 'GO_BACK' } } } as never));
+}
+
+/** 무료 한도 기록만 골라 본다. */
+function freeLimitLogs() {
+  return jest.mocked(logEvent).mock.calls.filter(([name]) => name.startsWith('free_limit_'));
 }
 
 async function paste(text = PASTED) {
@@ -674,6 +680,29 @@ test('무료 대본 팝업의 [Pro 보기]는 대본 한도에서 온 Pro 안내
   await fireEvent.press(screen.getByText('다음'));
   await fireEvent.press(await screen.findByText('Pro 보기'));
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/pro', params: { from: 'script' } });
+  expect(freeLimitLogs()).toEqual([
+    ['free_limit_shown', { kind: 'script', from: 'reading_new' }],
+    ['free_limit_action', { kind: 'script', action: 'pro' }],
+  ]);
+});
+
+test('무료 대본 팝업은 지울 대본을 읽느라 다시 그려져도 뜬 기록·고른 기록을 한 번씩만 남긴다(11/27)', async () => {
+  jest.mocked(api.importScript).mockRejectedValueOnce(new ApiError(403, 'limit', 'free_script_limit'));
+  server.list.mockResolvedValue({
+    scripts: [{ id: 'a', title: '옥상, 밤' }, { id: 'b', title: '갈매기' }],
+    total_count: 2,
+    in_progress_count: 0,
+  } as never);
+  await render(<ReadingNew />);
+  await paste();
+  await fireEvent.press(screen.getByText('다음'));
+  const replace = await screen.findByText('하나 지우기');
+  await fireEvent.press(replace);
+  expect(await screen.findByText('어떤 대본을 지울까요?')).toBeOnTheScreen();
+  expect(freeLimitLogs()).toEqual([
+    ['free_limit_shown', { kind: 'script', from: 'reading_new' }],
+    ['free_limit_action', { kind: 'script', action: 'replace' }],
+  ]);
 });
 
 // ── 대기 화면 전 확인(SOMA-996) ─────────────────────────────────────────────────────────

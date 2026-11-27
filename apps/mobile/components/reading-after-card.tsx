@@ -17,8 +17,8 @@ import { voiceCoachCardState } from '@/lib/reading/voice-coaching';
 /**
  * 리딩 완료 화면의 다음 걸음 — 위에 크게 「방금 읽은 대본으로 코칭도 받아볼까요?」(무료, SOMA-791),
  * 아래 작은 줄 「발음 보고서 받기 PRO」(SOMA-606). 코칭 카드는 서버가 available 을 줄 때만 보인다(404·오류·거짓은 숨김).
- * 발음 보고서 줄은 무료·Pro 모두에게 보인다. Pro 는 보고서 화면으로 가고, 무료는 눌러도 들어가지 않고 줄 아래에
- * 「Pro 기능」 안내를 한 줄 띄운다(팝업 없음, 10/24 팝업 규칙). 발음은 Pro 만 — 예전 무료 실험 스위치는 뺐다(10/29).
+ * 발음 보고서 줄은 무료·Pro 모두에게 보인다. Pro 는 보고서 화면으로 가고, 무료는 바로 Pro 안내(/pro, from=pron)로 간다
+ * (11/27: 줄 아래 안내를 띄우면 링크까지 누르는 사람이 적었다). 발음은 Pro 만 — 예전 무료 실험 스위치는 뺐다(10/29).
  * 누르면 한 번에 시작한다: createPractice({request_id, reading_session_id}) → 코치 화면. 이미 시작한 회차가 있으면 그 회차를 연다.
  * 녹음이 아직 올라가는 중(`ready` 거짓)이면 묻지 않는다.
  */
@@ -31,12 +31,13 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
   const [reportOn, setReportOn] = useState(false);
   /** Pro 인가 — 모르면 null(받는 중·실패). 실패하면 무료로 본다. */
   const [pro, setPro] = useState<boolean | null>(null);
-  const [proNote, setProNote] = useState(false);
   const [openPracticeId, setOpenPracticeId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef<string | null>(null);
   const lockRef = useRef(false);
+  /** 구독 상태를 확인하는 동안 다시 눌러도 화면이 두 번 열리지 않게 막는다. */
+  const reportLockRef = useRef(false);
 
   useEffect(() => {
     if (!ready) return;
@@ -104,17 +105,23 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
   };
 
   const openReport = async () => {
-    let isPro = pro;
-    if (isPro === null) {
-      isPro = await Promise.resolve().then(() => api.billingMe()).then((me) => me?.pro === true, () => false);
-      setPro(isPro);
+    if (reportLockRef.current) return;
+    reportLockRef.current = true;
+    try {
+      let isPro = pro;
+      if (isPro === null) {
+        isPro = await Promise.resolve().then(() => api.billingMe()).then((me) => me?.pro === true, () => false);
+        setPro(isPro);
+      }
+      if (!isPro) {
+        logEvent('reading_pron_report_locked', {});
+        router.push({ pathname: '/pro', params: { from: 'pron' } });
+        return;
+      }
+      router.push({ pathname: '/reading/pronunciation', params: { sessionId } });
+    } finally {
+      reportLockRef.current = false;
     }
-    if (!isPro) {
-      setProNote(true);
-      logEvent('reading_pron_report_locked', {});
-      return;
-    }
-    router.push({ pathname: '/reading/pronunciation', params: { sessionId } });
   };
 
   if (!(wantCoach && coachOn) && !(wantReport && reportOn)) return null;
@@ -152,22 +159,11 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
           <Feather name="chevron-right" size={16} color={palette.iconFaint} />
         </Pressable>
       )}
-      {wantReport && reportOn && proNote && (
-        <View style={styles.proNote}>
-          <Text style={styles.proNoteText}>{t('reading.pronReportProOnly')}</Text>
-          <Pressable onPress={() => router.push({ pathname: '/pro', params: { from: 'pron' } })} accessibilityRole="link" hitSlop={8} ph-label="reading_pron_report_pro">
-            <Text style={styles.proNoteLink}>{t('reading.pronReportProLink')}</Text>
-          </Pressable>
-        </View>
-      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  proNote: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingHorizontal: 4 },
-  proNoteText: { ...type.caption, color: palette.textMeta },
-  proNoteLink: { ...type.body2Bold, color: palette.blueDeep },
   wrap: { alignSelf: 'stretch', gap: 6, marginTop: 8 },
   card: { backgroundColor: palette.blueSoft, borderRadius: radius.lg, padding: space[4], gap: space[2] },
   title: { ...type.headline, color: palette.text },

@@ -2293,7 +2293,7 @@ export default function ReadingPlay() {
         <View style={[styles.progressFill, { width: `${Math.round((progressOf(run).done / Math.max(1, progressOf(run).total)) * 100)}%` }]} />
       </View>
       {proVoiceHint && (
-        <Pressable style={styles.proHint} onPress={() => router.push('/pro')} accessibilityRole="button" accessibilityLabel={t('reading.proVoiceHint')}>
+        <Pressable style={styles.proHint} onPress={() => router.push({ pathname: '/pro', params: { from: 'reading_voice' } })} accessibilityRole="button" accessibilityLabel={t('reading.proVoiceHint')}>
           <Text style={styles.proHintText}>{t('reading.proVoiceHint')}</Text>
         </Pressable>
       )}

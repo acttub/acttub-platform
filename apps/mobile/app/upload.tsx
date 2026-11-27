@@ -775,7 +775,7 @@ export default function UploadScreen() {
         onClose={() => setTitleOpen(false)}
       />
       {dialog}
-      <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} />
+      <CoachingLimitSheet visible={freeLimit} onClose={() => setFreeLimit(false)} from="upload" />
     </SafeAreaView>
   );
 }

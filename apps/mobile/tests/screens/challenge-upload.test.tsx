@@ -97,6 +97,8 @@ beforeEach(() => {
 const submitButton = () => screen.getByRole('button', { name: '올리기' });
 const PUBLIC = /^공개로 올리기$/;
 const PRIVATE = /^나만 보기$/;
+const UPLOADING_HINT = '영상을 올리는 중이에요. 먼저 눌러 두면 다 올라가는 대로 올려요.';
+const QUEUED_HINT = '영상이 다 올라가면 바로 올려요. 이 화면에 있어 주세요.';
 
 
 test('보관함 영상으로 올리면 「공개」가 위에 먼저 골라져 있고, 올린 뒤 완료 화면에서 SNS 공유·코칭·다른 참여작·홈으로 이어진다', async () => {
@@ -249,7 +251,7 @@ test('제출 없이 떠나면 어디까지 왔는지 남긴다', async () => {
   await screen.findByText('공개 범위');
   await view.unmount();
 
-  expect(events()).toContainEqual(['challenge_upload_exit', { stage: 'no_video', visibility: 'public', stay_s: '0' }]);
+  expect(events()).toContainEqual(['challenge_upload_exit', { stage: 'no_video', visibility: 'public', stay_s: '0', queued: 'no' }]);
 });
 
 describe('방금 찍은 영상', () => {
@@ -262,19 +264,90 @@ describe('방금 찍은 영상', () => {
     (saveRecordingToLibrary as jest.Mock).mockResolvedValue({ kind: 'queued', entry: { id: 'q1' } });
     await render(<ChallengeUploadScreen />);
 
-    expect(await screen.findByText('영상을 올리는 중이에요. 잠시 뒤 다시 눌러 주세요.')).toBeOnTheScreen();
+    expect(await screen.findByText(UPLOADING_HINT)).toBeOnTheScreen();
     expect(saveRecordingToLibrary).toHaveBeenCalledWith({ uri: 'file:///rec.mp4', durationMs: 10_000, owner: 'u1' });
     expect(events()).toContainEqual(['challenge_upload_started', { origin: 'new' }]);
     expect(screen.getByText('미리보기 영상')).toBeOnTheScreen();
-    expect(submitButton()).toBeDisabled();
+    // 올리는 중이어도 공개 범위가 골라져 있으면 누를 수 있다(11/27).
+    expect(submitButton()).toBeEnabled();
 
     (confirmedVideoFor as jest.Mock).mockImplementation((id: string) => (id === 'q1' ? 'v9' : null));
     await act(async () => libraryListener?.());
 
-    expect(screen.queryByText('영상을 올리는 중이에요. 잠시 뒤 다시 눌러 주세요.')).not.toBeOnTheScreen();
+    expect(screen.queryByText(UPLOADING_HINT)).not.toBeOnTheScreen();
     expect(events()).toContainEqual(['challenge_upload_succeeded', { origin: 'new' }]);
     await fireEvent.press(submitButton());
     expect(createEntry).toHaveBeenCalledWith('c1', expect.objectContaining({ video_id: 'v9' }));
+  });
+
+  describe('올리는 중에 [올리기]를 눌러 두면(11/27)', () => {
+    let flush: { resolve: () => void };
+    beforeEach(() => {
+      (takeRecordedVideo as jest.Mock).mockReturnValue({ uri: 'file:///rec.mp4', durationMs: 10_000 });
+      (saveRecordingToLibrary as jest.Mock).mockResolvedValue({ kind: 'queued', entry: { id: 'q1' } });
+      // 밀기는 테스트가 끝을 정한다 — 끝나기 전에 확정이 올 수도, 확정 없이 끝날 수도 있다.
+      (flushLibraryUploads as jest.Mock).mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            flush = { resolve };
+          }),
+      );
+    });
+
+    async function pressWhileUploading() {
+      await screen.findByText(UPLOADING_HINT);
+      await fireEvent.press(submitButton());
+      expect(await screen.findByText(QUEUED_HINT)).toBeOnTheScreen();
+      expect(screen.getByText('다 올라가면 바로 올려요')).toBeOnTheScreen();
+    }
+
+    test('확정되는 즉시 한 번만 올리고, 기다리는 동안 다시 눌러도 무시한다', async () => {
+      await render(<ChallengeUploadScreen />);
+      await pressWhileUploading();
+      expect(submitButton()).toBeDisabled();
+      await fireEvent.press(submitButton());
+      expect(flushLibraryUploads).toHaveBeenCalledTimes(1);
+      expect(createEntry).not.toHaveBeenCalled();
+
+      (confirmedVideoFor as jest.Mock).mockImplementation((id: string) => (id === 'q1' ? 'v9' : null));
+      await act(async () => libraryListener?.());
+      await act(async () => flush.resolve());
+
+      expect(await screen.findByText(/첫 챌린지 해냈어요\./)).toBeOnTheScreen();
+      expect(createEntry).toHaveBeenCalledTimes(1);
+      expect(createEntry).toHaveBeenCalledWith('c1', expect.objectContaining({ video_id: 'v9', visibility: 'public', request_id: expect.any(String) }));
+    });
+
+    test('밀기가 끝났는데 확정이 없으면 기존 문구로 알리고 기다림을 푼다', async () => {
+      await render(<ChallengeUploadScreen />);
+      await pressWhileUploading();
+      await act(async () => flush.resolve());
+
+      expect(await screen.findByText('영상을 올리는 중이에요. 잠시 뒤 다시 눌러 주세요.')).toBeOnTheScreen();
+      expect(events()).toContainEqual(['challenge_upload_failed', { reason: 'still_uploading' }]);
+      expect(screen.queryByText(QUEUED_HINT)).not.toBeOnTheScreen();
+      expect(submitButton()).toBeEnabled();
+
+      // 풀린 뒤 늦게 확정돼도 저절로 올리지 않는다.
+      (confirmedVideoFor as jest.Mock).mockImplementation((id: string) => (id === 'q1' ? 'v9' : null));
+      await act(async () => libraryListener?.());
+      expect(createEntry).not.toHaveBeenCalled();
+    });
+
+    test('기다리다 화면을 떠나면 올리지 않고, 떠난 기록에 queued=yes 를 남긴다', async () => {
+      const view = await render(<ChallengeUploadScreen />);
+      await pressWhileUploading();
+      const listener = libraryListener;
+      await view.unmount();
+
+      expect(events()).toContainEqual(['challenge_upload_exit', { stage: 'uploading', visibility: 'public', stay_s: '0', queued: 'yes' }]);
+      (confirmedVideoFor as jest.Mock).mockImplementation((id: string) => (id === 'q1' ? 'v9' : null));
+      await act(async () => {
+        listener?.();
+        flush.resolve();
+      });
+      expect(createEntry).not.toHaveBeenCalled();
+    });
   });
 
   test('60초를 넘으면 올리지 않고 길다고 알린다', async () => {
