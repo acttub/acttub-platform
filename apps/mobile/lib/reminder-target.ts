@@ -34,6 +34,11 @@ export function reminderTarget(data: unknown): string | null {
     const sessionId = uuid(d.session_id);
     return sessionId ? '/reading/pronunciation?sessionId=' + encodeURIComponent(sessionId) : '/reading';
   }
+  // 새 1:1 메시지(SOMA-1039) — 그 대화를 연다. 대화 id 를 못 읽으면 메시지 목록이다.
+  if (d.kind === 'direct_message') {
+    const conversationId = uuid(d.conversation_id);
+    return conversationId ? '/messages/' + encodeURIComponent(conversationId) : '/messages';
+  }
   if (d.kind !== 'evening_reminder') return null;
   switch (d.reminder_kind) {
     case 'resume':

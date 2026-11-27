@@ -15,7 +15,8 @@ export function CommunityReportPage({
   onSubmit,
 }: {
   visible: boolean;
-  target: 'post' | 'comment';
+  /** 'conversation' 은 1:1 메시지 대화방의 신고다(SOMA-1039). 사유·틀은 같다. */
+  target: 'post' | 'comment' | 'conversation';
   busy?: boolean;
   onClose: () => void;
   onSubmit: (reason: CommunityReportReason, detail: string) => void;
@@ -26,7 +27,12 @@ export function CommunityReportPage({
       reasons={COMMUNITY_REPORT_REASONS}
       copy={{
         pageTitle: t('communityReport.pageTitle'),
-        title: target === 'post' ? t('communityReport.titlePost') : t('communityReport.titleComment'),
+        title:
+          target === 'post'
+            ? t('communityReport.titlePost')
+            : target === 'conversation'
+              ? t('communityReport.titleConversation')
+              : t('communityReport.titleComment'),
         subtitle: t('communityReport.subtitle'),
         close: t('common.close'),
         reason: (value) => t(`communityReport.${value}`),

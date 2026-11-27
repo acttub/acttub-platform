@@ -520,6 +520,9 @@ function RootNavigator() {
         {/* 배우 게시판(SOMA-873) — 머리는 화면이 NavHeader 로 그린다. */}
         <Stack.Screen name="community-post" options={{ headerShown: false }} />
         <Stack.Screen name="community-new" options={{ headerShown: false }} />
+        {/* 배우끼리 1:1 메시지(SOMA-1039) — 머리는 화면이 NavHeader 로 그린다. */}
+        <Stack.Screen name="messages/index" options={{ headerShown: false }} />
+        <Stack.Screen name="messages/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
         <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
         <Stack.Screen name="reading/session" options={{ title: '' }} />

@@ -75,11 +75,13 @@ import type {
   CommunityImageIntent,
   CommunityPost,
   CommunityReportBody,
+  CommunityReportReason,
   LikeResponse,
   PostListResponse,
   PostUpdateBody,
   PostWriteBody,
 } from '@/lib/community';
+import type { DirectConversation, DirectConversationList, DirectMessage, DirectMessageList } from '@/lib/messages';
 import type { ReadingExampleListResponse, ReadingExampleStart } from '@/lib/reading/examples';
 import type { ExampleAudioResponse } from '@/lib/reading/example-audio';
 import type { ReadingRating, ReadingRatingBody } from '@/lib/reading/session-rating';
@@ -1678,6 +1680,61 @@ export const api = {
   /** 게시판 차단 — 그 사람의 글·댓글이 내 목록에서 빠진다. */
   blockCommunityUser(userId: string): Promise<void> {
     return request<void>('/v2/community/blocks', jsonInit({ user_id: userId }), { timeoutMs: 15_000 });
+  },
+
+  // 배우끼리 1:1 메시지(SOMA-1039, /v2/messages) ------------------------------------------
+  /**
+   * 대화를 연다. 두 사람의 대화가 이미 있으면 그 대화(200), 새 대화는 201 이다. 자기 자신 400, 없는 상대 404, 보이지 않는 글
+   * 404 post_not_found, 차단 403 message_blocked, 하루 21번째 429 daily_conversation_limit.
+   */
+  startDirectConversation(body: { user_id: string; post_id?: string }): Promise<DirectConversation> {
+    return request<DirectConversation>('/v2/messages/conversations', jsonInit(body), { timeoutMs: 20_000 });
+  },
+
+  /** 메시지가 있는 내 대화, 최근 것부터. */
+  listConversations(cursor?: string | null): Promise<DirectConversationList> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    return request<DirectConversationList>(`/v2/messages/conversations${query}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /** 대화방 머리 — 상대, 시작 글, 보낼 수 있는지. 참여자가 아니면 404. */
+  conversation(conversationId: string): Promise<DirectConversation> {
+    return request<DirectConversation>(`/v2/messages/conversations/${encodeURIComponent(conversationId)}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /** 대화의 메시지, 최근 것부터. `cursor` 로 더 옛 것을 읽는다. */
+  listMessages(conversationId: string, cursor?: string | null): Promise<DirectMessageList> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    return request<DirectMessageList>(`/v2/messages/conversations/${encodeURIComponent(conversationId)}/messages${query}`, {}, {
+      timeoutMs: 20_000,
+    });
+  },
+
+  /** 보낸다. 같은 요청 id 의 재전송은 같은 메시지다(다시 보내기도 처음 id 를 쓴다). 하루 301번째는 429. */
+  sendMessage(conversationId: string, body: { request_id: string; body: string }): Promise<DirectMessage> {
+    return postIdempotent<DirectMessage>(`/v2/messages/conversations/${encodeURIComponent(conversationId)}/messages`, body, {
+      requestId: body.request_id,
+      timeoutMs: 20_000,
+    });
+  },
+
+  /** 지금까지 온 메시지를 읽은 것으로 둔다. */
+  markConversationRead(conversationId: string): Promise<void> {
+    return request<void>(`/v2/messages/conversations/${encodeURIComponent(conversationId)}/read`, { method: 'POST' }, {
+      timeoutMs: 15_000,
+    });
+  },
+
+  /** 대화(상대) 신고. 같은 대화를 다시 신고하면 409. */
+  reportConversation(conversationId: string, body: { reason: CommunityReportReason; detail?: string }): Promise<void> {
+    return request<void>(`/v2/messages/conversations/${encodeURIComponent(conversationId)}/reports`, jsonInit(body), {
+      timeoutMs: 20_000,
+    });
+  },
+
+  /** 프로필 「메시지」 배지 — 상대가 보냈고 아직 읽지 않은 메시지 수. */
+  unreadMessageCount(): Promise<{ unread_count: number }> {
+    return request<{ unread_count: number }>('/v2/messages/unread-count', {}, { timeoutMs: 15_000 });
   },
 
   // 알림함(challenge.notification) -------------------------------------------------

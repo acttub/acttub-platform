@@ -299,6 +299,28 @@ test('사진은 본문 아래에 차례대로 놓이고, 누르면 전체 화면
   await waitFor(() => expect(screen.queryByTestId('viewer-image')).not.toBeOnTheScreen());
 });
 
+test('글·댓글 작성자 이름을 누르면 그 사람과의 메시지 대화로 간다(시트·팝업 없이), 내 이름은 눌리지 않는다', async () => {
+  communityPost.mockResolvedValue(post());
+  communityComments.mockResolvedValue({
+    comments: [comment(), comment({ id: 'mine', body: '제 댓글', author_name: '나', author: { id: 'me' }, is_mine: true })],
+    next_cursor: null,
+  });
+  await render(<CommunityPostScreen />);
+
+  await fireEvent.press(await screen.findByRole('button', { name: '하늘에게 메시지 보내기' }));
+  expect(mockRouter.push).toHaveBeenLastCalledWith({
+    pathname: '/messages/[id]',
+    params: { id: 'new', userId: 'u-sky', postId: 'p1', from: 'post' },
+  });
+  await fireEvent.press(screen.getByRole('button', { name: '달빛에게 메시지 보내기' }));
+  expect(mockRouter.push).toHaveBeenLastCalledWith({
+    pathname: '/messages/[id]',
+    params: { id: 'new', userId: 'u-moon', postId: 'p1', from: 'comment' },
+  });
+  expect(screen.queryByRole('button', { name: '나에게 메시지 보내기' })).not.toBeOnTheScreen();
+  expect(screen.queryByTestId('anchored-menu')).not.toBeOnTheScreen();
+});
+
 test('게스트(403 member_only)는 회원 전용 안내와 목록으로 버튼을 본다', async () => {
   communityPost.mockRejectedValue(Object.assign(new Error('member'), { status: 403, code: 'member_only' }));
   await render(<CommunityPostScreen />);
