@@ -60,9 +60,12 @@ reading_sessions.status가 이 기능의 정본이다.
   (user_id, request_id)이고, 본문 지문 대신 저장된 속성 여섯(내 배역·방식·시작 줄·끝 줄·넘김·녹음)과 대본이 모두 같은지
   견준다. `X-Request-Id` 헤더는 reading.script와 같은 규칙이다.
 - 회차 속성은 시작할 때 정하고 뒤에 바꾸지 않는다. 내 배역(reading.cast), 방식 mode(read 읽어주기·quiz
-  암기 대조), 구간(start_line_id·end_line_id), 넘김 advance(silence·manual), 녹음 record(켬·끔,
+  암기 대조), 구간(start_line_id·end_line_id), 넘김 advance(silence·manual·timed), 녹음 record(켬·끔,
   reading.recording).
-  - 앱은 mode=read, advance=silence, record=켬으로만 시작한다. 앱에는 방식·넘김·녹음을 고르는 자리가 없고 암기 대조도 없다.
+  - 앱은 mode=read로 시작한다. 내 차례 넘김은 배역 고르기 화면에서 셋 중 하나를 고른다(SOMA-1053, 1.2.0): 「목소리로 넘기기」
+    advance=silence·record=켬(기본), 「정한 시간 쉬고 넘기기」 advance=timed·record=끔, 「[다음]으로만 넘기기」
+    advance=manual·record=켬(녹음·받아쓰기는 하고 침묵으로는 넘기지 않는다). 배역을 고르지 않은 「전체 듣기」는
+    advance=manual·record=끔이다. 앱에 암기 대조는 없다.
     웹 암기 대조와 서버의 quiz는 최소 지원 판을 올릴 때 걷는다.
   - read: 상대 대사는 기기가 읽고 내 대사는 가리기 설정대로 보인다. STT가 있으면 대조 결과를 녹음에 남기지만 흐름에는
     끼어들지 않는다. 웹은 내 차례에 "방금 말한 것(글자로 바꿈)"을 보여 준다. 앱은 내 차례 카드 아래에 "방금 말한 것"을 보이고,
@@ -270,7 +273,7 @@ reading_sessions.status가 이 기능의 정본이다.
   다르게 말한 대사」가 없다. 「여기부터 다시」: 셋째 줄부터 넷째 줄까지 새 회차. 끝까지 제대로 읽음: 「4문장을 모두 읽었어요.」, 빠뜨림 없음.
 - 회차 시작 API(내 배역·방식·구간·넘김·녹음): reading_sessions 1행, status in_progress, current_line_id는 구간의
   첫 대사 줄, started_at이 있다. 같은 요청 id로 다시: 같은 회차 id, 행 하나.
-- 앱에서 회차 시작: 요청의 mode는 read, advance는 silence, record는 켬이다.
+- 앱에서 회차 시작: 요청의 mode는 read이고, 넘김·녹음은 고른 넘김 방식대로다(목소리 silence·켬, 정한 시간 timed·끔, [다음]만 manual·켬, 전체 듣기 manual·끔).
 - 진행 중 회차가 있는 대본에서 새 회차 시작: 이전 회차는 in_progress 그대로이고 그 대본의 in_progress가 둘이다.
   상세의 `open_session_id`는 새 회차다. 새 회차를 completed로 끝냄: `open_session_id`는 이전 회차다.
 - 설정 화면만 다녀감: reading_sessions 행이 없다. 시작 트랜잭션을 실패시킴: 기존 진행 중 회차가 그대로다.
