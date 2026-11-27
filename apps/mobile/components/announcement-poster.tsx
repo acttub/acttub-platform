@@ -3,7 +3,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { createAudioPlayer } from 'expo-audio';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Modal, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

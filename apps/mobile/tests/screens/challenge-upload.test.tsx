@@ -16,7 +16,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
 }));
-jest.mock('@react-navigation/native', () => ({ useIsFocused: () => true }));
+jest.mock('expo-router/react-navigation', () => ({ useIsFocused: () => true }));
 jest.mock('expo-video', () => {
   const { Text } = require('react-native');
   return {

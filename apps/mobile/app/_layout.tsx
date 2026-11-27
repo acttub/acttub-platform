@@ -1,7 +1,7 @@
 import { reminderOpenEvent, reminderTarget } from '@/lib/reminder-target';
 import Feather from '@expo/vector-icons/Feather';
-import { DefaultTheme, ThemeProvider, getFocusedRouteNameFromRoute } from '@react-navigation/native';
-import type { NativeStackHeaderProps } from '@react-navigation/native-stack';
+import { DefaultTheme, ThemeProvider, getFocusedRouteNameFromRoute } from 'expo-router/react-navigation';
+import type { NativeStackHeaderProps } from 'expo-router';
 import { useFonts } from 'expo-font';
 import {
   router,
@@ -12,7 +12,7 @@ import {
   useSegments,
   type Href,
 } from 'expo-router';
-import * as NavigationBar from 'expo-navigation-bar';
+import { NavigationBar } from 'expo-navigation-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { getTrackingPermissionsAsync } from 'expo-tracking-transparency';
@@ -581,7 +581,7 @@ export default function RootLayout() {
   useEffect(
     () => keepDarkNavigationButtons({
       platform: Platform.OS,
-      setButtonStyle: NavigationBar.setButtonStyleAsync,
+      setButtonStyle: NavigationBar.setStyle,
       appState: AppState,
     }),
     [],

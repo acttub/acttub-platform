@@ -32,7 +32,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
 }));
-jest.mock('@react-navigation/native', () => ({ useIsFocused: () => mockFocused }));
+jest.mock('expo-router/react-navigation', () => ({ useIsFocused: () => mockFocused }));
 jest.mock('expo-video', () => ({
   useVideoPlayer: (_source: unknown, setup?: (p: unknown) => void) => {
     setup?.(mockPlayer);

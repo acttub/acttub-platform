@@ -863,7 +863,7 @@ export const api = {
       duration_ms: number;
       transcript: string | null;
       transcript_source: 'stt' | 'none';
-      audio: { uri: string; name: string; type: string };
+      audio: { name: string; type: string; bytes: () => Promise<Uint8Array> };
     },
   ): Promise<SessionRecording> {
     const form = new FormData();
@@ -873,8 +873,9 @@ export const api = {
     form.append('duration_ms', String(input.duration_ms));
     form.append('transcript_source', input.transcript_source);
     if (input.transcript !== null) form.append('transcript', input.transcript);
-    // React Native 의 fetch 는 {uri, name, type} 를 파일 파트로 보낸다. Content-Type 은 경계와 함께 fetch 가 붙인다.
-    form.append('audio', { uri: input.audio.uri, name: input.audio.name, type: input.audio.type } as unknown as Blob);
+    // 전역 fetch(SDK 56 부터 expo/fetch)는 파일 파트를 bytes() 로 읽고 name·type 을 파일 이름과 Content-Type 으로 쓴다.
+    // RN fetch 의 {uri} 파트는 읽지 못한다("Unsupported FormDataPart implementation"). 본문 Content-Type 은 경계와 함께 fetch 가 붙인다.
+    form.append('audio', input.audio as unknown as Blob);
     return request<SessionRecording>(
       `/v2/reading/sessions/${encodeURIComponent(sessionId)}/recordings`,
       { method: 'POST', headers: { 'X-Request-Id': input.request_id }, body: form },

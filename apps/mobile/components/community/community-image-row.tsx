@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   tileFailed: { borderWidth: 1.5, borderColor: palette.danger },
   image: { width: '100%', height: '100%' },
   veil: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     // 옅은 흰 막 — 사진은 비쳐 보이고 글자는 읽힌다.

@@ -16,7 +16,7 @@ function setAdMobReady(next: boolean) {
 
 // 화면이 보이는지(useIsFocused). 기본은 보이는 상태, 숨은 화면을 보는 테스트만 false 로 바꾼다.
 let mockFocused = true;
-jest.mock('@react-navigation/native', () => ({ useIsFocused: () => mockFocused }));
+jest.mock('expo-router/react-navigation', () => ({ useIsFocused: () => mockFocused }));
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));

@@ -1,4 +1,4 @@
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from 'expo-router/react-navigation';
 import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';

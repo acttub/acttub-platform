@@ -3,7 +3,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from 'expo-router/react-navigation';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -753,7 +753,7 @@ const SCRIM_BOTTOM = [[0, 0], [0.35, 0.15], [1, 0.55]] as const;
 const MEDIA_TEXT_SHADOW = { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 };
 
 const styles = StyleSheet.create({
-  playFail: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
+  playFail: { ...StyleSheet.absoluteFill, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center', padding: space.gutter },
   loadingClose: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: space[4] },
   root: { flex: 1, backgroundColor: palette.text },
   flex: { flex: 1 },

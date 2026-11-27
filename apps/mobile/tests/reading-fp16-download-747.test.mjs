@@ -18,7 +18,7 @@ const modules = {
       create() { s.files.set(this.uri, { size: 0, text: '' }); }
       write(text) { s.files.set(this.uri, { size: text.length, text }); }
       delete() { if (s.stuck.has(this.uri)) throw new Error('busy'); s.files.delete(this.uri); }
-      move(target) { s.files.set(target.uri, s.files.get(this.uri)); s.files.delete(this.uri); }
+      moveSync(target) { s.files.set(target.uri, s.files.get(this.uri)); s.files.delete(this.uri); }
       get name() { return this.uri.split('/').pop(); }
       get parentDirectory() { return { uri: this.uri.slice(0, this.uri.lastIndexOf('/')) }; }
       open() {

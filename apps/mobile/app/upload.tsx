@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useIsFocused, usePreventRemove } from '@react-navigation/native';
+import { useIsFocused, usePreventRemove } from 'expo-router/react-navigation';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {

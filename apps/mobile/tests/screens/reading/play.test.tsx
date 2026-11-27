@@ -39,7 +39,7 @@ const mockNavigation = {
   }),
 };
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useNavigation: () => mockNavigation }));
-jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
+jest.mock('expo-router/react-navigation', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
 jest.mock('@/lib/practice/first-use-graduation', () => ({ markFirstUseGraduated: jest.fn(async () => undefined), currentFirstUseOwner: () => null }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 // 지문 멈춤(SOMA-937)은 기본 0초로 두고 기존 흐름을 본다. 멈춤 자체는 아래 SOMA-937 테스트가 시간을 정해 본다.
@@ -951,7 +951,7 @@ test('목소리를 내려받는 중에 뒤로 가면(안드로이드 뒤로 키)
   await act(async () => report({ phase: 'download', receivedBytes: 100 * 1024 * 1024, totalBytes: 400 * 1024 * 1024, percent: 25, etaSeconds: 30 }));
   expect(screen.getByText('상대역 목소리를 준비하고 있어요…')).toBeOnTheScreen();
 
-  const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+  const preventRemove = jest.requireMock('expo-router/react-navigation').usePreventRemove as jest.Mock;
   const back = preventRemove.mock.calls.filter(([on]) => on).at(-1)[1];
   await act(async () => back({ data: { action: { type: 'GO_BACK' } } }));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
@@ -2319,7 +2319,7 @@ test('SOMA-806: 묶인 내 차례는 묶음 줄 전체 글자의 90%를 받아�
 });
 
 test('iOS 는 리딩 중 밀어서 나가기를 막지 않고, 내려갈 때 읽은 데까지 저장한다', async () => {
-  const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+  const preventRemove = jest.requireMock('expo-router/react-navigation').usePreventRemove as jest.Mock;
   const server = await startPlay();
   await screen.findByText('듣는 중');
   expect(preventRemove).toHaveBeenLastCalledWith(false, expect.any(Function));
@@ -2333,7 +2333,7 @@ test('iOS 는 리딩 중 밀어서 나가기를 막지 않고, 내려갈 때 읽
 
 test('안드로이드 뒤로 가기(usePreventRemove)도 확인 없이 저장하고 나간다', async () => {
   const os = jest.replaceProperty(Platform, 'OS', 'android');
-  const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+  const preventRemove = jest.requireMock('expo-router/react-navigation').usePreventRemove as jest.Mock;
   await startPlay();
   await screen.findByText('듣는 중');
   expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));

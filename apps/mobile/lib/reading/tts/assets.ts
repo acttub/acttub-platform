@@ -221,7 +221,7 @@ async function ensureModel(
   const stateFile = new File(dir, `${m.name}.resume`);
 
   const finalize = () => {
-    part.move(target);
+    part.moveSync(target);
     clearResume(stateFile);
     progress.complete(m.name);
     emit();
@@ -445,7 +445,7 @@ async function unpackWeights(src: File, dst: File): Promise<void> {
     writer.close();
   }
   if (dst.exists) dst.delete();
-  part.move(dst);
+  part.moveSync(dst);
 }
 
 async function downloadFp16(preset: string, onProgress: ProgressFn): Promise<DownloadResult> {

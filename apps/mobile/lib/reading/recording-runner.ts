@@ -26,7 +26,7 @@ function instance(): RecordingQueue {
         duration_ms: entry.durationMs,
         transcript: entry.transcript,
         transcript_source: entry.transcriptSource,
-        audio: { uri: entry.uri, name: fileNameFor(entry.contentType), type: entry.contentType },
+        audio: { name: fileNameFor(entry.contentType), type: entry.contentType, bytes: () => new File(entry.uri).bytes() },
       }),
     deleteFile: deleteDeviceFile,
     onUploaded: () => notify(),

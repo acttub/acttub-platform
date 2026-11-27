@@ -1,4 +1,4 @@
-import { StackActions, useNavigation, usePreventRemoveContext, useRoute } from '@react-navigation/native';
+import { StackActions, useNavigation, usePreventRemoveContext, useRoute } from 'expo-router/react-navigation';
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { router, Stack, Tabs } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';

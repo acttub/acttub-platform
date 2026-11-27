@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   dotDone: { backgroundColor: '#FFFFFF' },
-  dotFill: { ...StyleSheet.absoluteFillObject, borderRadius: DOT / 2, backgroundColor: '#FFFFFF' },
+  dotFill: { ...StyleSheet.absoluteFill, borderRadius: DOT / 2, backgroundColor: '#FFFFFF' },
   check: { fontSize: 16, fontWeight: '900', color: palette.text },
   next: {
     fontSize: 16,

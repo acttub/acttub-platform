@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from 'expo-router/react-navigation';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[8] + FLOATING_ADD_HEIGHT, gap: space[2] },
   // 대사가 길면(최대 4줄) 위쪽 영역이 늘어난다 — 높이를 못 박으면 글자가 밖으로 나간다.
   hero: { minHeight: 220, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: palette.blue, justifyContent: 'flex-end', padding: space[4], marginBottom: space[1] },
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: palette.scrim },
   chip: { position: 'absolute', top: space[3], left: space[3], backgroundColor: palette.scrim, borderRadius: radius.full, paddingHorizontal: space[2], paddingVertical: space[1] },
   chipText: { ...type.micro, color: palette.onAccent },
   heroLine: { ...type.title2, color: palette.onAccent },

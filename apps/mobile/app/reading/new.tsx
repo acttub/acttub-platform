@@ -1,5 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useNavigation, usePreventRemove } from '@react-navigation/native';
+import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';

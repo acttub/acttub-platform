@@ -152,7 +152,7 @@ test('onDone 이 새 함수로 바뀌어도 가이드를 다시 띄우지 않고
 });
 
 describe('덮개와 설명 카드 자리', () => {
-  const nativeMethods = jest.requireActual('react-native/jest/MockNativeMethods').default as { measureInWindow: jest.Mock };
+  const nativeMethods = jest.requireActual('@react-native/jest-preset/jest/MockNativeMethods').default as { measureInWindow: jest.Mock };
 
   afterEach(() => nativeMethods.measureInWindow.mockReset());
 

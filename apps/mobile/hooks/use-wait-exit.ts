@@ -1,4 +1,4 @@
-import { useNavigation, usePreventRemove } from '@react-navigation/native';
+import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
 import { useRouter } from 'expo-router';
 
 /** 기다리는 일을 시작한 탭. 대본 일은 리딩 탭, 코칭 일은 코칭 탭이다. */

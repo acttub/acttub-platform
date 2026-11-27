@@ -3,7 +3,7 @@ import { clearReachedEnd, markReachedEnd } from '@/lib/reading/progress-display'
 import Feather from '@expo/vector-icons/Feather';
 import { useNavigation, useRouter } from 'expo-router';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { usePreventRemove } from '@react-navigation/native';
+import { usePreventRemove } from 'expo-router/react-navigation';
 import { AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
