@@ -26,7 +26,7 @@ test("요금 안내는 공용 머리를 쓰고, 로고는 게스트도 소개 �
   render(h(PricingPage));
 
   const header = document.querySelector("header");
-  assert.equal(within(header).getByRole("link", { name: "ACTTUB 홈" }).getAttribute("href"), "/?intro=1");
+  assert.equal(within(header).getByRole("link", { name: "ACTTUB 홈" }).getAttribute("href"), "/");
   assert.equal(within(header).getByRole("link", { name: "요금" }).getAttribute("aria-current"), "page");
 });
 
