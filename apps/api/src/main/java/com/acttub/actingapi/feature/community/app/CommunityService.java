@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.community.app;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.community.domain.CommunityCategory;
@@ -188,6 +189,44 @@ public class CommunityService {
         } catch (CommunityContentNotFound exception) {
             throw new ApiException(404, "user_not_found", exception);
         }
+    }
+
+    /**
+     * 1:1 메시지 대화방 머리에 적을 시작 글(SOMA-1039). 보는 사람에게 지금 보이는 글만 준다 — 지워졌거나 가려졌거나 차단으로
+     * 보이지 않으면 비어 있다. 조회수는 올리지 않는다.
+     */
+    public Optional<PostHeadline> postHeadline(UUID postId, UUID viewerId) {
+        try {
+            CommunityPost post = community.getPost(postId, viewerId);
+            return Optional.of(new PostHeadline(post.id(), post.title()));
+        } catch (CommunityContentNotFound exception) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * 0.1.0 전 게시판 차단({@code community_blocks})이 두 사람 사이에 어느 쪽으로든 있는가. 1:1 메시지는 이 옛 차단도
+     * 사람 차단({@code user_blocks})처럼 막는다(SOMA-1039).
+     */
+    public boolean legacyBlockedEitherWay(UUID first, UUID second) {
+        return community.legacyBlockedEitherWay(first, second);
+    }
+
+    /**
+     * 1:1 메시지 대화를 신고한다(SOMA-1039). 게시판 신고 표에 {@code conversation} 대상으로 남기고 커밋 뒤 팀에 알린다. 참여자인지는
+     * 부르는 쪽(message)이 이미 확인했다. 같은 대화를 다시 신고하면 409 {@code already_reported}.
+     */
+    public void fileConversationReport(UUID reporterId, UUID conversationId, String reason, String detail) {
+        try {
+            community.createConversationReport(reporterId, conversationId, reason, detail);
+        } catch (DuplicateReport exception) {
+            throw new ApiException(409, "already_reported", exception);
+        }
+        reportNotifier.filed(new CommunityReportNotifier.Notice("conversation", conversationId, reason, detail));
+    }
+
+    /** 대화방 머리의 한 줄. */
+    public record PostHeadline(UUID id, String title) {
     }
 
     private CommunityPost getPost(UUID postId, UUID viewerId) {

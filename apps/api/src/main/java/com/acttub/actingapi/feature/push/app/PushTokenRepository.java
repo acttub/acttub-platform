@@ -46,4 +46,10 @@ public interface PushTokenRepository {
     default List<PushTarget> inviteRewardTargets(UUID userId) {
         return scriptSplitTargets(userId);
     }
+
+    /**
+     * 새 1:1 메시지를 알릴 단말(SOMA-1039) — 그 회원의 토큰 전부. 메시지만 따로 끄는 토글은 아직 없어 토글로 거르지 않는다
+     * (토글 셋을 다 끈 회원은 토큰이 없어 받지 않는다).
+     */
+    List<PushTarget> directMessageTargets(UUID userId);
 }

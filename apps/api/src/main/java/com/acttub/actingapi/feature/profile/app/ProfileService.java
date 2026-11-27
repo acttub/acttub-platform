@@ -71,6 +71,12 @@ public class ProfileService implements ProfileGate {
         return view(require(profiles.find(userId)));
     }
 
+    /** {@link #find} 와 같되 계정이 없으면 404 대신 {@code null} 이다. 남의 공개 정보를 읽는 자리(1:1 메시지)가 쓴다. */
+    public AccountView lookup(UUID userId) {
+        Account account = profiles.find(userId);
+        return account == null ? null : view(account);
+    }
+
     @Override
     public boolean completeFor(UUID userId) {
         Account account = profiles.find(userId);

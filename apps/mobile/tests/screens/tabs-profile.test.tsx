@@ -47,6 +47,7 @@ jest.mock('@/lib/api', () => ({
     listReadingSessions: jest.fn(),
     listSavedEntries: jest.fn(),
     getPracticeNote: jest.fn(),
+    unreadMessageCount: jest.fn(),
   },
 }));
 
@@ -106,6 +107,15 @@ beforeEach(() => {
   listSessions.mockResolvedValue({ sessions: [] });
   listSaved.mockResolvedValue({ entries: [] });
   getNote.mockRejectedValue(new Error('no note'));
+  (api.unreadMessageCount as jest.Mock).mockResolvedValue({ unread_count: 0 });
+});
+
+test('「메시지」 줄에 안 읽은 수 배지를 달고, 누르면 메시지 목록으로 간다(SOMA-1039)', async () => {
+  (api.unreadMessageCount as jest.Mock).mockResolvedValue({ unread_count: 4 });
+  await render(<ProfileScreen />);
+  expect(await screen.findByText('4')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByText('메시지'));
+  expect(mockRouter.push).toHaveBeenCalledWith('/messages');
 });
 
 test('서버 프로필의 이름·사진·목표와 경력·소개를 보이고, 이번 달 노트 생긴 코칭 회차·완료한 리딩 회차·올린 참여작 수를 센다', async () => {

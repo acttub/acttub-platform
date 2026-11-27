@@ -10,4 +10,7 @@ public interface UserBlocking {
 
     /** 이미 차단했으면 아무 일도 없다. <b>트랜잭션을 열지 않는다</b> — 부르는 쪽의 것에 참여한다. */
     void block(UUID blockerId, UUID blockedId);
+
+    /** 두 사람 사이에 어느 쪽으로든 차단이 있는가. 1:1 메시지가 보내기 전에 본다(SOMA-1039). */
+    boolean blockedEitherWay(UUID first, UUID second);
 }

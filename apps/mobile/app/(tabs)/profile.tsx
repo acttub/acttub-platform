@@ -10,6 +10,8 @@ import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
 import { InviteCard } from '@/components/invite-card';
 import { pt } from '@/components/ui/anchored-menu';
+import { Badge } from '@/components/ui/badge';
+import { SettingsCard } from '@/components/ui/settings-card';
 import { Button, TextButton } from '@/components/ui/buttons';
 import { DefaultAvatar } from '@/components/ui/default-avatar';
 import { InlineEmpty } from '@/components/ui/inline-empty';
@@ -32,6 +34,7 @@ import { formatKoreanDate } from '@/lib/format';
 import { translate as t, translateList } from '@/lib/i18n';
 import { groupPoster, groupRowTarget, groupTitle, lastNotePracticeId, sceneTitle } from '@/lib/practice/groups';
 import type { PracticeGroupDetail } from '@/lib/practice/types';
+import { unreadBadge } from '@/lib/messages';
 import { getUserName } from '@/lib/profile';
 import { EXPERIENCE_VALUES, GOAL_VALUES } from '@/lib/profile-form';
 import { inMonth, monthPracticeCounts, profileTabCards, type MonthPracticeCounts } from '@/lib/profile-month-stats';
@@ -57,6 +60,7 @@ export default function ProfileScreen() {
   const { confirm, alert, sheet, dialog } = useAppDialog();
   const [name, setName] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('practice');
+  const [unreadMessages, setUnreadMessages] = useState(0);
   // 홈이 앱을 켤 때 받은 묶음·참여작이 있으면 그것으로 카드를 바로 그린다. 들어올 때마다 새로 받아 칸만 바꾼다(lib/last-reads).
   // 참여작은 여기서 끝까지 이어 받으므로, 남은 답이 한 장으로 끝날 때만 쓴다.
   const [groups, setGroups] = useState<PracticeGroupDetail[] | null>(
@@ -79,6 +83,11 @@ export default function ProfileScreen() {
 
   useFocusLoad((alive) => {
     void getUserName().then((n) => alive() && setName(n?.trim() || null));
+    // 「메시지」 줄의 안 읽은 수. 못 받으면 배지를 달지 않는다.
+    void api
+      .unreadMessageCount()
+      .then((r) => alive() && setUnreadMessages(r.unread_count))
+      .catch(() => undefined);
     void (async () => {
       const now = new Date();
       // 받는 대로 바로 그린다 — 전에는 셋(리딩은 대본별 회차까지)을 다 받은 뒤에 한꺼번에 그려 프로필이 늦게 떴다(11/2 폰 QA).
@@ -249,6 +258,19 @@ export default function ProfileScreen() {
           </View>
           <Button size="sm" variant="secondary" label={t('profileTab.edit')} phLabel="profile_edit" onPress={() => router.push('/profile-edit')} />
         </View>
+
+        {/* 1:1 메시지(SOMA-1039) — 줄 하나. 다른 작업이 프로필 순서를 바꿀 예정이라 자리는 임시다. */}
+        <SettingsCard
+          icon="message-circle"
+          title={t('profileTab.messages')}
+          onPress={() => router.push('/messages')}
+          right={
+            <View style={styles.messagesRight}>
+              {unreadBadge(unreadMessages) ? <Badge label={unreadBadge(unreadMessages)!} /> : null}
+              <Feather name="chevron-right" size={18} color={palette.iconFaint} />
+            </View>
+          }
+        />
 
         <AdSlot slot="profile_top" />
 
@@ -506,6 +528,7 @@ const styles = StyleSheet.create({
   chip: { paddingVertical: space[1], paddingHorizontal: space[2], borderRadius: radius.full, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bg },
   chipText: { ...type.micro, color: palette.textSub },
 
+  messagesRight: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   month: { flexDirection: 'row' },
   monthCell: { flex: 1, alignItems: 'center', gap: space[1] },
   monthLabel: { ...type.caption, color: palette.textSub },

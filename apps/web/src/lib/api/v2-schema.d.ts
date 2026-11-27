@@ -1074,6 +1074,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/messages/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Direct Conversations
+         * @description 메시지가 하나라도 있는 내 대화, 마지막 메시지가 최근인 것부터. 깨진 커서 400 invalid_cursor.
+         */
+        get: operations["list_conversations_v2_messages_conversations_get"];
+        put?: never;
+        /**
+         * Start Direct Conversation
+         * @description 게시판 글·댓글의 작성자와 대화를 연다. 방향과 무관하게 두 사람의 대화가 이미 있으면 그 대화를 200 으로 준다(한도를 세지 않는다). 새 대화는 201 이고 하루 20개까지다(429 daily_conversation_limit). 자기 자신 400 cannot_message_self, 없거나 게스트·탈퇴한 상대 404 user_not_found, 보이지 않는 글 404 post_not_found, 어느 쪽이든 차단했으면 403 message_blocked.
+         */
+        post: operations["start_conversation_v2_messages_conversations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/messages/conversations/{conversation_id}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report Direct Conversation
+         * @description 대화(상대)를 신고한다. 게시판 신고와 같은 사유를 받고 운영 채널에 알린다. 같은 대화를 다시 신고하면 409 already_reported. 참여자가 아니면 404 conversation_not_found.
+         */
+        post: operations["report_conversation_v2_messages_conversations__conversation_id__reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/messages/conversations/{conversation_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Direct Conversation Read
+         * @description 지금까지 온 메시지를 읽은 것으로 둔다. 다시 불러도 같다. 참여자가 아니면 404 conversation_not_found.
+         */
+        post: operations["mark_read_v2_messages_conversations__conversation_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/messages/conversations/{conversation_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Direct Messages
+         * @description 대화의 메시지, 최근 것부터. next_cursor 로 더 옛 것을 읽는다. 참여자가 아니면 404 conversation_not_found.
+         */
+        get: operations["list_messages_v2_messages_conversations__conversation_id__messages_get"];
+        put?: never;
+        /**
+         * Send Direct Message
+         * @description 글자만 보낸다(앞뒤 공백을 걷고 1~1000자). 하루 300개(429 daily_message_limit). 같은 request_id·같은 본문은 같은 메시지(200), 다른 본문은 422 request_fingerprint_mismatch. 상대가 탈퇴했으면 403 partner_unavailable, 어느 쪽이든 차단했으면 403 message_blocked. 받는 사람에게 푸시가 간다(같은 대화는 1분에 한 번).
+         */
+        post: operations["send_message_v2_messages_conversations__conversation_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/me/practice-feedback/claim": {
         parameters: {
             query?: never;
@@ -2301,6 +2389,46 @@ export interface paths {
          * @description 한 번도 편집하지 않았어도 빈 모양으로 200 이다. 행은 처음 저장할 때 생긴다. 배열은 저장된 순서다.
          */
         get: operations["get_portfolio_v2_portfolio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/messages/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count Unread Direct Messages
+         * @description 내 모든 대화에서 상대가 보냈고 아직 읽지 않은 메시지 수(프로필 탭의 「메시지」 배지).
+         */
+        get: operations["unread_count_v2_messages_unread_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/messages/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Direct Conversation
+         * @description 대화방 머리(상대, 시작 글, 보낼 수 있는지). 참여자가 아니면 404 conversation_not_found.
+         */
+        get: operations["get_conversation_v2_messages_conversations__conversation_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5003,6 +5131,164 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+        };
+        /** StartDirectConversationRequest */
+        StartDirectConversationRequest: {
+            /**
+             * User Id
+             * Format: uuid
+             * @description 대화 상대(게시판 글·댓글의 작성자)
+             */
+            user_id: string;
+            /** Post Id */
+            post_id?: string | null;
+        };
+        /** DirectConversationPartner */
+        DirectConversationPartner: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @description 공개 이름(게시판과 같다, 없으면 "배우"). 탈퇴했으면 "탈퇴한 사용자"
+             */
+            name: string;
+            /** Photo Url */
+            photo_url: string | null;
+            /** Withdrawn */
+            withdrawn: boolean;
+        };
+        /** DirectConversationOriginPost */
+        DirectConversationOriginPost: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+        };
+        /** DirectConversationPayload */
+        DirectConversationPayload: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            partner: components["schemas"]["DirectConversationPartner"];
+            origin_post: components["schemas"]["DirectConversationOriginPost"] | null;
+            /** Can Send */
+            can_send: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: "partner_unavailable" | "message_blocked" | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Message At */
+            last_message_at: string | null;
+        };
+        /** DirectLastMessage */
+        DirectLastMessage: {
+            /**
+             * Preview
+             * @description 본문 앞 80자
+             */
+            preview: string;
+            /** Mine */
+            mine: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** DirectConversationSummary */
+        DirectConversationSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            partner: components["schemas"]["DirectConversationPartner"];
+            last_message: components["schemas"]["DirectLastMessage"] | null;
+            /**
+             * Unread Count
+             * @description 상대가 보냈고 내가 아직 읽지 않은 수
+             */
+            unread_count: number;
+            /** Last Message At */
+            last_message_at: string | null;
+        };
+        /** DirectConversationListResponse */
+        DirectConversationListResponse: {
+            /** Conversations */
+            conversations: components["schemas"]["DirectConversationSummary"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** SendDirectMessageRequest */
+        SendDirectMessageRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /**
+             * Body
+             * @description 앞뒤 공백을 걷고 1~1000자(코드 포인트). 글자만이다
+             */
+            body: string;
+        };
+        /** DirectMessagePayload */
+        DirectMessagePayload: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Conversation Id
+             * Format: uuid
+             */
+            conversation_id: string;
+            /** Body */
+            body: string;
+            /** Mine */
+            mine: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** DirectMessageListResponse */
+        DirectMessageListResponse: {
+            /**
+             * Messages
+             * @description 최근 것부터
+             */
+            messages: components["schemas"]["DirectMessagePayload"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** DirectConversationReportRequest */
+        DirectConversationReportRequest: {
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "copyright" | "inappropriate" | "spam" | "duplicate" | "other" | "abuse" | "sexual" | "privacy";
+            /** Detail */
+            detail?: string | null;
+        };
+        /** DirectUnreadCountResponse */
+        DirectUnreadCountResponse: {
+            /** Unread Count */
+            unread_count: number;
         };
         /** CoachStartRequest */
         CoachStartRequest: {
@@ -9155,6 +9441,166 @@ export interface operations {
             };
         };
     };
+    list_conversations_v2_messages_conversations_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectConversationListResponse"];
+                };
+            };
+        };
+    };
+    start_conversation_v2_messages_conversations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartDirectConversationRequest"];
+            };
+        };
+        responses: {
+            /** @description Existing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectConversationPayload"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectConversationPayload"];
+                };
+            };
+        };
+    };
+    report_conversation_v2_messages_conversations__conversation_id__reports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DirectConversationReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    mark_read_v2_messages_conversations__conversation_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_messages_v2_messages_conversations__conversation_id__messages_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number | null;
+            };
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectMessageListResponse"];
+                };
+            };
+        };
+    };
+    send_message_v2_messages_conversations__conversation_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendDirectMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectMessagePayload"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectMessagePayload"];
+                };
+            };
+        };
+    };
     claim_practice_feedback_v2_me_practice_feedback_claim_post: {
         parameters: {
             query?: never;
@@ -11286,6 +11732,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Portfolio"];
+                };
+            };
+        };
+    };
+    unread_count_v2_messages_unread_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectUnreadCountResponse"];
+                };
+            };
+        };
+    };
+    get_conversation_v2_messages_conversations__conversation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectConversationPayload"];
                 };
             };
         };

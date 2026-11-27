@@ -375,6 +375,9 @@ class PracticeReminderRepositoryIT {
             @Override public List<com.acttub.actingapi.feature.push.app.PushTarget> pronunciationReportTargets(UUID userId, String minAppVersion) {
                 return List.of();
             }
+            @Override public List<com.acttub.actingapi.feature.push.app.PushTarget> directMessageTargets(UUID userId) {
+                return List.of();
+            }
         };
         Clock at1930 = Clock.fixed(LocalDateTime.parse("2026-10-21T19:30").atZone(PracticeReminderPolicy.SEOUL).toInstant(), ZoneOffset.UTC);
         PracticeReminderService service = new PracticeReminderService(reminders, tokens,

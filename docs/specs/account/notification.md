@@ -24,6 +24,7 @@
 | `PushService#onScriptSplit` (대본 나누기 워커가 대본을 저장한 뒤, SOMA-960) | 회원·대본 | 분석 완료 토글이 켜진 회원의 토큰 전부에 Expo 푸시(data `kind=script_split_complete`, `script_id`) | 분석 완료와 같다 |
 | `PushService#onInviteRewarded` (친구 초대 보상이 지급된 뒤, SOMA-865) | 회원·역할(초대한 사람/받은 사람) | 분석 완료 토글이 켜진 회원의 토큰 전부에 Expo 푸시(data `kind=invite_reward`) | 분석 완료와 같다. 행동은 [account.invite](invite.md) |
 | 챌린지 알림 발송 | 챌린지 사건 | 챌린지 토글이 켜진 회원에게 푸시 | 정본은 challenge.notification |
+| `PushService#onDirectMessage` (1:1 메시지 보내기 뒤, SOMA-1039) | 받는 사람·대화 | 토큰 전부에 Expo 푸시(data `kind=direct_message`, `conversation_id`). 메시지만 끄는 토글은 없다 | 분석 완료와 같다. 정본은 [community.messages](../community/messages.md) |
 | `PracticeReminderScheduler` (10분마다, `PRACTICE_REMINDER_ENABLED=true`일 때만) | 연습 알림 대상 회원(「개인화 연습 알림」) | 대상 회원의 토큰에 Expo 푸시. 한국 날짜마다 연습 권유와 연속 기록 중 하나만(하루 최대 하나, SOMA-987) | 실패는 보고한다(회원 한 명의 실패가 나머지를 막지 않는다). `DeviceNotRegistered` 토큰은 지운다 |
 
 ## 상태

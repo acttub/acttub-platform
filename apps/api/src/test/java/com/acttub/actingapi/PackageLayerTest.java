@@ -81,6 +81,8 @@ class PackageLayerTest {
             Map.entry("challenge", FOUR_LAYERS),
             // 배우 게시판(SOMA-873). 0.1.0 에서 내렸다가 되살렸다.
             Map.entry("community", FOUR_LAYERS),
+            // 배우끼리 1:1 메시지(SOMA-1039). 한도·길이·이름 표시가 domain 에 산다. 표는 JPA 로 읽고 쓴다.
+            Map.entry("message", FOUR_LAYERS),
             // 영상 보관함(SOMA-546). 한도·형식·객체 키가 domain 에 산다.
             Map.entry("video", FOUR_LAYERS),
             // 입시 요강에는 Domain Model 도 Schema Entity 도 없다. 요강은 우리가 쓰는 데이터가

@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent, type StyleProp, type TextStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog, type DialogAction } from '@/components/app-dialog';
@@ -43,6 +43,7 @@ import {
 } from '@/lib/community';
 import { communityPostSeed } from '@/lib/community-post-seed';
 import { translate as t } from '@/lib/i18n';
+import { messageTarget } from '@/lib/messages';
 
 type Target = { type: 'post' | 'comment'; id: string; authorId: string | null };
 
@@ -256,6 +257,16 @@ export default function CommunityPostScreen() {
     void sheet({ anchor: pt(e), actions });
   };
 
+  /**
+   * 작성자 이름을 누르면 1:1 메시지 대화로 간다(SOMA-1039). 내 이름·작성자를 모르는 것은 아무 일도 하지 않는다.
+   * 대화를 여는 요청과 그 실패 안내는 대화 화면이 한다 — 여기서 팝업·시트를 띄우지 않는다.
+   */
+  const openMessage = (item: CommunityPost | CommunityComment, from: 'post' | 'comment') => {
+    const partner = messageTarget(item);
+    if (!post || !partner || !requireLogin()) return;
+    router.push({ pathname: '/messages/[id]', params: { id: 'new', userId: partner, postId: post.id, from } });
+  };
+
   const back = () => router.back();
 
   if (failed === 'member_only' || failed === 'deactivated') {
@@ -322,9 +333,8 @@ export default function CommunityPostScreen() {
           <Text style={styles.title}>{post.title}</Text>
           <View style={styles.author}>
             <DefaultAvatar size={28} radius={14} seed={avatarSeed(post)} />
-            <Text style={styles.authorName} numberOfLines={1}>
-              {displayName(post)}
-            </Text>
+            <AuthorName name={displayName(post)} style={styles.authorName} onPress={messageTarget(post) ? () => openMessage(post, 'post') : undefined} />
+
             <Text style={styles.time}>· {relativeTime(post.created_at)}</Text>
           </View>
           <Text style={styles.content} selectable>
@@ -363,9 +373,11 @@ export default function CommunityPostScreen() {
                 <DefaultAvatar size={28} radius={14} seed={avatarSeed(comment)} />
                 <View style={styles.commentMain}>
                   <View style={styles.commentHead}>
-                    <Text style={styles.commentName} numberOfLines={1}>
-                      {displayName(comment)}
-                    </Text>
+                    <AuthorName
+                      name={displayName(comment)}
+                      style={styles.commentName}
+                      onPress={messageTarget(comment) ? () => openMessage(comment, 'comment') : undefined}
+                    />
                     {isPostAuthor(post, comment) ? <Text style={styles.authorBadge}>{t('communityPost.authorBadge')}</Text> : null}
                     <Text style={styles.time}>{relativeTime(comment.created_at)}</Text>
                     <View style={styles.flex} />
@@ -423,8 +435,33 @@ export default function CommunityPostScreen() {
   );
 }
 
+/** 작성자 이름. 대화를 열 수 있는 남의 이름만 눌린다 — 모양은 그대로 두고 누를 때만 흐려진다. */
+function AuthorName({ name, style, onPress }: { name: string; style: StyleProp<TextStyle>; onPress?: () => void }) {
+  if (!onPress) {
+    return (
+      <Text style={style} numberOfLines={1}>
+        {name}
+      </Text>
+    );
+  }
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={6}
+      style={({ pressed }) => [styles.nameButton, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={t('communityPost.nameA11y', { name })}
+      ph-label="community_author_message">
+      <Text style={style} numberOfLines={1}>
+        {name}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
+  nameButton: { flexShrink: 1 },
   flex: { flex: 1 },
   pressed: { opacity: 0.6 },
   body: { paddingHorizontal: space.gutter, paddingTop: space[3], paddingBottom: space[6], gap: space[2] },

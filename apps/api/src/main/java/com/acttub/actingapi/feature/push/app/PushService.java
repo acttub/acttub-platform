@@ -180,4 +180,30 @@ public class PushService
             failureReporter.report(failure, new FailureContext("PushService.onInviteRewarded"));
         }
     }
+
+    /**
+     * 새 1:1 메시지를 받는 사람의 단말 전부에 보낸다(SOMA-1039). 같은 대화는 1분에 한 번만 오도록 부르는 쪽(message)이 거른다.
+     * 잠금 화면에 보이므로 본문은 싣지 않고 보낸 사람 이름만 적는다. 다른 알림과 같이 어떤 실패도 밖으로 내보내지 않는다.
+     */
+    public void onDirectMessage(UUID recipientId, UUID conversationId, String senderName) {
+        try {
+            List<PushTarget> targets = tokens.directMessageTargets(recipientId);
+            if (targets.isEmpty()) {
+                return;
+            }
+            List<PushMessage> messages = targets.stream()
+                    .map(target -> new PushMessage(
+                            target.token(),
+                            target.korean() ? "새 메시지" : "New message",
+                            target.korean()
+                                    ? senderName + "님이 메시지를 보냈어요."
+                                    : senderName + " sent you a message.",
+                            // 앱이 이 두 키로 알아보고 그 대화를 연다(pushOpenTarget).
+                            Map.of("kind", "direct_message", "conversation_id", conversationId.toString())))
+                    .toList();
+            sender.send(messages).forEach(tokens::unregister);
+        } catch (RuntimeException failure) {
+            failureReporter.report(failure, new FailureContext("PushService.onDirectMessage"));
+        }
+    }
 }

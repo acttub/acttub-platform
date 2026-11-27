@@ -152,6 +152,27 @@ class PushServiceTest {
     }
 
     @Test
+    @DisplayName("새 1:1 메시지 알림은 받는 사람의 단말 전부에 대화 id 를 싣고, 본문은 싣지 않는다(SOMA-1039)")
+    void directMessageSendsTheConversationIdWithoutTheBody() {
+        UUID recipient = UUID.randomUUID();
+        UUID conversation = UUID.randomUUID();
+        tokens.forUser = List.of(new PushTarget("ko-token", "ko"), new PushTarget("en-token", "en"));
+
+        service.onDirectMessage(recipient, conversation, "배우A");
+
+        assertThat(tokens.askedUser).isEqualTo(recipient);
+        assertThat(sender.sent).extracting(PushMessage::title).containsExactly("새 메시지", "New message");
+        assertThat(sender.sent).extracting(PushMessage::body)
+                .containsExactly("배우A님이 메시지를 보냈어요.", "배우A sent you a message.");
+        assertThat(sender.sent).allSatisfy(message -> assertThat(message.data())
+                .isEqualTo(Map.of("kind", "direct_message", "conversation_id", conversation.toString())));
+
+        sender.failure = new IllegalStateException("expo down");
+        assertThatCode(() -> service.onDirectMessage(recipient, conversation, "배우A")).doesNotThrowAnyException();
+        assertThat(failures.contexts()).containsExactly("PushService.onDirectMessage");
+    }
+
+    @Test
     void knownPlatformsAreExactlyIosAndAndroid() {
         // 컨트롤러 검증이 이 집합을 본다 — 넓히면 계약(allowableValues)도 함께 넓혀야 한다.
         assertThat(PushService.PLATFORMS).containsExactlyInAnyOrder("ios", "android");
@@ -218,6 +239,12 @@ class PushServiceTest {
         public List<PushTarget> pronunciationReportTargets(UUID userId, String minAppVersion) {
             askedUser = userId;
             askedMinVersion = minAppVersion;
+            return forUser;
+        }
+
+        @Override
+        public List<PushTarget> directMessageTargets(UUID userId) {
+            askedUser = userId;
             return forUser;
         }
     }

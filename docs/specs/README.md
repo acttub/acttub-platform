@@ -22,7 +22,7 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 | [챌린지](challenge/README.md) | [challenge.create 개설](challenge/create.md)<br>[challenge.browse 둘러보기·랭킹](challenge/browse.md)<br>[challenge.entry 참여](challenge/entry.md)<br>[challenge.react 좋아요·저장·댓글](challenge/react.md)<br>[challenge.block 사용자 차단](challenge/block.md)<br>[challenge.report 신고](challenge/report.md)<br>[challenge.ai-report AI 리포트](challenge/ai-report.md)<br>[challenge.notification 챌린지 알림·알림함](challenge/notification.md) |
 | [앱 공통](app/README.md) | [app.poster 공지 포스터](app/poster.md)<br>[app.audition 오디션 공고 모아보기](app/audition.md)<br>[app.support-inquiry 웹 문의하기](app/support-inquiry.md)<br>[app.ads 광고 칸](app/ads.md)<br>[app.config 앱 설정](app/config.md)<br>[app.blog 웹 블로그](app/blog.md)<br>[app.admin-ops 운영 조회](app/admin-ops.md) |
 | [결제](billing/README.md) | [billing.pg-review PG 심사 전용 테스트 결제](billing/pg-review.md)<br>[billing.subscription 앱 ACTTUB Pro 정기결제](billing/subscription.md) |
-| [커뮤니티](community/README.md) | 영역 README 하나에 규칙을 둔다 |
+| [커뮤니티](community/README.md) | 게시판 규칙은 영역 README 하나에 둔다<br>[community.messages 배우끼리 1:1 메시지](community/messages.md) |
 
 ## 쓰는 법
 

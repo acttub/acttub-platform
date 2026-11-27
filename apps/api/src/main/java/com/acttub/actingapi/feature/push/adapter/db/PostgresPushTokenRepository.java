@@ -160,4 +160,16 @@ class PostgresPushTokenRepository implements PushTokenRepository, PushTokenRevoc
                         row.get("locale", String.class)))
                 .toList();
     }
+
+    @Override
+    public List<PushTarget> directMessageTargets(UUID userId) {
+        return entityManager.createQuery("""
+                        select new com.acttub.actingapi.feature.push.app.PushTarget(push.token, push.locale)
+                        from PushTokenEntity push
+                        where push.userId = :userId
+                        order by push.createdAt
+                        """, PushTarget.class)
+                .setParameter("userId", userId)
+                .getResultList();
+    }
 }

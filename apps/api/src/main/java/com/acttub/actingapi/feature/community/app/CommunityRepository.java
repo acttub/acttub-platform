@@ -114,6 +114,17 @@ public interface CommunityRepository {
      */
     void blockUser(UUID blockerId, UUID blockedId);
 
+    /** 0.1.0 전 게시판 차단이 두 사람 사이에 어느 쪽으로든 있는가. */
+    boolean legacyBlockedEitherWay(UUID first, UUID second);
+
+    /**
+     * 1:1 메시지 대화의 신고를 남긴다(대상 {@code conversation}). 대화는 게시판 표가 아니라 있는지·참여자인지는 부르는 쪽이 봤다.
+     * 신고가 셋 모여도 가리지 않는다 — 두 사람만 보는 대화라 신고할 수 있는 사람이 하나다.
+     *
+     * @throws DuplicateReport 같은 대화를 이미 신고했을 때
+     */
+    void createConversationReport(UUID reporterId, UUID conversationId, String reason, String detail);
+
     /** 고친 글과, 뗀 사진의 객체 삭제를 올린 장부 id. */
     record PostWrite(CommunityPost post, List<UUID> cleanupOperationIds) {
     }
