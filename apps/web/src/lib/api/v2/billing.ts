@@ -39,6 +39,8 @@ export async function fetchBillingMe(options: { signal?: AbortSignal } = {}): Pr
 /**
  * 일회용 카드 등록 창 주소를 받는다. 게스트는 403 billing_member_required 다. plan 을 주지 않으면 본문은 지금처럼
  * {purpose} 뿐이고 서버가 월 구독으로 연다. 서버 연 구독 스위치가 꺼져 있으면 yearly 는 422 plan_unavailable 이다.
+ * 새 판 문서를 결정하지 않은 회원은 403 consent_required 라서 시트를 띄우고, 결정하면 같은 요청을 다시 보낸다.
+ * 창 주소를 받을 뿐 결제는 아직 일어나지 않으므로 다시 보내도 해롭지 않다.
  */
 export async function startBillingCheckout(
   options: { signal?: AbortSignal; plan?: BillingPlan } = {},
@@ -48,20 +50,21 @@ export async function startBillingCheckout(
     body: options.plan ? { purpose: "subscribe", plan: options.plan } : { purpose: "subscribe" },
     auth: true,
     startGuest: false,
-    consentPrompt: false,
     signal: options.signal,
   });
   return data;
 }
 
-/** 다음 자동결제를 멈춘다. 이번 결제기간이 끝날 때까지 Pro 는 그대로다. 해지된 구독을 다시 불러도 같은 상태가 온다. */
+/**
+ * 다음 자동결제를 멈춘다. 이번 결제기간이 끝날 때까지 Pro 는 그대로다. 해지된 구독을 다시 불러도 같은 상태가 온다.
+ * 그래서 새 판 문서 결정(403 consent_required) 뒤에 같은 요청을 다시 보내도 해롭지 않다.
+ */
 export async function cancelBillingSubscription(options: { signal?: AbortSignal } = {}): Promise<BillingMe> {
   const { data } = await apiFetch<BillingMe>("/v2/billing/subscription/cancel", {
     method: "POST",
     body: {},
     auth: true,
     startGuest: false,
-    consentPrompt: false,
     signal: options.signal,
   });
   return data;

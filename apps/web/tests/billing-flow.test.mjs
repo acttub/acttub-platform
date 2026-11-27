@@ -16,6 +16,9 @@ test("웹 결제 시작 오류를 사용자에게 보일 상태로 가른다", (
   assert.equal(startOutcomeOf({ status: 409, code: "already_subscribed" }).kind, "already_subscribed");
   assert.equal(startOutcomeOf({ status: 409, code: "payment_pending" }).kind, "payment_pending");
   assert.equal(startOutcomeOf(new Error("boom")).kind, "error");
+  // 새 판 문서를 결정하지 않은 회원이 동의 시트를 닫았다. 일반 오류("잠시 뒤 다시")와 가른다.
+  assert.equal(startOutcomeOf({ status: 403, code: "consent_required" }).kind, "consent_required");
+  assert.match(startMessage({ kind: "consent_required" }), /새 약관 동의가 필요해요/);
   assert.match(startMessage({ kind: "unavailable" }), /준비/);
   assert.equal(startMessage({ kind: "redirect", url: "https://x" }), null);
 });
