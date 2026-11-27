@@ -40,7 +40,9 @@ import org.springframework.boot.persistence.autoconfigure.EntityScan;
     "com.acttub.actingapi.feature.billing.schema",
     "com.acttub.actingapi.feature.poster.schema",
     "com.acttub.actingapi.feature.reading.schema",
-    "com.acttub.actingapi.feature.challenge.schema"
+    "com.acttub.actingapi.feature.challenge.schema",
+    "com.acttub.actingapi.feature.ads.schema",
+    "com.acttub.actingapi.feature.feedback.schema"
 })
 public class ActingApiApplication {
 

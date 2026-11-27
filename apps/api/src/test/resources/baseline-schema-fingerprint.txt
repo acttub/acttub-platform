@@ -945,7 +945,7 @@ CONSTRAINT actor_journals actor_journals_practice_id_not_null NOT NULL practice_
 CONSTRAINT actor_journals actor_journals_updated_at_not_null NOT NULL updated_at
 CONSTRAINT actor_journals actor_journals_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT actor_journals actor_journals_user_id_not_null NOT NULL user_id
-CONSTRAINT actor_journals ck_actor_journals_draft_status CHECK ((draft_status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text, 'skipped'::text])))
+CONSTRAINT actor_journals ck_actor_journals_draft_status CHECK ((draft_status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text])))
 CONSTRAINT actor_journals uq_actor_journals_practice UNIQUE (practice_id)
 CONSTRAINT actor_memories actor_memories_created_at_not_null NOT NULL created_at
 CONSTRAINT actor_memories actor_memories_field_not_null NOT NULL field

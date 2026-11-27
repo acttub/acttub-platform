@@ -47,7 +47,7 @@ class AdEndpointIT {
                     """, UUID.randomUUID(), type, type, type, !"retention".equals(type),
                     OffsetDateTime.of(2026, 9, 1, 0, 0, 0, 0, ZoneOffset.UTC));
         }
-        // 빈도 상한(V78)에 걸리지 않게 넉넉히 둔다 — 이 테스트는 고르는 순서를 본다. 상한은 AdFrequencyIT·AdServiceTest 가 본다.
+        // 빈도 상한(V78)에 걸리지 않게 넉넉히 둔다 — 이 테스트는 고르는 순서를 본다. 상한의 문장은 AdStoreIT, 판정은 AdServiceTest 가 본다.
         jdbc.update("UPDATE ad_settings SET window_minutes=10,window_cap=100,first_day_cap=100");
         user = UUID.randomUUID();
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", user);
