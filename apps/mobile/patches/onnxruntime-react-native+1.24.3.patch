@@ -1,27 +1,29 @@
 diff --git a/node_modules/onnxruntime-react-native/ios/OnnxruntimeModule.mm b/node_modules/onnxruntime-react-native/ios/OnnxruntimeModule.mm
-index 8155f92..b78f295 100644
+index 8155f92..8007c07 100644
 --- a/node_modules/onnxruntime-react-native/ios/OnnxruntimeModule.mm
 +++ b/node_modules/onnxruntime-react-native/ios/OnnxruntimeModule.mm
-@@ -10,6 +10,12 @@
+@@ -9,6 +9,14 @@
+ #import <React/RCTUtils.h>
  #import <ReactCommon/RCTTurboModule.h>
  #import <jsi/jsi.h>
- 
++#import <objc/runtime.h>
++
 +// acttub SOMA-1177: RN 0.88 에서 RCTCxxBridge 선언이 빠졌다. New Architecture 에서 이 모듈이 받는 _bridge(RCTBridgeProxy)는
-+// 같은 -runtime 메서드를 그대로 가지므로 선언만 프로토콜로 둔다.
++// 같은 -runtime 메서드를 그대로 가지므로 선언만 프로토콜로 둔다. RCTBridgeProxy 는 NSProxy 라 respondsToSelector: 가
++// 전달(forwardInvocation)로 가서 NO 가 나오므로 클래스의 메서드 표를 직접 본다.
 +@protocol OnnxruntimeJSIRuntimeProvider
 +- (void *)runtime;
 +@end
-+
+ 
  @implementation OnnxruntimeModule
  
- @synthesize bridge = _bridge;
-@@ -27,12 +33,11 @@ - (void)setBridge:(RCTBridge*)bridge {
+@@ -27,12 +35,11 @@ - (void)setBridge:(RCTBridge*)bridge {
   */
  RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(install) {
    @try {
 -    RCTCxxBridge* cxxBridge = (RCTCxxBridge*)_bridge;
 -    if (cxxBridge == nil) {
-+    if (_bridge == nil || ![_bridge respondsToSelector:@selector(runtime)]) {
++    if (_bridge == nil || !class_respondsToSelector(object_getClass(_bridge), @selector(runtime))) {
        return @false;
      }
  
