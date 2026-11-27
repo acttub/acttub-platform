@@ -27,7 +27,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -93,9 +92,6 @@ class CoachReadsProfileIT {
     /** 엔진이 삼키고 보고만 하는 실패를 붙잡아 둔다 — 502 의 까닭이 단언 메시지에 실린다. */
     @Autowired
     RecordingFailureReporter failures;
-
-    @Autowired
-    com.acttub.actingapi.platform.migration.PracticeDataMigration migration;
 
     @Autowired
     com.acttub.actingapi.feature.coach.app.NoteWriter notes;
@@ -366,18 +362,6 @@ class CoachReadsProfileIT {
         assertThat(analysis.path("summary").has("source_catalog")).isFalse();
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"{}", "null", "[]", "{\"observations\":null}", "{\"legacy\":true}"})
-    void practiceAnalysis_legacySplitObservationsRemainReadable(String raw) throws Exception {
-        UUID practice = fixtures.insertPractice(user).id();
-        fixtures.insertSummary(practice);
-        jdbc.update("UPDATE summaries SET raw=CAST(? AS jsonb) WHERE session_id=?", raw, practice);
-        JsonNode analysis = successful(get("/v2/practices/{id}/analysis", practice).header("Authorization", bearer()));
-        assertThat(LenientJson.asText(analysis.path("format"))).isEqualTo("legacy");
-        assertThat(LenientJson.asText(analysis.at("/summary/observations/0/label"))).isEqualTo("멈춘 뒤 말한다");
-        assertThat(analysis.at("/summary/uncertainties").toString()).contains("얼굴은 확인되지 않음");
-    }
-
     @Test
     @DisplayName("practice.resume: 같은 묶음의 이전 대화·노트만 참고하고 제안을 실행 약속으로 바꾸지 않는다")
     void practiceResume_onlyEarlierRoundsOfTheSameGroupReachTheModel() throws Exception {
@@ -426,7 +410,7 @@ class CoachReadsProfileIT {
     }
 
     @Test
-    @DisplayName("practice.resume: 복수 대화 전환 후 옛 표에 남은 노트도 다음 회차의 참고 맥락에 남는다")
+    @DisplayName("practice.resume: 대화가 여럿이던 옛 연습에서 옛 표에 남은 노트도 다음 회차의 참고 맥락에 남는다")
     void practiceResume_keepsAnOlderNoteWhenTheLatestMigratedConversationHasNone() throws Exception {
         UUID previous = fixtures.insertPractice(user).id();
         UUID summary = fixtures.insertSummary(previous);
@@ -439,7 +423,8 @@ class CoachReadsProfileIT {
                 VALUES (?,?,'analysis',CAST(? AS jsonb),?)
                 """, UUID.randomUUID(), previous, REPORT_BODY, handoff);
         fixtures.insertCoachSession(UUID.randomUUID(), previous, summary, "closed", stamp.plusMinutes(1), List.of());
-        migration.run(50);
+        com.acttub.actingapi.support.MovedLegacyPractice.move(jdbc, previous);
+        com.acttub.actingapi.support.MovedLegacyPractice.moveLatestConversation(jdbc, previous);
         JsonNode visibleNote = successful(get("/v2/practices/{id}/note", previous).header("Authorization", bearer()));
         assertThat(LenientJson.asText(visibleNote.at("/report/title"))).isEqualTo("생성된 리포트");
         UUID current = analyzedPractice();

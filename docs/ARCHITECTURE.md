@@ -51,7 +51,7 @@ ArchUnit 테스트 `PackageLayerTest`가 강제한다. 이렇게 정한 이유�
   두 도메인이 서로를 소비하면 양쪽 다 Port를 선언할 수 없어 한 방향으로 상대 `app`을 직접 보고, 상대가 알아야
   하는 타입(교환 record·공개 스키마)을 `app`에 둔다. 이 간선의 폭이 늘면 두 도메인을 합쳐야 한다는 신호다.
 - `platform`(배관)과 `integration`(외부 연동)은 어느 도메인이든 쓸 수 있고, 배관이 도메인의 Port를 구현하기도 한다.
-- Port 구현은 제공하는 쪽에 두고 구현 기술을 이름 앞에 단다(`PostgresPracticeSessionRepository`). `Impl` 접미사는
+- Port 구현은 제공하는 쪽에 두고 구현 기술을 이름 앞에 단다(`PostgresPracticeRepository`). `Impl` 접미사는
   쓰지 않는다. Port 시그니처에 제공자 패키지의 타입이 보이면 아직 안 끊긴 것이다.
 - Port 하나는 한 쪽만 구현한다. Port 안의 질문들이 서로 다른 도메인의 데이터를 물으면 답하는 쪽의 소유를 따라 Port를 나눈다
   (예: 사용자 조회와 동의 여부를 가른 `PendingConsentGate`).
@@ -100,7 +100,7 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 | `feature/portfolio` | `portfolios`, `portfolio_credits`, `portfolio_photos` |
 | `feature/push` | `push_tokens`, `push_opens`, `practice_reminder_sends` |
 | `feature/video` | `videos`, `video_transcripts`, `upload_intents` |
-| `feature/practice` | `practices`, `practice_sessions`, `coach_sessions`, `coach_turns`, `coaching_handoffs`, `practice_reports`, `practice_deletion_marks`, `deleted_practice_videos` |
+| `feature/practice` | `practices`, `practice_sessions`, `coach_sessions`, `coach_turns`, `coaching_handoffs`, `practice_reports`, `practice_deletion_marks`, `deleted_practice_videos`, `practice_migration_entries` |
 | `feature/analysis` | `analyses`, `summaries`, `transcripts`, `anomalies` |
 | `feature/coach` | `coach_conversations`, `coach_messages`, `coach_notes`, `note_ratings`, `actor_journals` |
 | `feature/memory` | `actor_memories`, `actor_memory_entries` |
@@ -115,7 +115,6 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 | `feature/blog` | `blog_posts` |
 | `feature/support` | `support_inquiries` |
 | `platform/operation` | `ai_jobs`, `external_operations` |
-| `platform/migration` | `practice_migration_entries` |
 
 ### 연습 화면의 전환
 

@@ -43,6 +43,19 @@ class PracticeLoopRoundTest {
         assertThat(PracticeLoopRound.classifiedActorWords(null, List.of(new Turn("actor", "그냥 말")))).containsExactly("그냥 말");
     }
 
+    @Test void everyKindTheRouterWritesIsCarriedIncludingAMissedQuestion() {
+        // 「질문 오해」는 10-09 라우터에 생겼고 이 목록(10-05)에 빠져 있었다 — 오해한 답이 평범한 답처럼 기억 갱신에 갔다.
+        ObjectNode missed = state("버릇: 말끝", "", "배우의 말: 질문 오해");
+        assertThat(PracticeLoopRound.classifiedActorWords(missed, List.of(
+                new Turn("ai", "그 장면에서 무엇을 원했어요?"), new Turn("actor", "대사를 외우고 있었어요"))))
+                .containsExactly("(질문 오해) 대사를 외우고 있었어요");
+        for (PracticeLoopRouter.Kind kind : PracticeLoopRouter.Kind.values()) {
+            ObjectNode one = state("버릇: 말끝", "", "배우의 말: " + kind.label);
+            assertThat(PracticeLoopRound.classifiedActorWords(one, List.of(new Turn("ai", "질문"), new Turn("actor", "말"))))
+                    .as(kind.name()).containsExactly("(" + kind.label + ") 말");
+        }
+    }
+
     @Test void heardLinesAreCleanedAndCapped() {
         StringBuilder many = new StringBuilder();
         for (int i = 0; i < 40; i++) many.append(i + 1).append(". 대사 ").append(i).append('\n');

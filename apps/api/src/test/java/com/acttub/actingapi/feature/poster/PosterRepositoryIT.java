@@ -1,7 +1,6 @@
 package com.acttub.actingapi.feature.poster;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -39,7 +38,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -346,8 +344,8 @@ class PosterRepositoryIT {
     }
 
     @Test
-    @DisplayName("두 포스터를 함께 같은 (slug, 언어) 로 바꾸면 둘 다 NOT EXISTS 를 지나고, 뒤의 것은 유니크 인덱스에서 앞의 커밋을 기다렸다가 유니크 위반으로 500 을 받는다")
-    void twoUpdatesToTheSameSlugAndLocaleTheLaterGets500() throws Exception {
+    @DisplayName("두 포스터를 함께 같은 (slug, 언어) 로 바꾸면 둘 다 NOT EXISTS 를 지나고, 뒤의 것은 유니크 인덱스에서 앞의 커밋을 기다렸다가 422 duplicate_poster 를 받는다")
+    void twoUpdatesToTheSameSlugAndLocaleTheLaterGets422() throws Exception {
         row(id(1), "one", "ko", true, 0, null, null, "{ios}", now, now);
         row(id(2), "two", "ko", true, 0, null, null, "{ios}", now, now);
         Race<Optional<Poster>> first = new Race<>(() -> posters.update(id(1), draft("taken", "ko"), false, now));
@@ -359,9 +357,9 @@ class PosterRepositoryIT {
 
             assertThat(first.result()).map(poster -> poster.draft().slug()).contains("taken");
             MockHttpServletResponse response = second.get(20, TimeUnit.SECONDS);
-            assertThat(response.getStatus()).isEqualTo(500);
+            assertThat(response.getStatus()).isEqualTo(422);
             assertThat(mapper.readTree(response.getContentAsString()).path("detail").stringValue(null))
-                    .isEqualTo("internal_server_error");
+                    .isEqualTo("duplicate_poster");
         } finally {
             first.pool.shutdownNow();
         }
@@ -370,7 +368,7 @@ class PosterRepositoryIT {
     }
 
     @Test
-    @DisplayName("두 포트 호출이 함께 언어 없는 같은 slug 로 바꾸면 뒤의 것은 uq_app_posters_slug_locale 위반을 DataIntegrityViolationException 으로 받는다. 앞의 것이 되돌리면 뒤의 것이 바꾼다")
+    @DisplayName("두 포트 호출이 함께 언어 없는 같은 slug 로 바꾸면 뒤의 것은 uq_app_posters_slug_locale 위반을 받아 비어 있다. 앞의 것이 되돌리면 뒤의 것이 바꾼다")
     void twoUpdatesToTheSameSlugAndNoLocaleAtThePort() throws Exception {
         row(id(1), "one", null, true, 0, null, null, "{ios}", now, now);
         row(id(2), "two", null, true, 0, null, null, "{ios}", now, now);
@@ -382,10 +380,7 @@ class PosterRepositoryIT {
             awaitStatementWaitingOn("app_posters");
             committed.commit();
 
-            Throwable thrown = catchThrowable(() -> later.get(20, TimeUnit.SECONDS)).getCause();
-            assertThat(thrown).isExactlyInstanceOf(DataIntegrityViolationException.class);
-            assertThat(sqlState(thrown)).isEqualTo("23505");
-            assertThat(thrown).hasMessageContaining("uq_app_posters_slug_locale");
+            assertThat(later.get(20, TimeUnit.SECONDS)).isEmpty();
         } finally {
             committed.pool.shutdownNow();
         }
@@ -580,15 +575,6 @@ class PosterRepositoryIT {
             statement.setObject(1, id);
             statement.execute();
         }
-    }
-
-    private static String sqlState(Throwable thrown) {
-        for (Throwable cause = thrown; cause != null; cause = cause.getCause()) {
-            if (cause instanceof SQLException sql) {
-                return sql.getSQLState();
-            }
-        }
-        return null;
     }
 
     private static void await(CountDownLatch latch) {

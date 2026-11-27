@@ -28,7 +28,7 @@ class FreeCoachingLimitTest {
     final UUID user = UUID.randomUUID();
 
     PracticeService service(CoachingPlan plan) {
-        return new PracticeService(practices, mock(LegacyPracticeReader.class), mock(PracticePosters.class), false, true,
+        return new PracticeService(practices, mock(PreviousConversations.class), mock(PracticePosters.class), false, true,
                 plan, clock);
     }
 
