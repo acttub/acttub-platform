@@ -94,7 +94,7 @@ practice_feedback: 1행 → 1행
 practice_reminder_sends: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
-  - <본인>, 2026-11-19, 'practice'
+  - <본인>, 1998-11-19, 'practice'
 practice_reports: 1행 → 1행
 practice_sessions: 1행 → 1행
   user_id=남: 1 → 1
@@ -120,7 +120,7 @@ reading_sessions: 1행 → 1행
 reading_voice_usage: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
-  - <본인>, 2026-11-19
+  - <본인>, 1998-11-19
 refresh_tokens: 4행 → 2행
   user_id=본인: 2 → 0
   user_id=남: 2 → 2
@@ -148,7 +148,7 @@ upload_intents: 2행 → 2행
 user_active_days: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
-  - <본인>, 2026-11-19
+  - <본인>, 1998-11-19
 user_airbridge_device_lookups: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
