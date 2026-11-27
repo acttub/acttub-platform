@@ -1,7 +1,7 @@
 /**
  * 뼈대 화면이 어느 모양을 그릴지 정하는 기억(로딩 중 화면이 실제 화면과 다르게 보이던 문제).
  *
- * 홈·리딩·코칭은 서버 답을 받기 전에는 첫 사용자 화면인지, 기존 사용자 화면인지 모른다.
+ * 리딩·코칭은 서버 답을 받기 전에는(홈 탭은 SOMA-1120에서 없앴다) 첫 사용자 화면인지, 기존 사용자 화면인지 모른다.
  * 그래서 지난번에 실제로 그린 모양을 기기에 적어 두고, 다음에 화면을 열 때 그 모양의 뼈대를 먼저 보인다.
  * 적어 둔 것이 없으면(새로 깔았거나 로그아웃한 뒤) 첫 사용자 모양으로 본다.
  *
@@ -12,12 +12,6 @@ import { useSyncExternalStore } from 'react';
 export const SKELETON_HINT_KEY = 'acttub.skeletonHints';
 
 export type SkeletonHints = {
-  /** 홈: 첫 사용자 「뭐부터 해 볼까요?」 / 기존 사용자 홈. */
-  home?: 'first' | 'returning';
-  /** 기존 사용자 홈 오늘 카드의 실제 높이(dp). 카드 종류마다 줄 수가 달라 지난번 높이를 따른다. */
-  homeCardHeight?: number;
-  /** 기존 사용자 홈 맨 위 광고 칸이 지난번에 보였는가. 뼈대와 받기 전 자리를 같게 해, 광고 칸이 늦게 생기며 카드를 밀지 않게 한다(11/3 폰 QA). */
-  homeAd?: boolean;
   /** 리딩 탭: 대본 없음(입구 카드) / 대본 목록. */
   reading?: 'empty' | 'list';
   /** 리딩 탭 대본 목록 줄 수(뼈대 줄 수를 맞춘다, 최대 6). */
@@ -60,9 +54,6 @@ function parse(raw: string | null): SkeletonHints {
     if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
     const v = value as Record<string, unknown>;
     const out: SkeletonHints = {};
-    if (v.home === 'first' || v.home === 'returning') out.home = v.home;
-    if (typeof v.homeCardHeight === 'number' && Number.isFinite(v.homeCardHeight)) out.homeCardHeight = Math.max(80, Math.min(320, Math.round(v.homeCardHeight)));
-    if (typeof v.homeAd === 'boolean') out.homeAd = v.homeAd;
     if (v.reading === 'empty' || v.reading === 'list') out.reading = v.reading;
     if (typeof v.readingRows === 'number' && Number.isFinite(v.readingRows)) out.readingRows = Math.max(1, Math.min(6, Math.round(v.readingRows)));
     if (v.coaching === 'first' || v.coaching === 'next') out.coaching = v.coaching;

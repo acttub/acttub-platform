@@ -4,14 +4,15 @@ import { isFirstUser } from '../home-today.ts';
  * 첫 사용자인가 — 홈 「뭐부터 해 볼까요?」(bHxn1I)와 같은 기준(lib/home-today isFirstUser): 연습 1회를 아직 끝내지 않은 사람.
  * 시작만 하고 나간 것(노트 전 코칭·넣기만 한 대본)은 세지 않는다(SOMA-827, 옛 기준은 SOMA-781 「무엇이든 시작」).
  *
- * 홈이 연습 기록(서버 ∪ 기기에 쌓인 날)을 받을 때마다 여기에 적고, 탭 레이아웃·탭 화면이 읽는다 — 판단은 이 한 곳이다.
- * 첫 사용자로 확인되면 모든 탭에서 탭바를 숨기고(대본·챌린지·프로필 탭은 머리에 홈으로 가는 꺾쇠를 단다), 첫 연습을 하면 다시 보인다.
+ * 탭 레이아웃의 연습 기록 공급자(hooks/use-practice-records)가 기록(서버 ∪ 기기에 쌓인 날)을 받을 때마다 여기에 적고, 탭 화면이 읽는다 —
+ * 판단은 이 한 곳이다. 첫 사용자로 확인되면 「뭐부터 해 볼까요?」 화면이 탭 위에 한 번 뜬다(components/tab-launch-overlays, SOMA-1120).
+ * 예전처럼 탭바를 숨기지는 않는다 — 홈이 없어져 숨기면 다른 탭으로 갈 길이 없다.
  *
- * - `unknown`: 홈이 아직 기록을 못 받았다(홈을 거치지 않고 다른 탭으로 바로 들어온 경우 포함). 탭바를 보인다 — 숨길 근거가 없다.
- * - `first`: 아무것도 시작하지 않았다. 탭바를 숨긴다(코칭·대본 첫 화면에는 설정 버튼을 둔다 — 로그아웃·탈퇴 길).
- * - `practiced`: 무엇이든 시작했다. 탭바를 보인다.
+ * - `unknown`: 아직 기록을 못 받았다.
+ * - `first`: 연습 1회를 아직 끝내지 않았다.
+ * - `practiced`: 연습 1회를 끝냈다.
  *
- * 홈을 떠나도 지우지 않는다 — 사람에 대한 사실이라 다른 탭에서도 같아야 한다. 홈에 다시 오면 새로 받은 기록으로 고친다.
+ * 탭을 옮겨도 지우지 않는다 — 사람에 대한 사실이라 어느 탭에서도 같아야 한다. 탭 묶음에 다시 오면 새로 받은 기록으로 고친다.
  */
 export type FirstTimeState = 'unknown' | 'first' | 'practiced';
 
@@ -59,24 +60,6 @@ export function setFirstTimeState(next: FirstTimeState): void {
   if (state === next) return;
   state = next;
   listeners.forEach((listener) => listener());
-}
-
-/**
- * 홈이 첫 사용자 모양 뼈대를 그리는 동안(지난번이 첫 사용자 홈이었을 때) 탭바도 미리 숨긴다.
- * 뼈대와 실제 첫 사용자 홈의 아래쪽이 같게 하려는 것이다. 홈만 켜고 끄며, 홈을 받거나 떠나면 끈다.
- * 판단(getFirstTimeState)에는 섞지 않는다 — 탭바 모양에만 쓴다.
- */
-let provisionalFirst = false;
-
-export function setFirstTimeProvisional(next: boolean): void {
-  if (provisionalFirst === next) return;
-  provisionalFirst = next;
-  listeners.forEach((listener) => listener());
-}
-
-/** 탭바를 숨기는가 — 첫 사용자로 확인됐거나, 아직 모르는데 홈이 첫 사용자 뼈대를 그리는 중이다. */
-export function getFirstTimeTabBarHidden(): boolean {
-  return state === 'first' || (state === 'unknown' && provisionalFirst);
 }
 
 export function subscribeFirstTimeState(listener: () => void): () => void {

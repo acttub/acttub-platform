@@ -41,6 +41,9 @@ jest.mock('@/lib/guide-state', () => ({
   markTutorialSeen: jest.fn(async () => undefined),
 }));
 jest.mock('@/hooks/use-cloud-voice', () => ({ useCloudVoice: jest.fn() }));
+// 머리 알림 종(SOMA-1120)이 읽는 안 읽은 알림 수.
+const mockUnread = { count: 0, badge: null };
+jest.mock('@/hooks/use-unread-notifications', () => ({ useUnreadNotifications: () => mockUnread }));
 
 const voice = {
   status: null as null | { available: boolean; consent: string; free_until: string | null },
@@ -441,21 +444,23 @@ describe('처음 온 사람', () => {
   });
 });
 
-describe('첫 사용자라 탭바가 숨으면', () => {
+describe('머리', () => {
   afterEach(() => setFirstTimeState('unknown'));
 
-  test('머리에 홈으로 돌아가는 꺾쇠를 둔다', async () => {
-    setFirstTimeState('first');
+  test('오른쪽에 알림 종을 두고, 안 읽은 알림이 있으면 점을 단다 — 누르면 알림함(SOMA-1120, 예전 홈 종)', async () => {
+    mockUnread.count = 3;
     await render(<ReadingList />);
     await screen.findByText('옥상 장면');
 
-    const back = screen.getByRole('button', { name: '뒤로' });
-    expect(back.props['ph-label']).toBe('reading_back_home');
-    await fireEvent.press(back);
-    expect(mockRouter.navigate).toHaveBeenCalledWith('/');
+    const bell = screen.getByRole('button', { name: '알림함, 안 읽은 알림 있음' });
+    expect(bell.props['ph-label']).toBe('reading_bell');
+    expect(screen.getByTestId('bell-unread-dot')).toBeOnTheScreen();
+    await fireEvent.press(bell);
+    expect(mockRouter.push).toHaveBeenCalledWith('/notifications');
+    mockUnread.count = 0;
   });
 
-  test('머리 오른쪽에 설정 버튼을 둔다 — 탭바가 없어도 로그아웃·탈퇴로 갈 수 있다', async () => {
+  test('첫 사용자에게는 설정 버튼을 두고, 홈으로 가는 꺾쇠는 두지 않는다 — 탭바가 늘 보인다(SOMA-1120)', async () => {
     setFirstTimeState('first');
     await render(<ReadingList />);
     await screen.findByText('옥상 장면');
@@ -464,9 +469,10 @@ describe('첫 사용자라 탭바가 숨으면', () => {
     expect(gear.props['ph-label']).toBe('reading_first_settings');
     await fireEvent.press(gear);
     expect(mockRouter.push).toHaveBeenCalledWith('/settings');
+    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
   });
 
-  test('탭바가 보이면(연습했거나 아직 모르면) 꺾쇠를 두지 않는다', async () => {
+  test('첫 사용자가 아니면 꺾쇠도 설정도 두지 않는다', async () => {
     setFirstTimeState('practiced');
     await render(<ReadingList />);
     await screen.findByText('옥상 장면');

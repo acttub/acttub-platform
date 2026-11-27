@@ -26,7 +26,8 @@ import { skipsReadingTabGuide } from '@/lib/returning-account';
 import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
-import { NavBackButton, NavHeader, NavIconButton } from '@/components/ui/nav-header';
+import { NotificationBell } from '@/components/notification-bell';
+import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { CHIP_TONE, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
@@ -312,19 +313,18 @@ export default function ReadingList() {
           style={{ top: insets.top - iosTopInset, bottom: undefined, height: ENTRY_FADE_END - insets.top }}
         />
       )}
-      {/* NavHeader/Large — 대본이 없으면 「대본」, 있으면 「내 대본」. 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로
-          돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
+      {/* NavHeader/Large — 대본이 없으면 「대본」, 있으면 「내 대본」. 오른쪽은 알림 종(예전 홈 종, SOMA-1120). */}
       <View style={styles.headWrap}>
         <NavHeader
           large
           title={showEntry || entrySkeleton ? '' : t('reading.listTitle')}
-          left={firstTime ? <NavBackButton onPress={() => router.navigate('/')} phLabel="reading_back_home" /> : undefined}
           right={
             <View style={styles.headRight}>
-              {/* 탭바가 숨어 프로필 탭의 설정으로 못 가므로 로그아웃·탈퇴 길을 남긴다(SOMA-781). */}
+              {/* 첫 사용자에게는 설정(로그아웃·탈퇴) 길을 머리에도 둔다(SOMA-781). */}
               {firstTime && (
                 <NavIconButton icon="settings" size={24} label={t('settings.title')} phLabel="reading_first_settings" onPress={() => router.push('/settings')} />
               )}
+              <NotificationBell phLabel="reading_bell" />
             </View>
           }
         />

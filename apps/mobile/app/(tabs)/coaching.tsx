@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { HomeUploadCard } from '@/components/home-upload-card';
 import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skeleton';
 import { PrimaryButton } from '@/components/ui/buttons';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
@@ -16,6 +17,7 @@ import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { useFocusLoad } from '@/hooks/use-focus-load';
+import { useWaitingUpload } from '@/hooks/use-waiting-upload';
 import { api } from '@/lib/api';
 import { dateLocale, translate as t } from '@/lib/i18n';
 import { coachingEntry, type CoachingEntry } from '@/lib/practice/coaching-entry';
@@ -50,6 +52,7 @@ export default function CoachingTab() {
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
+  const waitingUpload = useWaitingUpload();
   // 홈이 앱을 켤 때 받은 묶음이 있으면 그것으로 바로 그린다. 들어올 때마다 새로 받아 칸만 바꾼다(lib/last-reads).
   const [shared] = useState(() => lastRead<{ groups: PracticeGroup[] }>('practiceGroups')?.groups ?? null);
   const [entry, setEntry] = useState<CoachingEntry | null>(() => (shared ? coachingEntry(shared) : null));
@@ -126,15 +129,12 @@ export default function CoachingTab() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* 첫 사용자 홈에서 이 길을 고른 뒤에도 홈(뭐부터 해 볼까요?)으로 돌아가 다른 길을 고를 수 있다(SOMA-771). */}
       {/* 탭 첫 화면 머리(NavHeader/Large) — 큰 왼쪽 제목 「코칭」과 오른쪽 설정. */}
       <NavHeader
         large
         title={t('coachingTab.title')}
-        // 탭바가 보이면 하단 탭으로 홈에 갈 수 있어 뒤로를 두지 않는다 — 탭바를 숨긴 첫 사용자만(10/22 피드백).
-        left={firstTime ? <NavIconButton icon="chevron-left" size={24} label={t('common.back')} phLabel="coaching_back_home" onPress={() => router.navigate('/')} /> : undefined}
         right={
-          // 첫 사용자는 탭바가 숨어 프로필 탭의 설정으로 못 간다 — 로그아웃·탈퇴 길을 남긴다(SOMA-781). 그 밖에는 프로필 탭에 설정이 있다.
+          // 첫 사용자 첫 화면에는 설정(로그아웃·탈퇴) 길을 머리에도 둔다(SOMA-781). 그 밖에는 프로필 탭에 설정이 있다.
           firstTime && first ? (
             <NavIconButton icon="settings" size={22} label={t('settings.title')} phLabel="coaching_first_settings" onPress={() => router.push('/settings')} />
           ) : undefined
@@ -159,6 +159,8 @@ export default function CoachingTab() {
       ) : first || !entry || entry.kind === 'first' ? (
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.firstBody}>
+            {/* 영상을 올리는 중이면 맨 위에 그 카드(예전 홈 맨 위, SOMA-1120) — 코칭 이어 하기다. */}
+            <HomeUploadCard upload={waitingUpload} />
             <View style={styles.introRow}>
               <Image source={MASCOT.slate} style={styles.introMascot} contentFit="contain" cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
               <View style={styles.introBubble}>
@@ -210,6 +212,8 @@ export default function CoachingTab() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={[styles.nextBody, { paddingBottom: tabBarSpace + space[5] }]}>
+          {/* 영상을 올리는 중이면 맨 위에 그 카드(예전 홈 맨 위, SOMA-1120) — 없으면 그리지 않는다. */}
+          <HomeUploadCard upload={waitingUpload} />
           {/* 저번 코치 메모(노트의 다음 테이크 문장) 또는 하던 코칭 — 맨 위 카드 */}
           {/* 카드 전체를 누른다 — 카드 안에 따로 버튼을 두지 않는다(UX 가이드 5절, 10/23). */}
           <Pressable

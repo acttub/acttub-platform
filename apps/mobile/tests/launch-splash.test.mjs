@@ -19,6 +19,12 @@ test('홈으로 들어가는 길이고 홈이 아직 준비 전이면 로고를 
   assert.equal(shouldHoldSplashForHome(base), true);
 });
 
+test('앱을 열면 보이는 탭(마지막에 쓴 탭)으로 가는 길도 홈 기록을 기다린다(SOMA-1120)', () => {
+  for (const pathname of ['/reading', '/coaching', '/community', '/challenges', '/profile']) {
+    assert.equal(shouldHoldSplashForHome({ ...base, pathname }), true);
+  }
+});
+
 test('홈이 준비됐거나 상한이 지나면 로고를 닫는다', () => {
   assert.equal(shouldHoldSplashForHome({ ...base, homeReady: true }), false);
   assert.equal(shouldHoldSplashForHome({ ...base, holdExpired: true }), false);
@@ -43,11 +49,10 @@ test('홈 준비 신호는 한 번만 알린다', () => {
   off();
 });
 
-test('홈은 로딩 표시 없이 첫 데이터를 받거나 첫 사용자 홈을 바로 그릴 수 있으면 준비 신호를 보낸다', () => {
-  const home = readFileSync(new URL('../app/(tabs)/index.tsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(home, /ActivityIndicator/);
-  // 지난번이 첫 사용자 홈이었으면(lib/skeleton-hint) 받을 것이 없어 기다리지 않는다.
-  assert.match(home, /if \(loaded \|\| showFirstHome\) markHomeReady\(\)/);
+test('탭 레이아웃의 연습 기록 공급자가 첫 기록을 다 받으면 준비 신호를 보낸다(SOMA-1120 — 예전 홈)', () => {
+  const records = readFileSync(new URL('../hooks/use-practice-records.tsx', import.meta.url), 'utf8');
+  assert.match(records, /if \(loaded\) markHomeReady\(\)/);
+  assert.doesNotMatch(readFileSync(new URL('../app/(tabs)/index.tsx', import.meta.url), 'utf8'), /ActivityIndicator/);
   const layout = readFileSync(new URL('../app/_layout.tsx', import.meta.url), 'utf8');
   assert.match(layout, /readyToShow && !holdSplashForHome/);
 });

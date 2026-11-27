@@ -21,7 +21,6 @@ import { InlineEmpty } from '@/components/ui/inline-empty';
 import { InlineError } from '@/components/ui/inline-error';
 import { SelectCard } from '@/components/ui/select-card';
 import { SkeletonRows } from '@/components/ui/skeleton';
-import { NavIconButton } from '@/components/ui/nav-header';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { heroCard } from '@/constants/hero-card';
 import { palette } from '@/constants/palette';
@@ -297,10 +296,6 @@ export default function ChallengesScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        {/* 첫 사용자는 탭바가 숨으므로 홈(뭐부터 해 볼까요?)으로 돌아갈 꺾쇠를 단다 — 탭바가 보이면 두지 않는다. */}
-        {firstTime && (
-          <NavIconButton icon="chevron-left" label={t('common.back')} phLabel="challenges_back_home" onPress={() => router.navigate('/')} />
-        )}
         <View style={styles.titleGrow}>
           <CommunityTabs
             value={section}

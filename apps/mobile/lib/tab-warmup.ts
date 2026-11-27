@@ -7,9 +7,10 @@
  *
  * 커뮤니티는 홈이 받지 않는 챌린지 목록을 먼저 받아 둔 뒤 만든다 — 그래야 만들 때 받아 둔 목록으로 그린다(lib/last-reads).
  */
-export type WarmTab = 'coaching' | 'reading' | 'challenges' | 'profile';
+export type WarmTab = 'coaching' | 'reading' | 'challenges' | 'profile' | 'community';
 
-export const WARM_ORDER: readonly WarmTab[] = ['coaching', 'reading', 'challenges', 'profile'];
+/** 앱을 열 때 처음 보이는 탭(lib/last-tab)도 목록에 있다 — 이미 만들어진 탭은 lazy 를 꺼도 달라지지 않는다. 게시판(community)은 SOMA-1121. */
+export const WARM_ORDER: readonly WarmTab[] = ['coaching', 'reading', 'challenges', 'profile', 'community'];
 /** 홈이 뜬 뒤 첫 탭을 만들기까지, 그리고 탭 사이의 간격. 홈 첫 화면의 움직임·누름과 겹치지 않게 둔다. */
 export const WARM_START_DELAY_MS = 600;
 export const WARM_STEP_MS = 350;

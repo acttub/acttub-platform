@@ -4,7 +4,7 @@ import HistoryScreen from '@/app/(tabs)/history';
 import { api } from '@/lib/api';
 import type { PracticeGroup } from '@/lib/practice/types';
 
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) };
+const mockRouter = { push: jest.fn(), replace: jest.fn(), navigate: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) };
 
 jest.mock('expo-router', () => {
   const { useEffect } = require('react');
@@ -255,7 +255,7 @@ describe('묶음 ⋯ 메뉴', () => {
   });
 });
 
-test('뒤로는 이전 화면이 있으면 돌아가고 없으면 홈으로 간다', async () => {
+test('뒤로는 이전 화면이 있으면 돌아가고 없으면 마지막에 쓴 탭(/)으로 간다', async () => {
   await render(<HistoryScreen />);
   await screen.findByText('카페 이별 장면');
 
@@ -264,5 +264,6 @@ test('뒤로는 이전 화면이 있으면 돌아가고 없으면 홈으로 간�
 
   mockRouter.canGoBack.mockReturnValue(false);
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
-  expect(mockRouter.replace).toHaveBeenCalledWith('/');
+  expect(mockRouter.navigate).toHaveBeenCalledWith('/');
+  expect(mockRouter.replace).not.toHaveBeenCalled();
 });

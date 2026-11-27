@@ -528,30 +528,20 @@ describe('이번 주 대사 카드의 예시 영상', () => {
   });
 });
 
-describe('첫 사용자라 탭바가 숨으면', () => {
+describe('첫 사용자', () => {
   afterEach(() => setFirstTimeState('unknown'));
 
-  test('머리에 홈으로 돌아가는 꺾쇠를 둔다', async () => {
+  test('이번 주 대사 카드 버튼 위에 한 줄 안내를 두고, 홈으로 가는 꺾쇠는 두지 않는다 — 탭바가 늘 보인다(SOMA-1120)', async () => {
     setFirstTimeState('first');
     await render(<ChallengesScreen />);
     await screen.findByText('“나는 아직 여기 있어”');
 
-    const back = screen.getByRole('button', { name: '뒤로' });
-    expect(back.props['ph-label']).toBe('challenges_back_home');
     // 첫 사용자(C1.16 gRFTy)에게만 이번 주 대사 카드 버튼 위에 한 줄 안내를 둔다.
     expect(screen.getByText('아래 버튼을 누르면 바로 찍을 수 있어요.')).toBeOnTheScreen();
-    await fireEvent.press(back);
-    expect(mockRouter.navigate).toHaveBeenCalledWith('/');
-  });
-
-  test('탭바가 보이면(연습했거나 아직 모르면) 꺾쇠를 두지 않는다', async () => {
-    setFirstTimeState('practiced');
-    await render(<ChallengesScreen />);
-    await screen.findByText('“나는 아직 여기 있어”');
     expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
 
-    await act(async () => setFirstTimeState('unknown'));
-    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
+    await act(async () => setFirstTimeState('practiced'));
+    expect(screen.queryByText('아래 버튼을 누르면 바로 찍을 수 있어요.')).not.toBeOnTheScreen();
   });
 });
 

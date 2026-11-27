@@ -65,12 +65,11 @@ test('practice.library: 기록은 묶음을 읽고 숨김은 묶음 전체이며
   assert.doesNotMatch(history, /readingHistoryRows|listSessions/);
 });
 
-test('practice.library: 홈은 한국 시간 연속일과 이번 주 요일 점을 보여 준다(최근 연습 줄은 pen P1.1에서 뺐다)', () => {
-  const home = read('app/(tabs)/index.tsx');
-
-  assert.match(home, /practiceStreak/);
-  assert.match(home, /buildRecentActivity/);
-  assert.doesNotMatch(home, /recentGroups\(/);
+test('practice.library: 한국 시간 연속일과 이번 주 요일 점은 탭 묶음 기록(예전 홈)이 세고 프로필이 그린다(SOMA-1120)', () => {
+  const records = read('hooks/use-practice-records.tsx');
+  assert.match(records, /practiceStreak/);
+  assert.match(records, /buildRecentActivity/);
+  assert.match(read('app/(tabs)/profile.tsx'), /<WeekPracticeCard/);
 });
 
 test('practice.library: 묶음 상세는 회차 흐름과 「대화 이어 가기」·「다음 테이크 찍기」 중 하나를 보여 준다', () => {
@@ -89,7 +88,7 @@ test('액티는 나갈 때 설문을 띄우지 않고, 일지를 마치면 앱 �
   assert.doesNotMatch(read('app/coach.tsx'), /useExitReview|exitReview/);
   assert.match(read('app/journal.tsx'), /rating\.after\(\{ kind: 'coach', practiceId \}/);
   assert.match(read('app/reading/play.tsx'), /askRating\(\{ kind: 'reading' \}\)/);
-  assert.doesNotMatch(read('app/(tabs)/index.tsx'), /feedbackNudge|useFeedbackSheet/);
+  assert.doesNotMatch(read('components/tab-launch-overlays.tsx'), /feedbackNudge|useFeedbackSheet/);
   assert.match(read('app/settings.tsx'), /openStoreReviewPage/);
 });
 
