@@ -142,7 +142,7 @@ HQL 한 문장이 같은 SQL 을 내면 HQL 로 쓰고, 내지 못하면 custom 
 
 1. **값 목록은 text 컬럼 + CHECK 다** (SOMA-462). 네이티브 Postgres enum 열아홉을 걷어낸 이유는
    [ADR-023](../../docs/ADR.md)이다. 예외로 결제(V64)·광고(V66) 표는 CHECK 없이 앱 코드(`BillingRules`·`AdRules`)와 저장소
-   문장이 값을 지킨다. 결제 표는 Schema Entity 가 값을 문자열로 매핑하고, 광고 표는 native SQL 만 쓴다.
+   문장이 값을 지킨다. 두 표 모두 Schema Entity 가 값을 문자열로 매핑한다.
 
    **`@Enumerated(EnumType.STRING)` 은 여전히 금지다.** 이유가 바뀌었을 뿐이다 — 그것은
    Java enum **상수 이름**을 저장하는데, DB 값은 소문자이고 `IntentImpact` 는 **한글**
