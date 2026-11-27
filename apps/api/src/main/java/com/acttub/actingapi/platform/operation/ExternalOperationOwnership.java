@@ -1,6 +1,5 @@
 package com.acttub.actingapi.platform.operation;
 
-import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.platform.ledger.OperationOwnership;
@@ -27,12 +26,13 @@ class ExternalOperationOwnership implements OperationOwnership {
 
     @Override
     public void reassign(UUID from, UUID to) {
-        for (String ledger : List.of("external_operations", "ai_jobs")) {
-            entityManager.createNativeQuery(
-                    "UPDATE " + ledger + " SET user_id = :to WHERE user_id = :from")
-                    .setParameter("to", to)
-                    .setParameter("from", from)
-                    .executeUpdate();
-        }
+        entityManager.createQuery("update ExternalOperationEntity o set o.userId = :to where o.userId = :from")
+                .setParameter("to", to)
+                .setParameter("from", from)
+                .executeUpdate();
+        entityManager.createQuery("update AiJobEntity j set j.userId = :to where j.userId = :from")
+                .setParameter("to", to)
+                .setParameter("from", from)
+                .executeUpdate();
     }
 }

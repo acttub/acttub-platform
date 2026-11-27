@@ -1,7 +1,5 @@
 package com.acttub.actingapi.platform.operation;
 
-import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
-
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -10,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 
 import com.acttub.actingapi.platform.observability.MonitoringFailures;
+import com.acttub.actingapi.platform.schema.OperationKind;
+import com.acttub.actingapi.platform.schema.OperationStatus;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.persistence.EntityManager;
@@ -87,36 +87,39 @@ public class ExternalOperationMetrics {
         try {
             Snapshot fresh = transaction.execute(status -> {
                 Instant now = clock.instant();
-                var rows = list(entityManager.createNativeQuery("""
-                        WITH current_operations AS (
-                            SELECT kind, status,
-                                CASE WHEN status = 'running' THEN 'none'
-                                     WHEN attempt_count = 0 THEN 'initial' ELSE 'retry' END AS waiting,
-                                created_at,
-                                CASE WHEN status = 'pending' AND attempt_count = 0 THEN created_at
-                                     WHEN status = 'pending' AND monitoring_updated_at = updated_at
-                                          THEN waiting_since END AS measured_wait,
-                                CASE WHEN status = 'running' AND monitoring_updated_at = updated_at
-                                          AND monitoring_lease_token = lease_token
-                                     THEN execution_started_at END AS measured_execution
-                            FROM external_operations
-                            WHERE kind IN ('analyze', 'coach_start', 'coach_reply', 'report')
-                              AND status IN ('pending', 'running')
+                // 종류·상태 칸은 변환기가 붙은 enum 이라 상수 이름으로 견주고, 표본의 열쇠는 DB 값으로 만든다.
+                var rows = entityManager.createQuery("""
+                        with current_operations as (
+                            select o.kind as kind, o.status as status,
+                                case when o.status = RUNNING then 'none'
+                                     when o.attemptCount = 0 then 'initial' else 'retry' end as waiting,
+                                o.createdAt as createdAt,
+                                case when o.status = PENDING and o.attemptCount = 0 then o.createdAt
+                                     when o.status = PENDING and o.monitoringUpdatedAt = o.updatedAt
+                                          then o.waitingSince end as measuredWait,
+                                case when o.status = RUNNING and o.monitoringUpdatedAt = o.updatedAt
+                                          and o.monitoringLeaseToken = o.leaseToken
+                                     then o.executionStartedAt end as measuredExecution
+                            from ExternalOperationEntity o
+                            where o.kind in (ANALYZE, COACH_START, COACH_REPLY, REPORT)
+                              and o.status in (PENDING, RUNNING)
                         )
-                        SELECT kind, status, waiting, count(*) AS count, min(created_at) AS created_at,
-                            min(measured_wait) AS waiting_since, min(measured_execution) AS execution_started_at,
-                            count(*) FILTER (WHERE (status = 'pending' AND measured_wait IS NULL)
-                                OR (status = 'running' AND measured_execution IS NULL)) AS unmeasured
-                        FROM current_operations GROUP BY kind, status, waiting
-                        """, Tuple.class).setHint("jakarta.persistence.query.timeout", 2000));
+                        select c.kind as kind, c.status as status, c.waiting as waiting, count(*) as count,
+                            min(c.createdAt) as createdAt, min(c.measuredWait) as waitingSince,
+                            min(c.measuredExecution) as executionStartedAt,
+                            count(*) filter (where (c.status = PENDING and c.measuredWait is null)
+                                or (c.status = RUNNING and c.measuredExecution is null)) as unmeasured
+                        from current_operations c group by c.kind, c.status, c.waiting
+                        """, Tuple.class).setHint("jakarta.persistence.query.timeout", 2000).getResultList();
                 Map<String, State> states = new HashMap<>();
                 for (Tuple row : rows) {
-                    states.put(row.get("kind") + ":" + row.get("status") + ":" + row.get("waiting"),
+                    states.put(row.get("kind", OperationKind.class).dbValue() + ":"
+                                    + row.get("status", OperationStatus.class).dbValue() + ":" + row.get("waiting"),
                             new State(((Number) row.get("count")).longValue(),
                                     ((Number) row.get("unmeasured")).longValue(),
-                                    age(row.get("created_at", Instant.class), now),
-                                    age(row.get("waiting_since", Instant.class), now),
-                                    age(row.get("execution_started_at", Instant.class), now)));
+                                    age(row.get("createdAt", Instant.class), now),
+                                    age(row.get("waitingSince", Instant.class), now),
+                                    age(row.get("executionStartedAt", Instant.class), now)));
                 }
                 return new Snapshot(Map.copyOf(states), now.toEpochMilli() / 1000d, true);
             });
