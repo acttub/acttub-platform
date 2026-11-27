@@ -60,6 +60,7 @@ COLUMN ads.audience ord=5 type=text len=- null=NO default='all'::text
 COLUMN ads.body ord=9 type=text len=- null=YES default=-
 COLUMN ads.created_at ord=17 type=timestamptz len=- null=NO default=now()
 COLUMN ads.ends_at ord=16 type=timestamptz len=- null=YES default=-
+COLUMN ads.excluded_user_ids ord=20 type=_uuid len=- null=NO default='{}'::uuid[]
 COLUMN ads.headline ord=8 type=text len=- null=YES default=-
 COLUMN ads.id ord=1 type=uuid len=- null=NO default=-
 COLUMN ads.image_banner ord=11 type=text len=- null=YES default=-
@@ -1007,6 +1008,7 @@ CONSTRAINT ad_slot_switches ad_slot_switches_slot_key_not_null NOT NULL slot_key
 CONSTRAINT ad_slot_switches ad_slot_switches_updated_at_not_null NOT NULL updated_at
 CONSTRAINT ads ads_audience_not_null NOT NULL audience
 CONSTRAINT ads ads_created_at_not_null NOT NULL created_at
+CONSTRAINT ads ads_excluded_user_ids_not_null NOT NULL excluded_user_ids
 CONSTRAINT ads ads_id_not_null NOT NULL id
 CONSTRAINT ads ads_kind_not_null NOT NULL kind
 CONSTRAINT ads ads_pkey PRIMARY KEY (id)
