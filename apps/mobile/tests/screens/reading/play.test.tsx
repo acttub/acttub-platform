@@ -10,7 +10,7 @@ import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import { currentNetworkType } from '@/lib/reading/network';
 import { deleteDeviceFile } from '@/lib/account-files';
-import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
+import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads, retryRecordingUploads } from '@/lib/reading/recording-runner';
 import { getLastRunReview, resetReadingState, setCurrentSession, updateCurrent } from '@/lib/reading/store';
 import { setFirstReadingSession } from '@/lib/reading/first-reading';
 import { takeContinueOrigin } from '@/lib/practice/session-state';
@@ -100,6 +100,7 @@ jest.mock('@/lib/reading/recording-runner', () => ({
   enqueueLineRecording: jest.fn(),
   onRecordingQueueChange: jest.fn(() => () => undefined),
   pendingRecordingUploads: jest.fn(),
+  retryRecordingUploads: jest.fn(() => () => undefined),
 }));
 jest.mock('@/lib/account-files', () => ({ deleteDeviceFile: jest.fn(async () => undefined) }));
 jest.mock('@/lib/reading/ios-audio-restore', () => ({ keepReadingInBackground: jest.fn(), restorePlaybackAudio: jest.fn() }));
@@ -1587,6 +1588,32 @@ test('녹음 올리기 대기 수가 바뀌면 완료 화면에 바로 반영한
 
   await act(async () => notify(3));
   expect(screen.getByText('녹음 3개 저장 중')).toBeOnTheScreen();
+});
+
+test('완료 화면에 못 올린 녹음이 남아 있는 동안만 다시 보내기를 켜 둔다', async () => {
+  let notify: (n: number) => void = () => undefined;
+  jest.mocked(onRecordingQueueChange).mockImplementation((fn: (n: number) => void) => {
+    notify = fn;
+    return () => undefined;
+  });
+  const stop = jest.fn();
+  jest.mocked(retryRecordingUploads).mockReturnValue(stop);
+  jest.mocked(pendingRecordingUploads).mockResolvedValue(1);
+  await startPlay({ start_line_id: 'l5', end_line_id: 'l5' });
+  await screen.findByText('듣는 중');
+  expect(retryRecordingUploads).not.toHaveBeenCalled();
+
+  await speechEnds();
+  expect(await screen.findByText('녹음 1개 저장 중')).toBeOnTheScreen();
+  expect(retryRecordingUploads).toHaveBeenCalledTimes(1);
+
+  await act(async () => notify(2));
+  expect(retryRecordingUploads).toHaveBeenCalledTimes(1);
+  expect(stop).not.toHaveBeenCalled();
+
+  await act(async () => notify(0));
+  expect(stop).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText('녹음 2개 저장 중')).not.toBeOnTheScreen();
 });
 
 test('목소리가 없어도 Wi-Fi 면 묻지 않고 바로 받는다', async () => {

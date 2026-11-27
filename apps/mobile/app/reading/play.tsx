@@ -38,7 +38,7 @@ import type { LineDraft } from '@/lib/reading/line-edit';
 import type { DialogueLine, ScriptLine } from '@/lib/reading/types';
 import { closeProgressQueue, openProgressQueue, trackLeavingSave, type ProgressQueue } from '@/lib/reading/progress-queue';
 import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } from '@/lib/reading/recording-plan';
-import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
+import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads, retryRecordingUploads } from '@/lib/reading/recording-runner';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody, roleLabel, turnRoles } from '@/lib/reading/session-plan';
 import { isWordless, saidEnough, spokenCoverage } from '@/lib/reading/line-coverage';
@@ -443,6 +443,11 @@ export default function ReadingPlay() {
     void pendingRecordingUploads().then((n) => mounted.current && setPendingUploads(n));
     return onRecordingQueueChange((n) => mounted.current && setPendingUploads(n));
   }, []);
+
+  // 완료 화면은 큐가 빌 때까지 코칭 카드·발음 보고서 줄을 숨긴다. 마지막 올리기가 잠깐 실패해도 다음 녹음이 없으니
+  // 이 화면이 떠 있는 동안 정해진 간격으로 다시 보낸다(SOMA-1175).
+  const retryUploads = phase.kind === 'done' && pendingUploads > 0;
+  useEffect(() => (retryUploads ? retryRecordingUploads() : undefined), [retryUploads]);
 
 
   /**

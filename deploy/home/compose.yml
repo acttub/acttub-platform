@@ -186,7 +186,7 @@ services:
       resources:
         limits:
           cpus: ${API_CPU_LIMIT:-1.5}
-          memory: ${API_MEM_LIMIT:-1536m}
+          memory: ${API_MEM_LIMIT:-2g}
     logging: *logging
 
   db:
