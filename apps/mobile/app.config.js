@@ -99,7 +99,8 @@ module.exports = ({ config }) => {
   // (AuthCodeHandlerActivity)·strings 를 채운다. 키가 없는 빌드는 플러그인을 빼고 앱도 버튼을 숨긴다.
   const kakaoAppKey = process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY?.trim();
   plugins = plugins.filter((pl) => pluginName(pl) !== KAKAO_LOGIN);
-  if (kakaoAppKey) plugins.push([KAKAO_LOGIN, { kakaoAppKey }]);
+  // SDK 58 AppDelegate 에는 카카오 플러그인이 줄을 끼울 application(_:open:options:) 이 없어 함께 만든다.
+  if (kakaoAppKey) plugins.push([KAKAO_LOGIN, { kakaoAppKey }], './plugins/with-kakao-open-url.js');
 
   // AdMob(SOMA-876). iOS ATT 는 새로 묻지 않는다 — Meta SDK 초기화(lib/meta-events)가 이미 묻는 팝업을 같이 쓰고,
   // 광고 SDK 초기화는 그 답을 받은 뒤에 한다(app/_layout). 그래서 userTrackingUsageDescription 을 여기서 넣지 않는다.
