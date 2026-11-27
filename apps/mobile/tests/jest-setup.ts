@@ -1,6 +1,9 @@
 import mockSafeAreaContext from 'react-native-safe-area-context/jest/mock';
 
 jest.mock('react-native-safe-area-context', () => mockSafeAreaContext);
+// worklets 0.7 부터 jest 에서도 네이티브 쪽을 찾다 멈춘다. 공식 안내의 mock 을 건다
+// (https://docs.swmansion.com/react-native-worklets/docs/guides/testing).
+jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
 jest.mock('expo-localization', () => ({
   getLocales: () => [{ languageCode: 'ko', languageTag: 'ko-KR', regionCode: 'KR' }],
   getCalendars: () => [{ timeZone: 'Asia/Seoul' }],
