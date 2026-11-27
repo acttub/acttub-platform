@@ -411,7 +411,8 @@ PK 는 `AppGeneratedUuidEntity` 를 잇고 `allActiveAppGeneratedIdsUsePersistOn
   두 운영자 경합은 `SupportInquiryStoreIT`). `INSERT … ON CONFLICT DO NOTHING RETURNING`(데이터를 바꾸는 CTE 로 감싼 꼴 포함)도
   같다. 앱이 정한 id 로 HQL insert 를 하고 영향 행 수가 1 이면 같은 트랜잭션에서 그 id 로 다시 읽는다(`PostgresBlogRepository`).
   같은 키를 함께 넣는 경합(뒤의 것이 앞의 커밋을 기다렸다가 0행)과, 함께 같은 값으로 고치는 경합(`NOT EXISTS` 는 둘 다 지나고 뒤의
-  것이 유니크 위반)은 전후 같다(`BlogRepositoryIT`·`PosterRepositoryIT`). DELETE … RETURNING 을 "키를 읽고 같은 조건으로 지우기"로 나누지 않는다. 사이에 들어온 행을 키
+  것이 유니크 위반)은 전후 같다(`BlogRepositoryIT`·`PosterRepositoryIT`). 고치는 경합의 유니크 위반은 저장소가 그 제약 이름으로
+  알아보고 0행과 같게 돌려준다(`platform/persistence/UniqueViolation`). DELETE … RETURNING 을 "키를 읽고 같은 조건으로 지우기"로 나누지 않는다. 사이에 들어온 행을 키
   없이 지운다. 잠가 읽은 행을 id 로 지우거나 native 로 둔다. 잠가 읽기는 읽은 행을 다른 트랜잭션의 지우기·고치기에서 지킬 뿐이라,
   조건에 맞는 행이 새로 들어올 수 있으면 그것을 따로 막아야 한다. `PostgresPortfolioRepository#beginPhoto` 는 앞서 잡은 부모
   행(`portfolios`)의 `FOR UPDATE` 가 자식 INSERT 의 FK 잠금을 막아서 이 꼴로 옮겼다(`PortfolioRepositoryIT` 가 기다리는 INSERT 로
@@ -695,19 +696,20 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **한 트랜잭션**(`PostgresProfileRepository#withdraw` 가 연다)에서 파기와 상태 전환을 한다. 순서는
   `feature/auth/app` 의 `AccountErasureSequence#close` 와 `AccountErasureStep` 에만 있고, 테이블은 주인 기능이
   `AccountErasure` 를 구현해 고친다(ADR-040). 구현은 트랜잭션을 열지 않는다. 구현은 주인 기능의 `adapter/db` 에 있고
-  (`Postgres…AccountErasure`, 계정 행은 `PostgresAccountDeactivation`), 아직 주인에게 옮기지 않은 자리는
-  `PostgresProfileRepository` 가 맡는다. 요청이 내는
+  (`Postgres…AccountErasure`, 계정 행은 `PostgresAccountDeactivation`). 객체 삭제는 주인마다 자기 자리에서 행을 지우거나
+  키를 비우기 전에 키를 읽어 정리 장부에 올린다(주인마다 장부 한 행). 요청이 내는
   문장의 순서와 테이블마다의 결과는 `AccountLifecycleFreezeIT` 의 기준 파일이 고정하고, 구현 하나가 실패하면 전부 되돌아가는
   것은 `AccountErasureRollbackIT` 가 본다. 무엇을 지우고 남기는지는
   [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)와 영역 표(연습·리딩·챌린지)가 정본이다. 구현만의 것:
   `users.nickname=NULL`(I-3 예외), 진행 중 `external_operations`·`ai_jobs` 의 lease 떼기(분석 중이던 연습도 `failed`,
   0.1.0 작업은 결과 본문도 비운다), 0.1.0 영상의 `purged_at`, `practice_feedback` 의 시트 재전송 예약(`sheet_seq`),
-  챌린지 자료 정리(`PostgresProfileRepository#eraseChallenge` — 밀린 마감 집계를 먼저 한다(`ChallengeWithdrawal#settleBeforeWithdrawal`), §6-20).
+  챌린지 자료 정리(`PostgresChallengeAccountErasure` — 밀린 마감 집계를 먼저 한다(`PendingSettlement`, 구현 `PostgresChallengeWithdrawal`), §6-20).
 - **신원 행은 지우지 않는다.** `uid_hash` 만 남긴다(`ck_user_identities_uid_or_hash`). 값은 `platform/security/AccountSecrets#identityHash`
   가 만들고(조회 후보는 `#identityHashCandidates`), 운영 셸로 같은 값을 내는 계산은
   [RETENTION-REVOCATION 2단계](../../docs/deploy/RETENTION-REVOCATION.md#2-옛-계정을-해시로-찾는다--본인-확인)에 있다. 둘이 같음을
   `AccountSecretsTest` 가 고정한다.
-- **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
+- **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다(`VideoRetention`, 구현
+  `PostgresVideoRetention`. 탈퇴 3년 뒤의 파기도 이것을 부른다) — 보관함 영상의
   **포스터**(`videos.poster_key`, V23)도 함께다. 포스터 워커는 붙일 때 같은 `users` 행을 잡으므로 탈퇴가 키를 모은 뒤에
   붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)가 정하고 `MediaRetention#granted`(구현은 `feature/consent` 의 `PostgresMediaRetention`)가 판정한다.
 - **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresReadingAccountErasure`, §6-14). 회차 평가
@@ -719,7 +721,9 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **탈퇴와 겹친 쓰기**: 게이트의 계정 상태 확인은 요청의 앞머리에서 끝나므로, 회원 자료를 쓰는 트랜잭션
   (프로필 저장·알림 토글·프로필 사진·포트폴리오·푸시 토큰 등록)은 **탈퇴가 잡는 것과 같은 `users` 행을
   `FOR UPDATE` 로 잡고 활성인지 다시 본다**(`PostgresProfileRepository#lockActive`,
-  `PostgresPortfolioRepository#lockOrCreate`, `PostgresPushTokenRepository#register`). 탈퇴는 `users` 행을 남기므로
+  `PostgresPortfolioRepository#lockOrCreate`, `PostgresPushTokenRepository#register`). 잠그는 문장은 한 곳에 있다:
+  `feature/auth/app` 의 `AccountRowLock`(구현 `PostgresAccountDeactivation`, 계정을 닫는 쪽과 같은 문장)을 각 기능이 부른다.
+  탈퇴한 계정의 행도 잠근 뒤 활성이 아님을 본다. 탈퇴는 `users` 행을 남기므로
   FK 는 뒤늦은 쓰기를 막지 못한다 — 이 확인이 없으면 파기한 이름·생년월일이 다시 차고 지운 포트폴리오 행이
   되살아난다. 쓰기가 먼저면 탈퇴가 그 뒤에 파기하고, 탈퇴가 먼저면 쓰지 않는다(응답은 [common.md 「탈퇴와 겹친 쓰기」](../../docs/specs/common.md#탈퇴와-겹친-쓰기)).
 - **바깥 호출은 트랜잭션 밖이다**(`feature/profile/app/AccountCleanup`). 탈퇴 트랜잭션은 해제에 쓸 값을
@@ -1074,7 +1078,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   합성과 사용량 증가 없이 성공하고, 새 합성 성공만 일 사용량을 1 올린다(`PostgresCloudVoiceRepository`).
 - 모델 호출에는 대사 원문 하나와 고른 prebuilt voice만 싣는다(`CloudVoiceService`).
 - V24 의 `reading_voice_cache(hash PK, model, voice, byte_size, created_at)` 는 사용자와 연결하지 않는다.
-  `reading_voice_usage(user_id, day, lines, PK(user_id, day))` 는 탈퇴 때 바로 지운다(`PostgresProfileRepository`).
+  `reading_voice_usage(user_id, day, lines, PK(user_id, day))` 는 탈퇴 때 바로 지운다(`PostgresReadingAccountErasure`).
 
 ### 6-15. 연습 0.1.0 — 스키마(V14)와 영상 보관함 (SOMA-546)
 
@@ -1152,7 +1156,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     단계표를 타고, 대화 응답 `CoachConversation.purpose` 에 답 버튼·AI가 본 장면·받아 적은 대사·결과 카드·인물 카드를 싣는다
     ([practice.coach 「목적별 코칭」](../../docs/specs/practice/coach.md#목적별-코칭-soma-719)).
   - **회차의 포스터**(`Practice.poster_url`, SOMA-671): 회차 SELECT 가 `videos` 를 LEFT JOIN 해 `purged_at IS NULL` 인 영상의
-    `poster_key` 만 읽는다(옛 표 호환 읽기도 같은 규칙). 서명은 `practice/app/PracticePosters` 포트 →
+    `poster_key` 만 읽는다. 서명은 `practice/app/PracticePosters` 포트 →
     `adapter/storage/ObjectStoragePracticePosters` 이고 보관함과 같은 10분(`PracticeRules.POSTER_URL_TTL_SECONDS`)이다.
     서비스가 응답 직전에 채우므로 목록도 회차마다 쿼리를 더하지 않는다(서명은 바깥 호출이 아니다). 스토리지가 없는 기동은 null.
 - **`ai_jobs` 장부**(`platform/ledger/AiJobLedger`, `platform/operation/PostgresAiJobLedger`): 상태와 lease 의 뜻은
@@ -1161,6 +1165,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `reclaimExpired=true` 로 부른다(SOMA-1105). 집은 워커가 죽어도 작업이 running 으로 남지 않는다. 시도 수는 선점마다 오르고
   `release` 는 `attempt_count` 를 되돌리지 않는다. 3회 뒤 `sweepMaxAttempts` 가 닫고, 시도를 다 쓴 채 lease 가 지난 `running` 은
   각 기능의 정리가 `failExpired` 로 닫는다. `failure_reason` 에는 CHECK 가 없다(분류가 열린 목록이다).
+  이 표에 쓰는 것은 이 장부뿐이다. 다른 기능은 작업을 넣을 때 `enqueue`(기억 갱신은 활성 계정에만 넣고 기억 세대를 적는
+  `enqueueForActiveAccount`), 대상을 지우거나 취소할 때 `cancel` 을 부른다. 셋 다 부르는 쪽의 트랜잭션에 참여해, 작업과 그 대상이
+  함께 생기거나 함께 없다(`AiJobLedgerIT`). 탈퇴와 연습 삭제의 닫기는 §6-8·§6-15 의 자리가 한다.
 - **분석 결과**(`analyses`, `feature/analysis`): 워커는 **한 클래스**(`AnalysisWorker`)이고 원장마다 저장소·빈이
   하나다 — 옛 `AnalysisStore`(={`external_operations`} + `summaries`)와 0.1.0 `PracticeAnalysisStore`
   (={`ai_jobs`} + `analyses`·`video_transcripts`). 영상을 내려받고 검증값을 견주고 실패를 분류하고 lease 를 다루는
@@ -1180,11 +1187,11 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     덮어쓰이므로 지문 칸을 따로 두지 않고 저장된 값과 견준다.
   - 쓰기는 탈퇴와 같은 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 다시 본다(§6-8). 구현은 `coach/app/NoteRatingService`·
     `coach/adapter/db/PostgresNoteRatingStore`, 실 DB 검증은 `NoteRatingIT` 다.
-  - **이관**은 `NoteRatingOwnership`(설문 다음), **탈퇴**는 `PostgresProfileRepository#blankNoteRatingComments`(자리 `NOTE_RATINGS`)다.
+  - **이관**은 `NoteRatingOwnership`(설문 다음), **탈퇴**는 `PostgresCoachAccountErasure`(자리 `NOTE_RATINGS`)다.
 - **배우 기억**(`actor_memories`) — 갱신 예약은 `coach/app/ConversationClosedListener` → `memory` 이고 요청 id 를
   회차에서 만든다. 워커는 분석과 같은 추출기·같은 재시도 규칙이며 저장은 한 트랜잭션에서 지금의 주인에게 하고 계정
   상태와 세대(`ai_jobs.memory_epoch`)를 다시 본다.
-- **이탈 설문**(`practice_feedback`) — 선점은 `UPDATE users … WHERE exit_survey_asked_at IS NULL` 한 문장이다. 시트
+- **이탈 설문**(`practice_feedback`) — 선점은 `UPDATE users … WHERE exit_survey_asked_at IS NULL` 한 문장이다(계정 행의 칸이라 `auth` 의 `ExitSurveyAsk` 가 고친다. 나이 확인은 `AgeConfirmation`, 기억 세대는 `MemoryEpoch`. 구현 `PostgresAccountRowMarks`). 시트
   구현이 아직 없다. 자리 지킴이(`adapter/sheet/LoggingExitSurveySheet`)는 **보낸 척하지 않고 실패로 남긴다** — 성공을
   돌려주면 그 설문이 재전송 대상에서 빠져 시트가 붙는 날 영영 복제되지 않는다.
 - **운영 조회**(`GET /v2/admin/ops-core` 의 `activity_rows`·`signup_rows`·`features.challenges`·`upload_only_rows`,
@@ -1205,42 +1212,33 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     → `external_operations`·`ai_jobs` → 배우 기억 → 리딩 → 설문 → 노트 평가 순이다(§6-9의 잠금 순서에 이어진다). 분석·대화·노트·
     받아쓰기는 그 행에 매달려 따라간다.
   - **대화 중 탈퇴**: 코치 응답의 저장은 대화 행과 함께 `users.status` 를 본다(분석의 완료가 같은 자리에서 같은 확인을 한다).
-- **데이터 전환**(`POST /v2/admin/practice-migration`, `platform/migration`) — 옛 표의 자료를 0.1.0 표로 옮기는
-  <b>재실행 가능한 명령</b>이다. Flyway 가 아니라 애플리케이션 명령인 것은 전환이 배포를 멈추면 안 되고 되돌릴
-  수도 없기 때문이다(specs/practice 「0.1.0 스키마 전환」 ③).
-  - **단계는 순서대로 끝까지 돈다**: 영상 → 회차 → 받아쓰기 → 관찰 기록 → 대화 → 메시지 → 노트 → 기억 →
-    작업 장부. 뒤 단계가 앞 단계가 만든 행을 가리키므로 한 단계를 남김없이 끝낸 뒤에 다음으로 간다. 한 묶음
-    (기본 200)이 한 트랜잭션이고 **고르기와 옮기기가 그 안에 함께** 있다.
-  - **멱등은 대응표가 만든다**(`practice_migration_entries`, V15). 한 번 고른 원본은 다시 고르지 않고
-    ({@code (source_table, source_id)} 유일), 옮기기는 언제나 다시 돌 수 있다(`NOT EXISTS`·`ON CONFLICT DO
-    NOTHING`). 몇 번을 돌려도 행 수도 대응표도 그대로다.
-  - **옮기지 않는 것은 사유와 함께 적힌다**: 가지 쳐 차수가 겹치는 묶음(`branching_chain`), 닫히지 않은 회차가
-    둘 이상인 묶음(`multiple_open_practices`), 확정되지 않은 업로드를 가리키는 묶음(`video_missing`), 한 연습의
-    옛 대화 가운데 최신이 아닌 것(`superseded_conversation`), 같은 영상의 두 번째 전사(`transcript_conflict`).
-    **임의로 닫거나 지우지 않는다** — 그 자료는 호환 읽기 경로가 옛 표에서 그대로 보여 준다.
-  - **옛 표에 쓰는 자리는 `upload_intents.video_id` 하나다** — V14 가 예약 장부에 더해 둔 칸이고 옛 서버는 그것을
-    모른다. 그 밖의 옛 표는 읽기만 한다.
-  - **작업 장부는 끝난 `analyze`·`memory_update`만 `ai_jobs`로 옮긴다.** 진행 중인 AI 작업은 고르지 않는다. 옛 워커가
-    끝내야 하고 두 큐에서 같은 작업이 동시에 돌면 안 된다 — 끝나면 다음 실행이 집어 간다. `coach_start`·`coach_reply`·
-    `report` 장부 행은 옮기지 않고 옛 표에 남는다. 옮긴 작업의 `memory_epoch` 는 NULL 이다(옛 예약에는 세대가 없고,
-    NULL 은 "세대를 견주지 않는다" 는 뜻이다).
-  - **이름을 바꾸지 않는다**: 기존 갈래 노트는 `legacy` 형식에 옛 종류(analysis·expression) 그대로이고, 신형 노트만
+- **데이터 전환** — 옛 표의 자료를 0.1.0 표로 옮기는 일은 끝났다. 운영은 2026-11-27 에 옛 연습을 모두 같은 id·같은 주인으로
+  옮겼고 dev 에는 옛 연습이 없었다. 옮기는 명령(`platform/migration`, `POST /v2/admin/practice-migration`)과 새 표에 없는
+  연습을 옛 표에서 읽던 자리는 지웠다(git 이력에 있다).
+  - **대응표는 남는다**(`practice_migration_entries`, V15, 주인 `feature/practice`). 고른 원본 하나에 한 줄이고
+    (`(source_table, source_id)` 유일), 옮긴 것은 `target_id` 를, 옮기지 않은 것은 `skip_reason` 을 적었다. 쓰는 코드는 없고
+    관리자 지표(`admin/ops-core.sql`)가 옮겨진 옛 요약·작업을 두 번 세지 않으려고 읽는다.
+  - **옮기지 않은 원본은 `skip_reason` 과 함께 적혀 있고 옛 표에 그대로 있다.** 임의로 닫거나 지우지 않았다. 사유의 뜻:
+    한 연습의 옛 대화 가운데 최신이 아닌 것(`superseded_conversation`), 새 표에 이미 값이 있던 배우 기억(`memory_exists`),
+    같은 영상의 두 번째 전사(`transcript_conflict`), 한 연습의 두 번째 요약(`analysis_conflict`), 한 대화의 두 번째 노트
+    (`superseded_note`). 최신이 아닌 대화에 딸린 노트는 고르지도 않아 대응표에 줄이 없다.
+  - **작업 장부는 끝난 `analyze`·`memory_update`만 `ai_jobs`로 옮겼다.** `coach_start`·`coach_reply`·`report` 장부 행은 옛
+    표에 남는다. 옮긴 작업의 `memory_epoch` 는 NULL 이다(옛 예약에는 세대가 없고, NULL 은 "세대를 견주지 않는다" 는 뜻이다).
+  - **이름을 바꾸지 않았다**: 기존 갈래 노트는 `legacy` 형식에 옛 종류(analysis·expression) 그대로이고, 신형 노트만
     `v2`다. 관찰 기록도 신형 기록만 `video_record_v1`이고 구형은 `legacy` 형식에 원문 그대로다. 대화의 종료 사유만
-    새 어휘로 옮긴다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`·`gap_stated`→`exhausted`). 옛 대화에는
-    시작 요청 id 가 없어 **세션 id 를 그대로** 쓰고, 옛 턴의 요청 id 는 비운다.
-  - **새 표로 옮기지 않는 옛 자료**: `anomalies`·`coaching_handoffs`는 새 표가 없어 옛 표에
-    남는다. 배우 기억의 성별·나이는 옮기지 않는다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다).
-    새 표 `practice_feedback`에는 옛 시트 자료를 옮기지 않는다.
-- **호환 읽기 경로**(행동은 specs/practice 「0.1.0 스키마 전환」)
-  - `GET /v2/practices/{id}`·`/status`·`GET /v2/practices` 는 `practice/adapter/db/PostgresLegacyPracticeReader`
-    로 간다. 차수는 `continued_from` 체인을 그때그때 펴서 만들고 **전환 명령과 같은 규칙**이라 옮기기 전후의
-    응답이 같다.
-  - `GET /v2/practices/{id}/note` 는 `practice_reports` 를 새 봉투에 담아 낸다. `GET /v2/coach/conversations/{id}`
-    는 `coach_sessions`·`coach_turns` 를 읽는다. `GET /v2/practices/{id}/analysis` 도 새 분석이 없으면 소유권을
-    확인하는 옛 분석 읽기로 이어진다.
-  - 회차 상세의 `previous_conversations` 가 **옮긴 뒤에도 채워지는** 것은 전환이 최신 대화 하나만 옮기고 나머지를 옛
-    표에 남기기 때문이다.
-  - 호환 읽기는 **옛 표를 고치거나 지우지 않는다.**
+    새 어휘로 옮겼다(`actor_finished`→`user_ended`, `turn_budget`→`limit`, `interrupted`·`gap_stated`→`exhausted`). 옛 대화에는
+    시작 요청 id 가 없어 **세션 id 를 그대로** 썼고, 옛 턴의 요청 id 는 비어 있다.
+  - **새 표가 없어 옮기지 않은 옛 자료**: `anomalies`·`coaching_handoffs`는 옛 표에 남는다. 배우 기억의 성별·나이는 옮기지
+    않았다(프로필의 것이고, 자유 입력 나이로 생년월일을 추정하지 않는다). 새 표 `practice_feedback`에는 옛 시트 자료가 없다.
+- **옛 표에 남은 자료를 읽는 경로**(행동은 specs/practice 「0.1.0 스키마 전환」)
+  - 회차 상세의 `previous_conversations` 는 `practice/adapter/db/PostgresPreviousConversations` 가 `coach_sessions` 에서
+    읽는다. 가장 최근 대화 하나만 새 표로 갔고 나머지가 옛 표에 있기 때문이다. `GET /v2/coach/conversations/{id}` 는 새 표에
+    없는 대화를 `coach_sessions`·`coach_turns` 에서 읽는다.
+  - `GET /v2/practices/{id}/note` 는 새 표에 노트가 없는 회차면 `practice_reports` 를 새 봉투에 담아 낸다.
+  - 배우 기억의 옛 칸은 [practice.memory](../../docs/specs/practice/memory.md)를 따른다.
+  - **새 표에 없는 연습은 읽지 않는다.** 상세·상태·분석·노트는 404 이고 묶음 목록에 없다(`PracticeCompatibilityIT`).
+  - 이 경로들은 **옛 표를 고치거나 지우지 않는다.** 주인 확인은 `practice_sessions.user_id` 로 하므로 게스트 이관은 옛 표의
+    주인도 함께 바꾼다.
 - **되돌리기**(specs/practice 「0.1.0 스키마 전환」, BRANCHING-STRATEGY 「DB와 배포 안전성」) — 내리기 마이그레이션은
   없다. 대신 **더하기만 한다**: V14·V15 는 새 표와, 예약 장부의 NULL 허용 컬럼 셋, `users` 의 둘만 더했고 옛 표의
   모양은 한 칸도 바뀌지 않았다(`flyway/PracticeRollbackCompatibilityTest` 가 V13 과 최신의 fingerprint 를 옛 표만
@@ -1273,7 +1271,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `FfmpegLock` 차례다. 만드는 중·실패는 프로세스 메모리에만 있어 재시작하면 다음 요청이 다시 만든다(인스턴스끼리 공유하지 않는다).
   만든 키는 `challenge_entries.share_frame_keys`(V96, text[])에 붙인다 — 붙이기는 모자이크본처럼 사람 → 참여작 → 영상을 잠그고,
   그 사이 지웠거나 원본 고르기(모자이크)가 바뀌었거나 파기·탈퇴했으면 붙이지 않고 장부로 보낸다. 정리는 참여작 삭제·모자이크 변경
-  (`PostgresEntryRepository`), 파일 파기(`PostgresVideoRepository.purgeFile`), 탈퇴(`PostgresProfileRepository.videoKeys`)가 모자이크본과
+  (`PostgresEntryRepository`), 파일 파기(`PostgresVideoRepository.purgeFile`), 탈퇴와 탈퇴 3년 뒤의 파기(`EntryMediaPurge`, 구현 `PostgresEntryMediaPurge`)가 모자이크본과
   같은 자리에서 한다. 미리보기 한 장면은 요청 안에서 저장소 주소의 앞부분만 읽고 락을 잡지 않는다. 얼굴 가림을 켰는데 모자이크본이
   아직 없으면 `EntryShareFrameService`가 읽은 값으로 422 `mosaic_not_ready`를 내고 원본에 씌우지 않는다(「없음」 미리보기는 예외). 읽은 뒤
   모자이크가 바뀌면 붙이기의 원본 고르기 검사가 장부로 보낸다.
@@ -1325,7 +1323,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 발송(`CHALLENGE_NOTIFICATION_PUSH_ENABLED`)은 커밋 뒤 따로 돈다. 때가 된 묶음을 잠그고 `notification_pushes`의
   `(group_key, stage first·summary)`를 한 번만 선점해 첫 푸시와 요약 푸시를 하나씩 보낸다.
 - 탈퇴는 계정을 비활성으로 바꾸기 전에 이 사람의 참여작이 있는 챌린지의 밀린 마감 집계를 먼저 한다
-  (`ChallengeWithdrawal`). 진행 중 리포트 생성은 탈퇴의 `ai_jobs` 정리(`failed`/`account_deactivated`, §6-8)가 닫는다.
+  (`auth/app/PendingSettlement`, 구현 `PostgresChallengeWithdrawal`). 진행 중 리포트 생성은 탈퇴의 `ai_jobs` 정리(`failed`/`account_deactivated`, §6-8)가 닫는다.
 
 ### 6-21. 운영용 챌린지 영상 목록·재생
 

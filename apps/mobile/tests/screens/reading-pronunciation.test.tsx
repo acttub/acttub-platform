@@ -77,6 +77,28 @@ test('채점 중이면 기다림을 보이고 다시 물어 끝나면 보고서�
   expect(getReport).toHaveBeenCalledTimes(2);
 });
 
+test('15분 넘게 만드는 중이면 묻기를 멈추고 「아직 만들고 있어요」와 다시 확인을 보인다(SOMA-1169)', async () => {
+  jest.useFakeTimers();
+  getReport.mockResolvedValue({ status: 'running', report: null });
+  await render(<PronunciationReportScreen />);
+  expect(await screen.findByText(/나가도 괜찮아요/)).toBeOnTheScreen();
+
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(15 * 60_000 + 8_000);
+  });
+  expect(await screen.findByText('아직 만들고 있어요')).toBeOnTheScreen();
+  const calls = getReport.mock.calls.length;
+  expect(calls).toBeGreaterThan(200);
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(60_000);
+  });
+  expect(getReport).toHaveBeenCalledTimes(calls);
+
+  getReport.mockResolvedValue(done);
+  await fireEvent.press(screen.getByText('다시 확인'));
+  expect(await screen.findByText('대사 1개에서 다르게 들린 말이 있어요')).toBeOnTheScreen();
+});
+
 test('쓸 줄이 없거나 실패·허용 밖이면 그 이유만 보인다', async () => {
   getReport.mockResolvedValue({ status: 'skipped', report: null });
   const view = await render(<PronunciationReportScreen />);

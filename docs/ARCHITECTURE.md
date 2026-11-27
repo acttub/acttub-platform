@@ -22,7 +22,7 @@ apps/
 │   ├── app/              expo-router 라우트
 │   ├── components/
 │   └── lib/              api·auth·기능별 상태 모듈
-└── pron/                 리딩 발음 채점 실험 서비스 (파이썬, compose `pron` 프로필의 dev에서만 뜸)
+└── pron/                 리딩 발음 채점 실험 서비스 (파이썬, compose `pron` 프로필로 dev·운영에 뜸)
 packages/                 두 번째 사용처가 생길 때만 채운다
 deploy/                   홈서버 배포 스크립트·모니터링 설정
 docs/                     PRD·ARCHITECTURE·ADR·BRANCHING-STRATEGY, specs/(기능 스펙), deploy/, agents/
@@ -51,7 +51,7 @@ ArchUnit 테스트 `PackageLayerTest`가 강제한다. 이렇게 정한 이유�
   두 도메인이 서로를 소비하면 양쪽 다 Port를 선언할 수 없어 한 방향으로 상대 `app`을 직접 보고, 상대가 알아야
   하는 타입(교환 record·공개 스키마)을 `app`에 둔다. 이 간선의 폭이 늘면 두 도메인을 합쳐야 한다는 신호다.
 - `platform`(배관)과 `integration`(외부 연동)은 어느 도메인이든 쓸 수 있고, 배관이 도메인의 Port를 구현하기도 한다.
-- Port 구현은 제공하는 쪽에 두고 구현 기술을 이름 앞에 단다(`PostgresPracticeSessionRepository`). `Impl` 접미사는
+- Port 구현은 제공하는 쪽에 두고 구현 기술을 이름 앞에 단다(`PostgresPracticeRepository`). `Impl` 접미사는
   쓰지 않는다. Port 시그니처에 제공자 패키지의 타입이 보이면 아직 안 끊긴 것이다.
 - Port 하나는 한 쪽만 구현한다. Port 안의 질문들이 서로 다른 도메인의 데이터를 물으면 답하는 쪽의 소유를 따라 Port를 나눈다
   (예: 사용자 조회와 동의 여부를 가른 `PendingConsentGate`).
@@ -80,18 +80,27 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 `AccountErasure`를 구현해 자기 테이블을 고친다. 계정을 닫는 순서는 `AccountErasureSequence`와 `AccountErasureStep`에만 있다.
 구현은 트랜잭션을 열지 않는다(`AccountErasureStructureTest`, `AccountErasureRollbackIT`). 테이블마다의 결과와 문장의 순서는
 `AccountLifecycleFreezeIT`가 기준 파일(`apps/api/src/test/resources/frozen/account-lifecycle/`)로 고정한다. 테이블을 새로 만들어
-사람을 가리키게 하면 그 테스트의 심는 자료에도 더한다.
+사람을 가리키게 하면 그 테스트의 심는 자료에도 더한다. 그 외래 키가 계정 행을 지우지 못하게 막으면(`ON DELETE` 없음) 주인의
+`AccountErasure`가 그 칸을 `hasRecords`에서 세거나 `eraseWithAccountRow`에서 지운다. 빠지면 같은 테스트가 실패한다.
+
+연습 삭제(묶음 하나를 여러 기능의 테이블에서 고치는 일)도 같다. 순서는 `feature/practice/app`의 `PracticeGroupErasureSequence`와
+`PracticeGroupErasureStep`에만 있고, 각 기능이 `PracticeGroupErasurePart`를 구현해 자기 테이블을 고친다. 영상은 video의
+`PracticeGroupVideos`, 보관 계정은 auth의 `DeletedPracticeAccount`가 맡는다. 지키는 테스트는 위와 같다.
+
+상태 칸을 바꾸는 문장은 그 상태의 파일 한 곳에 모으고, 허용되는 길은 주인의 `domain`에 표로 둔다. 다른 기능은 주인의 `app`에
+있는 전이 Port를 부른다. 조건은 SQL에 그대로 둔다([CONTRACT §5-2](../apps/api/CONTRACT.md)). 모은 상태의 목록과 대조하는 규칙은
+`StateTransitionTest`에 있다(회차의 단계, AI 작업의 상태, 계정의 상태).
 
 | 주인 | 테이블 |
 |---|---|
 | `feature/auth` | `users`, `user_identities`, `refresh_tokens`, `user_active_days` |
-| `feature/profile` | `user_profiles`, `user_profile_directions`, `user_signup_attributions`, `user_discovery_answers`, `user_airbridge_device_lookups`, `account_cleanup_operations`, `practice_deletion_marks`, `deleted_practice_videos` |
+| `feature/profile` | `user_profiles`, `user_profile_directions`, `user_signup_attributions`, `user_discovery_answers`, `user_airbridge_device_lookups`, `account_cleanup_operations` |
 | `feature/consent` | `consent_documents`, `user_consents` |
 | `feature/transfer` | `guest_transfer_codes` |
 | `feature/portfolio` | `portfolios`, `portfolio_credits`, `portfolio_photos` |
 | `feature/push` | `push_tokens`, `push_opens`, `practice_reminder_sends` |
 | `feature/video` | `videos`, `video_transcripts`, `upload_intents` |
-| `feature/practice` | `practices`, `practice_sessions`, `coach_sessions`, `coach_turns`, `coaching_handoffs`, `practice_reports` |
+| `feature/practice` | `practices`, `practice_sessions`, `coach_sessions`, `coach_turns`, `coaching_handoffs`, `practice_reports`, `practice_deletion_marks`, `deleted_practice_videos`, `practice_migration_entries` |
 | `feature/analysis` | `analyses`, `summaries`, `transcripts`, `anomalies` |
 | `feature/coach` | `coach_conversations`, `coach_messages`, `coach_notes`, `note_ratings`, `actor_journals` |
 | `feature/memory` | `actor_memories`, `actor_memory_entries` |
@@ -106,7 +115,6 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 | `feature/blog` | `blog_posts` |
 | `feature/support` | `support_inquiries` |
 | `platform/operation` | `ai_jobs`, `external_operations` |
-| `platform/migration` | `practice_migration_entries` |
 
 ### 연습 화면의 전환
 

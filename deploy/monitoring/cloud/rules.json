@@ -452,7 +452,7 @@
     "title": "요청 표본은 있으나 일반 HTTP histogram 누락",
     "scope": "environment",
     "datasource": "local",
-    "expr": "((sum(increase(acttub_http_requests_total{environment=\"$env\",latency_class=\"ordinary\"}[5m])) >= bool 20) * (sum(absent(http_server_requests_seconds_bucket{environment=\"$env\",latency_class=\"ordinary\",le=\"+Inf\"})) or vector(0))) and on() (max(up{job=\"api\",environment=\"$env\"}) == 1) and on() (time() - max(timestamp(up{job=\"api\",environment=\"$env\"})) < 90)",
+    "expr": "((sum(increase(acttub_http_requests_total{environment=\"$env\",latency_class=\"ordinary\"}[5m])) >= bool 20) * (sum(absent(http_server_requests_seconds_bucket{environment=\"$env\",latency_class=\"ordinary\",le=\"+Inf\"})) or vector(0)) * (time() - max(process_start_time_seconds{environment=\"$env\"}) >= bool 300)) and on() (max(up{job=\"api\",environment=\"$env\"}) == 1) and on() (time() - max(timestamp(up{job=\"api\",environment=\"$env\"})) < 90)",
     "op": ">",
     "threshold": 0,
     "for": "2m",

@@ -1,12 +1,10 @@
 package com.acttub.actingapi.feature.reading.adapter.db;
 
-import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
-
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.reading.app.ReadingOwnership;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -26,13 +24,17 @@ class PostgresReadingOwnership implements ReadingOwnership {
     private final LineMemorizationJpaRepository memorization;
     private final ReadingSessionRatingJpaRepository ratings;
 
+    private final AccountRowLock accountRows;
+
     PostgresReadingOwnership(
             EntityManager entityManager,
             ScriptJpaRepository scripts,
             ReadingSessionJpaRepository sessions,
             ReadingRecordingJpaRepository recordings,
             LineMemorizationJpaRepository memorization,
-            ReadingSessionRatingJpaRepository ratings) {
+            ReadingSessionRatingJpaRepository ratings,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.entityManager = entityManager;
         this.scripts = scripts;
         this.sessions = sessions;
@@ -43,8 +45,7 @@ class PostgresReadingOwnership implements ReadingOwnership {
 
     @Override
     public void reassign(UUID from, UUID to) {
-        list(entityManager.createNativeQuery("SELECT id FROM users WHERE id=:from FOR UPDATE", Tuple.class)
-                .setParameter("from", from));
+        accountRows.lockRow(from);
         // 게스트와 회원의 request_id 가 겹치면(UUID 라 실질적으로 없다) 게스트 쪽 값을 비우고 옮긴다.
         scripts.clearClashingRequestIds(from, to);
         sessions.clearClashingRequestIds(from, to);

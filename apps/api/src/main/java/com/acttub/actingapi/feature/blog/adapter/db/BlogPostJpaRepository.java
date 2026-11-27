@@ -43,7 +43,8 @@ interface BlogPostJpaRepository extends Repository<BlogPostEntity, UUID> {
 
     /**
      * 다른 글이 그 slug 를 쓰면 0행이다. NOT EXISTS 는 문장 시작의 스냅숏으로 보므로, 함께 같은 slug 로 바꾸는 두 트랜잭션은
-     * 둘 다 지나고 뒤의 것은 {@code uq_blog_posts_slug} 에서 막힌다.
+     * 둘 다 지나고 뒤의 것은 {@code uq_blog_posts_slug} 에서 막힌다. 그 위반은 {@code PostgresBlogRepository#update} 가 0행과
+     * 같게 돌려준다.
      */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

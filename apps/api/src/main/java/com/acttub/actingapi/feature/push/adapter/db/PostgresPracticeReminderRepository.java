@@ -21,6 +21,7 @@ import com.acttub.actingapi.feature.push.app.ReminderContent;
 import com.acttub.actingapi.feature.push.app.ReminderCopy;
 import com.acttub.actingapi.feature.push.app.ReminderTextTrimmer;
 import com.acttub.actingapi.feature.push.schema.PushTokenEntity;
+import com.acttub.actingapi.feature.reading.app.RecentScriptTexts;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -48,8 +49,12 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
     private final PushTokenJpaRepository tokens;
     private final TransactionTemplate transaction;
 
+    private final RecentScriptTexts recentScripts;
+
     PostgresPracticeReminderRepository(EntityManager entityManager, PracticeReminderSendJpaRepository sends,
-            PushTokenJpaRepository tokens, PlatformTransactionManager manager) {
+            PushTokenJpaRepository tokens, PlatformTransactionManager manager,
+            RecentScriptTexts recentScripts) {
+        this.recentScripts = recentScripts;
         this.entityManager = entityManager;
         this.sends = sends;
         this.tokens = tokens;
@@ -238,29 +243,11 @@ class PostgresPracticeReminderRepository implements PracticeReminderRepository {
      * 연습 제목과, 이 회원이 최근 만지거나 올린 대본 다섯 개의 제목·인물 이름·대사 줄을 모두 후보로 쓴다.
      */
     private List<String> sensitive(UUID userId, String practiceTitle) {
-        List<UUID> scriptIds = new ArrayList<>();
+        RecentScriptTexts.Texts scripts = recentScripts.of(userId, SCRIPT_LIMIT, LINE_LIMIT);
         List<String> titles = new ArrayList<>();
         titles.add(practiceTitle);
-        for (Tuple row : list(entityManager.createNativeQuery("""
-                SELECT id, title FROM scripts WHERE user_id=:userId ORDER BY updated_at DESC LIMIT :limit
-                """, Tuple.class).setParameter("userId", userId).setParameter("limit", SCRIPT_LIMIT))) {
-            scriptIds.add(row.get("id", UUID.class));
-            titles.add(row.get("title", String.class));
-        }
-        if (scriptIds.isEmpty()) return ReminderTextTrimmer.sensitiveTerms(titles, List.of(), List.of());
-        List<String> names = new ArrayList<>();
-        for (Tuple row : list(entityManager.createNativeQuery(
-                "SELECT name FROM script_characters WHERE script_id IN (:ids)", Tuple.class)
-                .setParameter("ids", scriptIds))) {
-            names.add(row.get("name", String.class));
-        }
-        List<String> lines = new ArrayList<>();
-        for (Tuple row : list(entityManager.createNativeQuery("""
-                SELECT text FROM script_lines WHERE script_id IN (:ids) AND char_length(text)>=6 LIMIT :limit
-                """, Tuple.class).setParameter("ids", scriptIds).setParameter("limit", LINE_LIMIT))) {
-            lines.add(row.get("text", String.class));
-        }
-        return ReminderTextTrimmer.sensitiveTerms(titles, names, lines);
+        titles.addAll(scripts.titles());
+        return ReminderTextTrimmer.sensitiveTerms(titles, scripts.characterNames(), scripts.lines());
     }
 
     @Override

@@ -8,26 +8,19 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
-import com.acttub.actingapi.feature.auth.app.AccountErasure;
 import com.acttub.actingapi.feature.auth.app.AccountErasureSequence;
-import com.acttub.actingapi.feature.auth.app.AccountErasureStep;
-import com.acttub.actingapi.feature.auth.app.ClosingAccount;
-import com.acttub.actingapi.feature.auth.app.PendingSettlement;
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.auth.app.RetentionPurge;
-import com.acttub.actingapi.feature.challenge.app.ChallengeWithdrawal;
+import com.acttub.actingapi.feature.challenge.app.EntryMediaPurge;
 import com.acttub.actingapi.feature.profile.app.DiscoveryAnswerOwnership;
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.app.SignupAttributionOwnership;
 import com.acttub.actingapi.feature.push.app.PushTokenRevocation;
 import com.acttub.actingapi.feature.profile.domain.Account;
-import com.acttub.actingapi.feature.profile.domain.AgeBand;
 import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
@@ -42,35 +35,17 @@ import com.acttub.actingapi.platform.schema.ProfileGender;
 import com.acttub.actingapi.platform.schema.UserStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
 class PostgresProfileRepository
-        implements ProfileRepository, SignupAttributionOwnership, DiscoveryAnswerOwnership, AccountErasure, PendingSettlement {
-
-    /**
-     * 계정을 닫을 때 이 저장소가 맡는 자리. 모두 아직 주인에게 옮기지 않은 남의 표의 자리다. 주인 기능이
-     * {@link AccountErasure} 를 구현하면 여기서 빠진다.
-     */
-    private static final Set<AccountErasureStep> STEPS = EnumSet.of(
-            AccountErasureStep.MEDIA_OBJECTS,
-            AccountErasureStep.ACTOR_JOURNALS,
-            AccountErasureStep.NOTE_RATINGS,
-            AccountErasureStep.DELETED_PRACTICES,
-            AccountErasureStep.CHALLENGE);
+        implements ProfileRepository, SignupAttributionOwnership, DiscoveryAnswerOwnership {
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final PostgresObjectCleanupLedger cleanups;
-
-    /** 탈퇴 전 챌린지 마감 집계 — 이 저장소가 남의 표를 함께 치는 다른 정리와 같은 트랜잭션에서 돈다. */
-    private final ChallengeWithdrawal challenges;
-
-    /** 앞서 지운 연습의 영상(보관 동의로 남긴 것)과 무료 횟수 표시를 탈퇴·매일 정리에서 함께 치운다(SOMA-985). */
-    private final PostgresPracticeGroupErasure deletedPractices;
 
     /** 알림을 모두 끌 때 푸시 토큰을 지우는 주인. */
     private final PushTokenRevocation pushTokens;
@@ -81,33 +56,36 @@ class PostgresProfileRepository
     /** 탈퇴 3년 뒤의 파기에서 계정 행과 신원 해시를 고치는 주인. */
     private final RetentionPurge retentionPurge;
 
+    /** 탈퇴 3년 뒤, 보관 동의로 남겨 두었던 참여작의 모자이크본·공유 프레임 객체를 지우는 주인. */
+    private final EntryMediaPurge retainedEntryMedia;
+
     /** 탈퇴 3년 뒤, 보관 동의로 남겨 두었던 리딩 녹음을 지우는 주인. */
     private final RetainedRecordings retainedRecordings;
 
-    /**
-     * 계정을 닫는 순서. 이 저장소가 그 순서의 자리를 맡고 있어({@link #STEPS}) 생성자로 바로 받으면 서로를 기다린다. 쓸 때 꺼낸다.
-     */
-    private final ObjectProvider<AccountErasureSequence> closing;
+    /** 계정을 닫는 순서. 표는 각 주인이 고치고 이 저장소는 트랜잭션만 연다. */
+    private final AccountErasureSequence closing;
+
+    private final AccountRowLock accountRows;
 
     PostgresProfileRepository(
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
             PostgresObjectCleanupLedger cleanups,
-            ChallengeWithdrawal challenges,
-            PostgresPracticeGroupErasure deletedPractices,
             PushTokenRevocation pushTokens,
             VideoRetention retainedVideos,
             RetentionPurge retentionPurge,
+            EntryMediaPurge retainedEntryMedia,
             RetainedRecordings retainedRecordings,
-            ObjectProvider<AccountErasureSequence> closing) {
+            AccountErasureSequence closing,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.cleanups = cleanups;
-        this.challenges = challenges;
-        this.deletedPractices = deletedPractices;
         this.pushTokens = pushTokens;
         this.retainedVideos = retainedVideos;
         this.retentionPurge = retentionPurge;
+        this.retainedEntryMedia = retainedEntryMedia;
         this.retainedRecordings = retainedRecordings;
         this.closing = closing;
     }
@@ -123,14 +101,7 @@ class PostgresProfileRepository
      * @return 없거나 활성이 아니면 {@code false} — 아무것도 쓰지 않는다
      */
     private boolean lockActive(UUID userId) {
-        return !list(entityManager.createNativeQuery("""
-                SELECT id
-                FROM users
-                WHERE id=:userId
-                  AND status='active'
-                FOR UPDATE
-                """, Tuple.class)
-                .setParameter("userId", userId)).isEmpty();
+        return accountRows.lockActive(userId);
     }
 
     /**
@@ -279,8 +250,9 @@ class PostgresProfileRepository
 
     /**
      * 탈퇴 3년 뒤의 파기. 해시 행을 지우는 것과 영상·녹음 삭제를 장부에 올리는 것이 한 트랜잭션이어야 "해시는 지워졌는데 영상은
-     * 남은" 계정이 생기지 않는다. 해시 보관 기간이 곧 영상 보관 기간이다(ADR-029). 여기서 트랜잭션을 열고, 계정과 영상의 표는
-     * 주인({@link RetentionPurge}, {@link VideoRetention}, {@link RetainedRecordings})이 고친다. 객체 키 읽기는 아직 여기 남아 있다.
+     * 남은" 계정이 생기지 않는다. 해시 보관 기간이 곧 영상 보관 기간이다(ADR-029). 여기서 트랜잭션을 열고, 표를 고치고 객체
+     * 삭제를 장부에 올리는 것은 주인({@link RetentionPurge}, {@link VideoRetention}, {@link EntryMediaPurge},
+     * {@link RetainedRecordings})이 한다.
      */
     @Override
     public List<UUID> purgeRetained(Instant deactivatedBefore, Instant now) {
@@ -288,23 +260,15 @@ class PostgresProfileRepository
             List<UUID> expired = retentionPurge.lockExpired(deactivatedBefore);
             List<UUID> cleanups = new ArrayList<>();
             for (UUID userId : expired) {
-                List<String> videos = videoKeys(userId);
-                if (!videos.isEmpty()) {
-                    cleanups.add(this.cleanups.schedule(userId, videos, now, now));
-                }
                 // 보관 동의로 남겨 두었던 영상도 이제 파일이 없다 — 행과 최소 메타만 남긴다.
-                retainedVideos.purgeFilesOf(userId, now);
+                cleanups.addAll(retainedVideos.purgeFilesOf(userId, now));
+                cleanups.addAll(retainedEntryMedia.purgeOf(userId, now));
                 // 보관 동의로 남겨 두었던 리딩 녹음(음성과 전사)은 행째 지우고 객체는 장부로 간다(specs/reading).
                 cleanups.addAll(retainedRecordings.purgeOf(userId, now));
                 retentionPurge.complete(userId, now);
             }
             return List.copyOf(cleanups);
         });
-    }
-
-    @Override
-    public List<UUID> purgeDeletedPracticeMedia(Instant deletedBefore, Instant now) {
-        return deletedPractices.purgeExpired(deletedBefore, now);
     }
 
     @Override
@@ -609,96 +573,18 @@ class PostgresProfileRepository
         return replaced == null ? List.of() : List.of(cleanups.schedule(userId, List.of(replaced), now, now));
     }
 
-    /** {@code users} 를 무는 칸 하나. */
-    record UserReference(String table, String column) { }
-
     /**
-     * 자료가 있으면 계정 행을 지우지 않고 탈퇴 절차로 닫게 하는 칸들. {@code users} 를 ON DELETE 없이 무는 외래 키는 모두 여기나
-     * {@link #ERASED_WITH_THE_ACCOUNT} 에 있어야 한다 — 빠지면 그 표에 행이 있을 때 {@code DELETE FROM users} 가 외래 키로 실패한다
-     * ({@code UnderageClosureReferencesIT} 가 DB 의 외래 키 목록과 맞춰 본다). {@code actor_memory_entries} 는 외래 키가 지우기를
-     * 막지 않지만 0.1.0 이전 배우 기억이라 남긴다.
-     */
-    static final List<UserReference> HISTORY = List.of(
-            new UserReference("practice_sessions", "user_id"),
-            new UserReference("upload_intents", "user_id"),
-            new UserReference("external_operations", "user_id"),
-            new UserReference("actor_memory_entries", "user_id"),
-            new UserReference("account_cleanup_operations", "user_id"),
-            new UserReference("scripts", "user_id"),
-            new UserReference("reading_recordings", "user_id"),
-            new UserReference("community_posts", "author_id"),
-            new UserReference("community_comments", "author_id"),
-            new UserReference("community_post_likes", "user_id"),
-            new UserReference("community_post_images", "uploader_id"),
-            new UserReference("community_anonymous_aliases", "user_id"),
-            new UserReference("community_reports", "reporter_id"),
-            new UserReference("community_blocks", "blocker_id"),
-            new UserReference("community_blocks", "blocked_id"),
-            new UserReference("challenges", "host_user_id"),
-            new UserReference("challenge_entries", "user_id"),
-            new UserReference("entry_likes", "user_id"),
-            new UserReference("entry_comments", "user_id"),
-            new UserReference("entry_reports", "reporter_id"),
-            new UserReference("entry_saves", "user_id"),
-            new UserReference("entry_view_events", "user_id"),
-            new UserReference("user_blocks", "blocker_id"),
-            new UserReference("user_blocks", "blocked_id"),
-            new UserReference("notifications", "user_id"),
-            new UserReference("notifications", "actor_user_id"),
-            // 0.1.0 의 연습·리딩·챌린지 표(SOMA-1130 에서 채움). 지금은 프로필이 찬 회원만 만들 수 있지만 목록에서 빠지면 위 실패가 난다.
-            new UserReference("practices", "user_id"),
-            new UserReference("videos", "user_id"),
-            new UserReference("ai_jobs", "user_id"),
-            new UserReference("actor_memories", "user_id"),
-            new UserReference("note_ratings", "user_id"),
-            new UserReference("practice_feedback", "user_id"),
-            new UserReference("reading_sessions", "user_id"),
-            new UserReference("reading_session_ratings", "user_id"),
-            new UserReference("line_memorization", "user_id"),
-            new UserReference("script_imports", "user_id"),
-            new UserReference("script_uploads", "user_id"),
-            new UserReference("entry_ai_reports", "user_id"),
-            new UserReference("entry_ranking_snapshots", "viewer_id"),
-            new UserReference("notification_pushes", "user_id"));
-
-    /** {@link #HISTORY} 의 칸 가운데 {@code :userId} 를 가리키는 행이 하나라도 있는가. */
-    private static final String HISTORY_EXISTS = HISTORY.stream()
-            .map(ref -> "EXISTS (SELECT 1 FROM " + ref.table() + " WHERE " + ref.column() + "=:userId)")
-            .collect(Collectors.joining(" OR "));
-
-    /** 자료가 없을 때 계정과 함께 지우는 표(동의·토큰·신원·푸시 토큰). 나머지는 {@code ON DELETE CASCADE} 로 함께 지워진다. */
-    static final List<String> ERASED_WITH_THE_ACCOUNT = List.of("user_consents", "refresh_tokens", "user_identities", "push_tokens");
-
-    /**
-     * 가입 중에 만 14세 미만으로 드러난 계정.
-     *
-     * <p>⚠ <b>남의 테이블을 여기서 함께 치는 것은 탈퇴와 같은 이유다</b> — 파기의 원자성이 트랜잭션
-     * 하나를 요구한다. 자료가 있는지 보는 칸은 {@link #HISTORY} 다. 하나라도 있으면 행을 지울 수 없어
-     * 탈퇴와 같은 절차로 닫는다 — 그때는 보관 동의와 무관하게 영상을 파기한다.
+     * 가입 중에 만 14세 미만으로 드러난 계정. 여기서 트랜잭션을 열고, 자료가 있는지와 무엇을 지우는지는 각 표의 주인이 답한다
+     * ({@link AccountErasureSequence#closeUnderage}).
      */
     @Override
     public Closed closeUnderage(UUID userId, Instant now, LocalDate today) {
         return transaction.execute(status -> {
-            List<Tuple> rows = list(entityManager.createNativeQuery(
-                    "SELECT (" + HISTORY_EXISTS + ") AS has_history FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
-                    .setParameter("userId", userId));
-            if (rows.isEmpty()) {
+            AccountErasureSequence.ClosedUnderage closed = closing.closeUnderage(userId, now, today);
+            if (closed == null) {
                 return null;
             }
-            if (rows.getFirst().get("has_history", Boolean.class)) {
-                Withdrawn withdrawn = withdraw(userId, true, now, today);
-                return new Closed(Closure.DEACTIVATED, withdrawn.cleanupOperationIds());
-            }
-            for (String owned : ERASED_WITH_THE_ACCOUNT) {
-                entityManager.createNativeQuery("DELETE FROM " + owned + " WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-            }
-            // 프로필·방향·포트폴리오·이관 코드는 `ON DELETE CASCADE` 로 함께 지워진다.
-            entityManager.createNativeQuery("DELETE FROM users WHERE id=:userId")
-                    .setParameter("userId", userId)
-                    .executeUpdate();
-            return new Closed(Closure.ERASED, List.of());
+            return new Closed(closed.erased() ? Closure.ERASED : Closure.DEACTIVATED, closed.cleanupOperationIds());
         });
     }
 
@@ -723,187 +609,16 @@ class PostgresProfileRepository
      *       맞지 않아 통째로 롤백되므로 결과가 저장되지 않는다.</li>
      * </ul>
      *
-     * <p>⚠ <b>이 저장소가 아직 남의 테이블을 함께 친다.</b> 주인이 {@link AccountErasure} 를 구현한 자리는 주인이 고친다.
-     * 아직 구현하지 않은 주인의 몫은 그때까지 여기 남는다({@link #STEPS}). 다른 feature의 Schema Entity를 import하면 패키지
-     * 경계를 우회하므로 그때까지 명시적 native SQL 로 둔다.
+     * <p>표는 각 주인이 {@code AccountErasure} 를 구현해 고친다(ADR-040). 이 저장소는 남의 표를 모른다.
      *
      * <p>이미 탈퇴한 계정이면 <b>최초 탈퇴 시각을 유지</b>한다. 파기는 멱등하게 다시 돈다.
      */
     @Override
     public Withdrawn withdraw(UUID userId, boolean destroyMediaRegardless, Instant now, LocalDate today) {
         return transaction.execute(status -> {
-            AccountErasureSequence.Closed closed = closing.getObject().close(userId, destroyMediaRegardless, now, today);
+            AccountErasureSequence.Closed closed = closing.close(userId, destroyMediaRegardless, now, today);
             return closed == null ? null : new Withdrawn(closed.deactivatedAt(), closed.cleanupOperationIds());
         });
-    }
-
-    /**
-     * 탈퇴도 마감 뒤 첫 변경이다 — 계정이 아직 활성일 때 밀린 챌린지 마감 집계를 먼저 해, 마감 당시 자격이 있던 참여작이 이 탈퇴
-     * 때문에 최종 순위에서 빠지지 않게 한다(challenge.browse 종료 랭킹).
-     */
-    @Override
-    public void settleBeforeDeactivation(UUID userId, Instant now) {
-        challenges.settleBeforeWithdrawal(userId, now);
-    }
-
-    @Override
-    public Set<AccountErasureStep> steps() {
-        return STEPS;
-    }
-
-    /** 계정을 닫는 트랜잭션 안에서 불린다. 자기 트랜잭션을 열지 않는다. */
-    @Override
-    public List<UUID> erase(AccountErasureStep step, ClosingAccount account) {
-        UUID userId = account.userId();
-        Instant now = account.now();
-        return switch (step) {
-            case MEDIA_OBJECTS -> scheduleMediaObjects(account);
-            case ACTOR_JOURNALS -> {
-                // 배우 일지(V59)는 배우가 직접 쓴 글(느낌·후기·다음 할 것)을 들고 있어 사람과 끊어 남기지 않고 지운다.
-                entityManager.createNativeQuery("DELETE FROM actor_journals WHERE user_id=:userId")
-                        .setParameter("userId", userId)
-                        .executeUpdate();
-                yield List.of();
-            }
-            case NOTE_RATINGS -> {
-                blankNoteRatingComments(userId, now);
-                yield List.of();
-            }
-            case DELETED_PRACTICES -> {
-                deletedPractices.forgetMarks(userId);
-                yield account.retainMedia() ? List.of() : deletedPractices.purgeAllOf(userId, now);
-            }
-            case CHALLENGE -> {
-                eraseChallenge(userId, now);
-                yield List.of();
-            }
-            case IDENTITIES, EMAIL, SESSIONS, PORTFOLIO, TRANSFER_CODES, PUSH, SIGNUP_ATTRIBUTION, DISCOVERY_ANSWER,
-                    PROFILE, COMMUNITY_IMAGES, VIDEO_FILES, BILLING, BILLING_CUSTOMER, PRACTICE_FEEDBACK, AI_JOBS,
-                    LEGACY_OPERATIONS, LEGACY_PRACTICES, READING,
-                    READING_VOICE_USAGE ->
-                    throw new IllegalArgumentException("not a step of this repository: " + step);
-        };
-    }
-
-    /** 이 저장소가 맡은 자리의 표({@link #HISTORY}) 가운데 이 계정을 가리키는 행이 있는가. */
-    @Override
-    public boolean hasRecords(UUID userId) {
-        return list(entityManager.createNativeQuery("SELECT (" + HISTORY_EXISTS + ") AS has_history", Tuple.class)
-                .setParameter("userId", userId)).getFirst().get("has_history", Boolean.class);
-    }
-
-    /** 사진은 보관 동의와 무관하게 지우고, 영상은 남기지 않을 때만 지운다. 키를 한 번에 장부에 올린다. */
-    private List<UUID> scheduleMediaObjects(ClosingAccount account) {
-        List<String> objectKeys = new ArrayList<>(photoKeys(account.userId()));
-        if (!account.retainMedia()) {
-            objectKeys.addAll(videoKeys(account.userId()));
-        }
-        return objectKeys.isEmpty()
-                ? List.of()
-                : List.of(cleanups.schedule(account.userId(), objectKeys, account.now(), account.now()));
-    }
-
-    /**
-     * 챌린지 자료 (specs/challenge 「챌린지 자료의 삭제·탈퇴」). 참여작은 비공개로 내려 집계·표본에서 빠지고(다시 공개할 수 없다 —
-     * 공개 전환은 활성 계정만 된다), 개설한 챌린지는 주최자를 비운다. 건 차단·받은 차단, 개인 북마크(저장), 받은 알림은
-     * 행째 지우고, AI 리포트는 본문·비교 자료를 파기해 생성 이력만 남긴다(90일 뒤 매시 일이 지운다). 진행 중인 리포트
-     * 생성은 위 {@code ai_jobs} 취소가 닫는다. 남긴 좋아요·댓글은 남아 "탈퇴한 사용자"로 보인다.
-     */
-    private void eraseChallenge(UUID userId, Instant now) {
-        for (String statement : List.of(
-                "UPDATE challenges SET host_user_id=NULL WHERE host_user_id=:userId",
-                "DELETE FROM user_blocks WHERE blocker_id=:userId OR blocked_id=:userId",
-                "DELETE FROM entry_saves WHERE user_id=:userId",
-                "DELETE FROM notifications WHERE user_id=:userId")) {
-            entityManager.createNativeQuery(statement).setParameter("userId", userId).executeUpdate();
-        }
-        for (String statement : List.of(
-                "UPDATE challenge_entries SET visibility='private',updated_at=:now WHERE user_id=:userId AND status<>'deleted'",
-                "UPDATE entry_ai_reports SET result=NULL,purged_at=coalesce(purged_at,:now) WHERE user_id=:userId")) {
-            entityManager.createNativeQuery(statement)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("userId", userId)
-                    .executeUpdate();
-        }
-    }
-
-    /**
-     * 프로필 사진(대기 중인 올리기 포함)과 포트폴리오 사진, 게시판 글 사진(SOMA-873, 붙지 않은 올리기 포함)의 객체 키.
-     * 사진은 보관 동의와 무관하게 지운다. 게시판 글은 남아 "탈퇴한 사용자"로 보이고 사진 행은 {@code COMMUNITY_IMAGES} 자리에서
-     * 지운다.
-     */
-    private List<String> photoKeys(UUID userId) {
-        return list(entityManager.createNativeQuery("""
-                SELECT photo_key AS object_key FROM user_profiles
-                WHERE user_id=:userId AND photo_key IS NOT NULL
-                UNION ALL
-                SELECT photo_upload_key FROM user_profiles
-                WHERE user_id=:userId AND photo_upload_key IS NOT NULL
-                UNION ALL
-                SELECT object_key FROM portfolio_photos
-                WHERE user_id=:userId
-                UNION ALL
-                SELECT object_key FROM community_post_images
-                WHERE uploader_id=:userId
-                """, Tuple.class)
-                .setParameter("userId", userId)).stream()
-                .map(row -> row.get("object_key", String.class))
-                .toList();
-    }
-
-    /**
-     * 이 사람이 올린 영상의 객체 키. 연습 행은 남기고 객체만 지운다 — 얼굴과 목소리는 가명처리가 안
-     * 된다. 리딩 녹음은 리딩의 자리({@code READING})가 따로 다룬다(행째 지우거나 보관).
-     *
-     * <p>장부 두 벌을 함께 본다: 옛 흐름의 {@code upload_intents} 와 0.1.0 보관함의 {@code videos} 다
-     * (specs/practice 「이관·삭제·탈퇴」). 이미 파일만 파기된 영상은 객체가 없으므로 빼고, 미확정 업로드의
-     * 객체는 그대로 지운다 — 예약만 하고 올리지 않았으면 그 키에 객체가 없고 S3 의 삭제는 멱등이다.
-     *
-     * <p>보관함 영상의 <b>포스터</b>(V23, 첫 장면 JPEG)도 함께다 — 얼굴이 담긴 한 장이다. 포스터 워커는 같은
-     * 챌린지 참여작의 얼굴 모자이크본도 영상에서 나온 객체라 함께 모은다(모자이크 워커도 {@code users} 행을 먼저 잡는다).
-     * {@code users} 행을 잡고 붙이므로 여기서 모은 뒤에 붙는 포스터는 없다(늦게 만든 것은 워커가 장부로 보낸다).
-     * 참여작의 공유 프레임 영상·미리보기(SOMA-1156)도 같은 방식으로 모으고 붙인다.
-     */
-    private List<String> videoKeys(UUID userId) {
-        return list(entityManager.createNativeQuery("""
-                SELECT object_key
-                FROM upload_intents
-                WHERE user_id=:userId
-                UNION
-                SELECT object_key
-                FROM videos
-                WHERE user_id=:userId AND purged_at IS NULL
-                UNION
-                SELECT poster_key
-                FROM videos
-                WHERE user_id=:userId AND purged_at IS NULL AND poster_key IS NOT NULL
-                UNION
-                SELECT mosaic_key
-                FROM challenge_entries
-                WHERE user_id=:userId AND mosaic_key IS NOT NULL
-                UNION
-                SELECT unnest(share_frame_keys)
-                FROM challenge_entries
-                WHERE user_id=:userId
-                """, Tuple.class)
-                .setParameter("userId", userId)).stream()
-                .map(row -> row.get("object_key", String.class))
-                .toList();
-    }
-
-    /**
-     * 노트 평가의 한 줄(자유 입력)을 비우고 평가 값은 사람과 끊어 남긴다(practice.note). 평가를 쓰는 쪽이 같은 {@code users} 행을
-     * 잡으므로 늦게 온 평가가 한 줄을 되살리지 못한다.
-     */
-    private void blankNoteRatingComments(UUID userId, Instant now) {
-        entityManager.createNativeQuery("""
-                UPDATE note_ratings
-                SET comment=NULL,updated_at=:now
-                WHERE user_id=:userId AND comment IS NOT NULL
-                """)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("userId", userId)
-                .executeUpdate();
     }
 
     private static Account account(Tuple row) {

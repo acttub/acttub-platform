@@ -4,10 +4,10 @@ import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadRepository;
@@ -30,7 +30,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 를 그대로 쓴다 — 저장 규칙이 두 벌이 되지 않게.
  *
  * <p>리딩의 표만 읽고 쓰는 문장은 Spring Data 저장소에 있다. 사람 행의 잠금·손님 판정(auth 의 표), 동의(consent 의 표), 나누기
- * 작업({@code ai_jobs}, platform/operation 의 표)을 읽고 쓰는 문장은 native SQL 로 둔다(apps/api/CONTRACT.md §5-9).
+ * 작업({@code ai_jobs}, platform/operation 의 표)을 읽는 문장은 native SQL 로 둔다(apps/api/CONTRACT.md §5-9). 작업을 넣는 것은
+ * {@code AiJobLedger} 가 한다.
  */
 @Repository
 class PostgresScriptImportRepository implements ScriptImportRepository {
@@ -51,11 +52,15 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     private final boolean reuseEnabled;
     private final int reuseMaxAgeDays;
 
+    private final AccountRowLock accountRows;
+
     PostgresScriptImportRepository(EntityManager em, PlatformTransactionManager manager, ScriptRepository scripts,
             ScriptUploadRepository uploads, AiJobLedger ledger, ScriptImportJpaRepository requests, ScriptJpaRepository scriptRows,
             ScriptUploadJpaRepository uploadRows, ScriptCharacterJpaRepository characterRows, ScriptLineJpaRepository lineRows,
             @org.springframework.beans.factory.annotation.Value("${SCRIPT_SPLIT_REUSE_ENABLED:true}") boolean reuseEnabled,
-            @org.springframework.beans.factory.annotation.Value("${SCRIPT_SPLIT_REUSE_MAX_AGE_DAYS:30}") int reuseMaxAgeDays) {
+            @org.springframework.beans.factory.annotation.Value("${SCRIPT_SPLIT_REUSE_MAX_AGE_DAYS:30}") int reuseMaxAgeDays,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
         this.em = em;
         this.transaction = new TransactionTemplate(manager);
         this.scripts = scripts;
@@ -177,13 +182,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
                 if (today >= dailyLimit) {
                     return new Requested(null, null, Outcome.OVER_DAILY_LIMIT);
                 }
-                jobId = UUID.randomUUID();
-                em.createNativeQuery("""
-                        INSERT INTO ai_jobs(id,user_id,kind,target_id,request_id,request_fingerprint,status,attempt_count,created_at,updated_at)
-                        VALUES (:id,:userId,:kind,:target,:requestId,:fingerprint,'pending',0,:now,:now)
-                        """).setParameter("id", jobId).setParameter("userId", userId).setParameter("kind", KIND)
-                        .setParameter("target", importId).setParameter("requestId", requestId).setParameter("fingerprint", fingerprint)
-                        .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+                jobId = ledger.enqueue(userId, KIND, importId, requestId, fingerprint, now);
             }
             requests.insert(importId, userId, requestId, fingerprint, submission.title(), submission.source(), submission.rawText(),
                     submission.rawHash(), jobId, scriptId, submission.skipScriptCheck(), submission.uploadId(), lines, now);
@@ -343,10 +342,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     }
 
     private void lockActive(UUID userId) {
-        List<Tuple> active = list(em.createNativeQuery(
-                "SELECT id FROM users WHERE id=:userId AND status='active' FOR UPDATE", Tuple.class)
-                .setParameter("userId", userId));
-        if (active.isEmpty()) throw new ScriptRepository.OwnerNotActive();
+        if (!accountRows.lockActive(userId)) throw new ScriptRepository.OwnerNotActive();
     }
 
     private static ScriptImportFailure failureOf(String value) {

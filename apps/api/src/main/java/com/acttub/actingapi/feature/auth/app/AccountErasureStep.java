@@ -7,7 +7,8 @@ package com.acttub.actingapi.feature.auth.app;
  * 순서이기도 해서, 자리를 옮기면 겹친 쓰기와의 교착·결과가 달라질 수 있다. 지켜야 하는 앞뒤:
  *
  * <ul>
- *   <li>객체 키는 그 행을 지우기 전에 읽는다({@link #MEDIA_OBJECTS} 가 맨 앞이다).</li>
+ *   <li>객체 키는 그 행을 지우거나 키를 비우기 전에 읽는다. 자리마다 그 구현 안에서 지킨다: 읽은 키의 삭제를 정리 장부에 올리고
+ *       그 id 를 돌려준다.</li>
  *   <li>리프레시 토큰을 폐기한 뒤에 접속일을 지운다(둘 다 {@link #SESSIONS} 안이다).</li>
  * </ul>
  *
@@ -15,11 +16,9 @@ package com.acttub.actingapi.feature.auth.app;
  * {@link AccountErasureSequence#close} 에 있다.
  */
 public enum AccountErasureStep {
-    /** 사진과 영상 객체의 키를 모아 삭제를 장부에 올린다. */
-    MEDIA_OBJECTS,
     /** 대본·회차·녹음·암기 상태. */
     READING,
-    /** 영상 행을 잠그고, 영상을 남기지 않을 때 파일을 파기한 것으로 적는다. */
+    /** 영상 행을 잠그고, 영상을 남기지 않을 때 객체 삭제를 장부에 올리고 파일을 파기한 것으로 적는다. */
     VIDEO_FILES,
     /** 진행 중인 AI 작업을 닫는다. */
     AI_JOBS,
@@ -31,9 +30,9 @@ public enum AccountErasureStep {
     NOTE_RATINGS,
     /** 앞서 지운 연습의 무료 횟수 표시와 보관하던 영상. */
     DELETED_PRACTICES,
-    /** 주최한 챌린지, 참여작, 차단, 저장, 알림, AI 리포트. */
+    /** 주최한 챌린지, 참여작(영상을 남기지 않을 때 모자이크본·공유 프레임 객체도), 차단, 저장, 알림, AI 리포트. */
     CHALLENGE,
-    /** 게시판 글 사진. */
+    /** 게시판 글 사진(행과 객체). */
     COMMUNITY_IMAGES,
     /** 고품질 목소리 사용량. */
     READING_VOICE_USAGE,
@@ -49,9 +48,9 @@ public enum AccountErasureStep {
     BILLING_CUSTOMER,
     /** 이메일과 옛 닉네임. */
     EMAIL,
-    /** 프로필의 이름·사진·소개를 지우고 생년월일을 연령대로 바꾼다. */
+    /** 프로필의 이름·사진(객체도)·소개를 지우고 생년월일을 연령대로 바꾼다. */
     PROFILE,
-    /** 포트폴리오. */
+    /** 포트폴리오(사진 객체도). */
     PORTFOLIO,
     /** 살아 있는 이관 코드. */
     TRANSFER_CODES,

@@ -123,6 +123,47 @@ class AccountErasureSequenceTest {
         assertThat(sequence(List.of(owner("모두", EnumSet.allOf(AccountErasureStep.class)))).hasRecords(USER)).isFalse();
     }
 
+    @Test
+    @DisplayName("만 14세 미만, 자료 없음: 잠금 → 모든 구현에 자료를 묻는다 → 구현마다 계정과 함께 지울 행 → 계정 행. 자리의 일은 하지 않는다")
+    void underageWithoutRecordsErasesTheAccountRow() {
+        AccountErasureSequence.ClosedUnderage closed = sequence(List.of(
+                owner("자리", EnumSet.allOf(AccountErasureStep.class)),
+                owner("자리 없음", EnumSet.noneOf(AccountErasureStep.class)))).closeUnderage(USER, NOW, TODAY);
+
+        assertThat(calls).containsExactly(
+                "lock", "자리:hasRecords", "자리 없음:hasRecords", "자리:withAccountRow", "자리 없음:withAccountRow", "eraseRow");
+        assertThat(closed.erased()).isTrue();
+        assertThat(closed.cleanupOperationIds()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("만 14세 미만, 자료 있음: 계정 행을 지우지 않고 탈퇴와 같은 순서로 닫되 보관 동의를 읽지 않고 영상을 남기지 않는다")
+    void underageWithRecordsClosesLikeAWithdrawalAndDestroysMedia() {
+        AccountErasure withRecords = new Recording("자료 있음", EnumSet.noneOf(AccountErasureStep.class), true);
+
+        AccountErasureSequence.ClosedUnderage closed = sequence(List.of(
+                owner("자리", EnumSet.allOf(AccountErasureStep.class)), withRecords)).closeUnderage(USER, NOW, TODAY);
+
+        assertThat(calls).startsWith("lock", "자리:hasRecords", "자료 있음:hasRecords", "settle", "deactivate")
+                .doesNotContain("retention", "eraseRow", "자리:withAccountRow", "자료 있음:withAccountRow")
+                .endsWith("deactivatedAt");
+        assertThat(calls.stream().filter("lock"::equals)).as("계정 행은 한 번만 잠근다").hasSize(1);
+        assertThat(calls).filteredOn(call -> call.contains(":retain=")).hasSize(AccountErasureStep.values().length)
+                .allMatch(call -> call.endsWith("retain=false"));
+        assertThat(closed.erased()).isFalse();
+        assertThat(closed.cleanupOperationIds()).hasSize(AccountErasureStep.values().length);
+    }
+
+    @Test
+    @DisplayName("만 14세 미만, 없는 계정: null 이고 잠금 뒤로 아무것도 부르지 않는다")
+    void underageMissingAccountStopsAfterTheLock() {
+        state = null;
+
+        assertThat(sequence(List.of(owner("모두", EnumSet.allOf(AccountErasureStep.class)))).closeUnderage(USER, NOW, TODAY))
+                .isNull();
+        assertThat(calls).containsExactly("lock");
+    }
+
     private static UUID cleanupOf(AccountErasureStep step) {
         return new UUID(0, step.ordinal());
     }
@@ -142,6 +183,11 @@ class AccountErasureSequenceTest {
             @Override
             public void deactivate(UUID userId, Instant now) {
                 calls.add("deactivate");
+            }
+
+            @Override
+            public void eraseRow(UUID userId) {
+                calls.add("eraseRow");
             }
 
             @Override
@@ -180,7 +226,13 @@ class AccountErasureSequenceTest {
 
         @Override
         public boolean hasRecords(UUID userId) {
+            calls.add(name + ":hasRecords");
             return records;
+        }
+
+        @Override
+        public void eraseWithAccountRow(UUID userId) {
+            calls.add(name + ":withAccountRow");
         }
     }
 }

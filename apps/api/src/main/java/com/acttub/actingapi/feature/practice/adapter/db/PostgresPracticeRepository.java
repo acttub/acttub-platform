@@ -9,8 +9,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.practice.app.PracticeRepository;
-import com.acttub.actingapi.feature.practice.app.PracticeSessionRepository;
+import com.acttub.actingapi.feature.practice.app.PracticeStageTransitions;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.GroupView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.JobView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.PracticeView;
@@ -20,7 +21,9 @@ import com.acttub.actingapi.feature.practice.domain.ObservationPack;
 import com.acttub.actingapi.integration.observation.VideoRecord;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.core.JacksonException;
+import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.schema.AiJobKind;
 import com.acttub.actingapi.platform.web.OutputLanguage;
 import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.Limit;
@@ -40,12 +43,14 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>회차와 작업은 한 트랜잭션이다 — 도중에 실패하면 둘 다 없다.
  *
  * <p>{@code practices} 한 표만 쓰는 문장은 {@link PracticeJpaRepository} 의 JPQL·HQL 이다. 회차를 화면에 싣는 조회와 다른 기능의
- * 표(videos·analyses·coach_*·ai_jobs·users·external_operations·practice_deletion_marks·reading_sessions·challenge_entries,
+ * 표(videos·analyses·coach_*·ai_jobs·users·external_operations·reading_sessions·challenge_entries,
  * 옛 practice_sessions·practice_reports)를 함께 보거나 쓰는 문장은 native 로 남았다(apps/api/CONTRACT.md §5-9,
  * {@code native-sql-files.txt} 의 남김 줄).
  */
 @Repository
 class PostgresPracticeRepository implements PracticeRepository {
+    private static final String ANALYZE = AiJobKind.ANALYZE.dbValue();
+
     /**
      * 회차 한 줄을 만드는 SELECT — 상세·목록·응답이 모두 이 모양을 쓴다.
      *
@@ -78,16 +83,23 @@ class PostgresPracticeRepository implements PracticeRepository {
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final ObjectMapper mapper;
-    private final PracticeSessionRepository legacySessions;
+    private final AiJobLedger jobs;
+    private final PracticeStageTransitions stages;
+
+    private final AccountRowLock accountRows;
 
     PostgresPracticeRepository(PracticeJpaRepository practices, EntityManager entityManager,
                                PlatformTransactionManager transactionManager, ObjectMapper mapper,
-                               PracticeSessionRepository legacySessions) {
+                               AiJobLedger jobs,
+                               PracticeStageTransitions stages,
+                               AccountRowLock accountRows) {
+        this.accountRows = accountRows;
+        this.stages = stages;
         this.practices = practices;
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.mapper = mapper;
-        this.legacySessions = legacySessions;
+        this.jobs = jobs;
     }
 
     @Override
@@ -98,14 +110,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                 WHERE p.id=:id AND p.user_id=:userId
                 """, Tuple.class).setParameter("id", practiceId).setParameter("userId", userId));
         if (rows.isEmpty()) {
-            var legacy = legacySessions.detail(userId, practiceId);
-            if (legacy == null) return null;
-            if (legacy.videoRecord() != null) {
-                return new AnalysisView(legacy.videoRecord().recordId(), "video_record_v1",
-                        legacy.videoRecord().status(), null, legacy.videoRecord());
-            }
-            return legacy.summary() == null ? null : new AnalysisView(legacy.summary().summaryId(),
-                    "legacy", "ready", legacy.summary(), null);
+            return null;
         }
         Tuple row = rows.getFirst();
         try {
@@ -137,7 +142,7 @@ class PostgresPracticeRepository implements PracticeRepository {
             }
             UUID id = UUID.randomUUID();
             insertPractice(id, id, 1, userId, practice, now);
-            insertAnalyzeJob(userId, id, practice.requestId(), practice.fingerprint(), now);
+            jobs.enqueue(userId, ANALYZE, id, practice.requestId(), practice.fingerprint(), now);
             return new Started(StartOutcome.CREATED, find(userId, id));
         });
     }
@@ -167,9 +172,7 @@ class PostgresPracticeRepository implements PracticeRepository {
             }
             // 같은 사람의 겹친 요청을 줄 세운다. 리딩 회차 하나에 이 코칭은 하나다 — 이미 있으면(다른 요청 id 로 다시 눌렀어도)
             // 그 회차를 돌려준다.
-            NativeTuples.list(entityManager.createNativeQuery(
-                    "SELECT id FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
-                    .setParameter("userId", userId));
+            accountRows.lockRow(userId);
             UUID existing = existingFromReading(userId, readingSessionId);
             if (existing != null) {
                 return new Started(StartOutcome.REPLAYED, find(userId, existing));
@@ -219,7 +222,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                             // 얼굴 가리기를 보내지 않았으면 이어받을 회차의 값을 쓴다.
                             practice.faceMosaic() != null ? practice.faceMosaic() : source.getFaceMosaic()),
                     now);
-            insertAnalyzeJob(userId, id, practice.requestId(), practice.fingerprint(), now);
+            jobs.enqueue(userId, ANALYZE, id, practice.requestId(), practice.fingerprint(), now);
             return new Started(StartOutcome.CREATED, find(userId, id));
         });
     }
@@ -257,8 +260,8 @@ class PostgresPracticeRepository implements PracticeRepository {
             if (overQuota(userId, quota)) {
                 return new Started(StartOutcome.QUOTA, null);
             }
-            practices.reopenForAnalysis(practiceId, now);
-            insertAnalyzeJob(userId, practiceId, requestId, fingerprint, now);
+            stages.retried(practiceId, now);
+            jobs.enqueue(userId, ANALYZE, practiceId, requestId, fingerprint, now);
             return new Started(StartOutcome.CREATED, find(userId, practiceId));
         });
     }
@@ -379,21 +382,11 @@ class PostgresPracticeRepository implements PracticeRepository {
                 return new Cancelled(CancelOutcome.NOT_FOUND, null);
             }
             // lease 를 지운다 — 돌고 있던 워커의 늦은 완료와 재큐가 받아들여지지 않는다(CONTRACT §5-7).
-            int closed = entityManager.createNativeQuery("""
-                    UPDATE ai_jobs
-                    SET status='failed',failure_reason='cancelled',
-                        lease_token=NULL,lease_expires_at=NULL,updated_at=:now
-                    WHERE target_id=:practiceId
-                      AND kind='analyze'
-                      AND status IN ('pending','running')
-                    """)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("practiceId", practiceId)
-                    .executeUpdate();
+            int closed = jobs.cancel(ANALYZE, practiceId, now);
             if (closed == 0) {
                 return new Cancelled(CancelOutcome.ALREADY_DONE, null);
             }
-            practices.closeCancelled(practiceId, now);
+            stages.cancelled(practiceId, now);
             return new Cancelled(CancelOutcome.CANCELLED, status(userId, practiceId));
         });
     }
@@ -513,9 +506,7 @@ class PostgresPracticeRepository implements PracticeRepository {
         if (quota == null) {
             return false;
         }
-        NativeTuples.list(entityManager.createNativeQuery(
-                "SELECT id FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
-                .setParameter("userId", userId));
+        accountRows.lockRow(userId);
         if (quota.kind() == Quota.Kind.SESSIONS) {
             // 무료 코칭 한도(SOMA-818): 오늘 만든 회차 수. 영상 있는·없는 코칭과 이어하기가 모두 든다.
             Number sessions = (Number) entityManager.createNativeQuery(
@@ -532,16 +523,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                     .getSingleResult();
             return sessions.intValue() >= quota.limit();
         }
-        Number requested = (Number) entityManager.createNativeQuery("""
-                SELECT (SELECT count(*) FROM ai_jobs
-                        WHERE user_id=:userId AND kind='analyze' AND created_at>=:since)
-                     + (SELECT count(*) FROM external_operations
-                        WHERE user_id=:userId AND kind='analyze' AND created_at>=:since) AS requested
-                """)
-                .setParameter("userId", userId)
-                .setParameter("since", quota.since().atOffset(ZoneOffset.UTC))
-                .getSingleResult();
-        return requested.intValue() >= quota.limit();
+        return jobs.countRequestedSince(userId, ANALYZE, quota.since()) >= quota.limit();
     }
 
     private void insertPractice(UUID id, UUID rootId, int ordinal, UUID userId, NewPractice practice, Instant now) {
@@ -555,21 +537,6 @@ class PostgresPracticeRepository implements PracticeRepository {
                 practice.requestId(), practice.fingerprint(), practice.situation(), practice.characterContext(),
                 practice.goal(), practice.blockageKind(), practice.subBranch(), practice.blockageNote(), practice.title(),
                 practice.sessionPurpose(), practice.faceMosaic(), OutputLanguage.current().getLanguage(), now);
-    }
-
-    /** 분석 작업 하나. 회차를 만든 트랜잭션 안이라 둘은 함께 생기거나 함께 없다. */
-    private void insertAnalyzeJob(UUID userId, UUID practiceId, UUID requestId, String fingerprint, Instant now) {
-        entityManager.createNativeQuery("""
-                INSERT INTO ai_jobs(id,user_id,kind,target_id,request_id,request_fingerprint,status,created_at,updated_at)
-                VALUES (:id,:userId,'analyze',:targetId,:requestId,:fingerprint,'pending',:now,:now)
-                """)
-                .setParameter("id", UUID.randomUUID())
-                .setParameter("userId", userId)
-                .setParameter("targetId", practiceId)
-                .setParameter("requestId", requestId)
-                .setParameter("fingerprint", fingerprint)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .executeUpdate();
     }
 
     private static List<String> tags(String raw) {

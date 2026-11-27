@@ -52,4 +52,12 @@ class PostgresPushAccountErasure implements AccountErasure {
     public boolean hasRecords(UUID userId) {
         return false;
     }
+
+    /** 푸시 토큰은 외래 키가 따라 지워 주지 않는다. 기록 둘은 따라 지워진다. */
+    @Override
+    public void eraseWithAccountRow(UUID userId) {
+        entityManager.createQuery("delete from PushTokenEntity t where t.userId = :userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
+    }
 }

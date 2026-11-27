@@ -1,15 +1,16 @@
 package com.acttub.actingapi.feature.coach.adapter.db;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.coach.app.ActorProfile;
 import com.acttub.actingapi.feature.coach.app.CoachSessionSnapshot;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository;
 import com.acttub.actingapi.feature.coach.app.PriorContext;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
+import com.acttub.actingapi.feature.practice.app.PracticeStageTransitions;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -38,10 +39,16 @@ class PostgresConversationRepository implements ConversationRepository {
     private final CoachMessageJpaRepository messages;
     private final CoachNoteJpaRepository notes;
     private final TransactionTemplate transaction;
+    private final PracticeStageTransitions stages;
+
+    private final AccountRowLock accountRows;
 
     PostgresConversationRepository(EntityManager entityManager, CoachConversationJpaRepository conversations,
             CoachMessageJpaRepository messages, CoachNoteJpaRepository notes,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager, PracticeStageTransitions stages,
+            AccountRowLock accountRows) {
+        this.accountRows = accountRows;
+        this.stages = stages;
         this.entityManager = entityManager;
         this.conversations = conversations;
         this.messages = messages;
@@ -161,13 +168,7 @@ class PostgresConversationRepository implements ConversationRepository {
             insertMessage(conversationId, 0, "ai", coachMessage, null, null, now);
             conversations.saveOpening(conversationId, state == null ? "{}" : text(state), closeReason, now);
             if (closeReason != null) {
-                entityManager.createNativeQuery("""
-                        UPDATE practices SET stage='closed',close_reason='conversation_closed',updated_at=:now
-                        WHERE id=(SELECT practice_id FROM coach_conversations WHERE id=:conversationId)
-                        """)
-                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                        .setParameter("conversationId", conversationId)
-                        .executeUpdate();
+                stages.conversationClosed(conversationId, now);
             }
         });
     }
@@ -222,13 +223,7 @@ class PostgresConversationRepository implements ConversationRepository {
             insertMessage(conversationId, nextIndex + 1, "ai", coachMessage, null, null, now);
             conversations.saveTurn(conversationId, state == null ? "{}" : text(state), status, closeReason, now);
             if ("closed".equals(status)) {
-                entityManager.createNativeQuery("""
-                        UPDATE practices SET stage='closed',close_reason='conversation_closed',updated_at=:now
-                        WHERE id=(SELECT practice_id FROM coach_conversations WHERE id=:conversationId)
-                        """)
-                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                        .setParameter("conversationId", conversationId)
-                        .executeUpdate();
+                stages.conversationClosed(conversationId, now);
             }
             return new Saved(expectedRevision + 1, status, closeReason, (int) messages.coachReplies(conversationId));
         });
@@ -306,13 +301,7 @@ class PostgresConversationRepository implements ConversationRepository {
                 throw new PracticeInProgress();
             }
             conversations.reopen(conversationId, state == null ? "{}" : text(state), now);
-            entityManager.createNativeQuery("""
-                    UPDATE practices SET stage='conversing',close_reason=NULL,updated_at=:now
-                    WHERE id=(SELECT practice_id FROM coach_conversations WHERE id=:conversationId)
-                    """)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("conversationId", conversationId)
-                    .executeUpdate();
+            stages.conversationReopened(conversationId, now);
             return new Saved(expectedRevision + 1, "open", null, (int) messages.coachReplies(conversationId));
         });
     }
@@ -326,11 +315,9 @@ class PostgresConversationRepository implements ConversationRepository {
         while (true) {
             UUID owner = currentOwner(conversationId);
             if (owner == null) return false;
-            List<Tuple> users = NativeTuples.list(entityManager.createNativeQuery(
-                            "SELECT status FROM users WHERE id=:id FOR UPDATE", Tuple.class)
-                    .setParameter("id", owner));
+            boolean active = accountRows.lockActive(owner);
             if (!owner.equals(currentOwner(conversationId))) continue;
-            if (users.isEmpty() || !"active".equals(users.getFirst().get("status", String.class))) {
+            if (!active) {
                 throw new OwnerNotActive();
             }
             return true;
@@ -352,14 +339,15 @@ class PostgresConversationRepository implements ConversationRepository {
                 .setParameter("practiceId", practiceId)
                 .setParameter("userId", userId));
         if (owned.isEmpty()) {
-            return legacyNote(userId, practiceId);
+            return null;
         }
         NoteView note = view(notes.ofPractice(practiceId).orElse(null));
         return note == null ? legacyNote(userId, practiceId) : note;
     }
 
     /**
-     * 아직 옮기지 않은 옛 노트를 <b>새 봉투에 담아</b> 낸다 (specs/practice ②).
+     * 새 표에 노트가 없는 회차의 옛 노트를 <b>새 봉투에 담아</b> 낸다 (specs/practice 「0.1.0 스키마 전환」). 옛 자료를
+     * 옮길 때 노트는 새 표로 간 대화(가장 최근 하나)의 것만 따라갔고, 그보다 앞선 대화의 노트는 옛 표에 남았다.
      *
      * <p>기존 갈래는 {@code legacy} 형식에 옛 종류(analysis·expression)를 그대로 두고, 신형 노트만 {@code v2}
      * 다 — 이름만 바꾸지 않는다. 원문은 {@code report} 로 그대로 나가 옛 공개 필드를 읽던 화면이 그대로 쓴다.
@@ -493,11 +481,11 @@ class PostgresConversationRepository implements ConversationRepository {
     }
 
     /**
-     * 아직 옮기지 않은 옛 대화 (specs/practice ②). <b>한 연습에 대화가 여럿인 옛 자료</b>의 "이전 대화" 가 이
+     * 옛 표에 남은 대화 (specs/practice 「0.1.0 스키마 전환」). <b>한 연습에 대화가 여럿인 옛 자료</b>의 "이전 대화" 가 이
      * 경로로 열린다 — 최근 하나로 자르지 않는다(practice.coach).
      *
-     * <p>종료 사유는 옛 어휘를 그대로 낸다. 전환 명령은 새 어휘로 옮기지만, 여기서 읽는 것은 아직 옛 표에
-     * 있는 행이고 그 행의 값을 고쳐 보이지 않는다. 다만 상태는 늘 closed 로 낸다 — 답·이어 하기는 새 표만 보므로
+     * <p>종료 사유는 옛 어휘를 그대로 낸다. 새 표로 옮긴 대화는 새 어휘를 쓰지만, 여기서 읽는 것은 옛 표에
+     * 남은 행이고 그 행의 값을 고쳐 보이지 않는다. 다만 상태는 늘 closed 로 낸다 — 답·이어 하기는 새 표만 보므로
      * 옛 표의 열린 대화에는 이어 말할 수 없다(practice README 「호환 읽기」).
      */
     private ConversationView legacyConversation(UUID userId, UUID conversationId) {

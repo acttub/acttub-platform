@@ -1,3 +1,13 @@
+// Spring Boot 플러그인(buildpack)이 끌고 오는 commons-lang3 3.16.0 에 보안 경보가 있다(GHSA-j288-q9x7-2f5v).
+// 빌드 도구 쪽 경로뿐이고 앱은 3.21.0 을 쓴다. 고친 판으로 올린다.
+buildscript {
+    dependencies {
+        constraints {
+            classpath("org.apache.commons:commons-lang3:3.18.0")
+        }
+    }
+}
+
 plugins {
     java
     jacoco
@@ -66,6 +76,10 @@ dependencies {
     implementation("org.postgresql:postgresql")
 
     implementation("com.google.genai:google-genai:1.68.0")
+    // google-genai 1.68.0 이 끌고 오는 guava 33.4.0 에 보안 경보가 있다(GHSA-xxph-c9ww-hj94). 고친 판으로 올린다.
+    constraints {
+        implementation("com.google.guava:guava:33.7.2-jre")
+    }
     implementation("com.networknt:json-schema-validator:3.0.9")
 
     // 대본 원본 파일의 글자 뽑기(reading.script). 둘 다 Apache-2.0. commons-logging 은 spring-jcl 이 같은 API 를 준다.

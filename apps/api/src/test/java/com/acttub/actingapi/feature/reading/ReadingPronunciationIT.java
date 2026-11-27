@@ -92,7 +92,7 @@ class ReadingPronunciationIT {
                     throw new IllegalStateException("pronunciation scorer returned 503");
                 }
                 SCORED.add(text);
-                Phone phone = new Phone("ㄷ", "ㄷ", 1.0, false, 0, 0, 100, false);
+                Phone phone = new Phone("ㄷ", "ㄷ", 1.0, false, 0, 0, 100);
                 return new PronunciationScorer.Scored(new ScoredLine(text, List.of(new Word(0, text, false, List.of(phone)))),
                         "pron-fake");
             };
@@ -230,6 +230,41 @@ class ReadingPronunciationIT {
         Map<String, Object> row = jdbc.queryForMap("SELECT status, failure FROM reading_pronunciation_reports");
         assertThat(row.get("status")).isEqualTo("failed");
         assertThat(row.get("failure")).isEqualTo("lease_expired");
+    }
+
+    @Test
+    @DisplayName("reading.pronunciation: 채점 중이면 일꾼이 적은 진행을 {done, total} 로 내고, 기다리거나 끝났으면 null 이다. "
+            + "다시 집으면 앞 시도의 진행은 비고, 임대를 잃은 일꾼은 진행을 적지 못한다(SOMA-1171)")
+    void runningReportShowsProgress() throws Exception {
+        record(List.of("대사 1", "대사 3", "대사 5"));
+        complete();
+        JsonNode queued = json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200);
+        assertThat(queued.has("progress")).isTrue();
+        assertThat(queued.path("progress").isNull()).isTrue();
+        Instant now = clock.instant();
+        UUID token = UUID.randomUUID();
+        var claimed = reports.claimNext(token, Duration.ofMinutes(1), 3, now);
+
+        assertThat(json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200).path("progress").isNull())
+                .as("집었지만 아직 적지 않았다").isTrue();
+        assertThat(reports.progress(claimed.reportId(), token, 1, 3)).isTrue();
+        assertThat(reports.progress(claimed.reportId(), UUID.randomUUID(), 2, 3)).isFalse();
+        JsonNode running = json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200);
+        assertThat(running.path("status").stringValue(null)).isEqualTo("running");
+        assertThat(LenientJson.intValue(running.path("progress").path("done"))).isEqualTo(1);
+        assertThat(LenientJson.intValue(running.path("progress").path("total"))).isEqualTo(3);
+
+        reports.claimNext(UUID.randomUUID(), Duration.ofMinutes(1), 3, now.plusSeconds(120));
+        assertThat(json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200).path("progress").isNull())
+                .as("임대가 끝나 다시 집었다").isTrue();
+
+        jdbc.update("UPDATE reading_pronunciation_reports SET status='queued', lease_token=NULL, lease_until=NULL, attempt_count=0");
+        assertThat(worker.runOnce()).isTrue();
+        JsonNode done = json(get("/v2/reading/sessions/{id}/pronunciation", session), bearer, 200);
+        assertThat(done.path("status").stringValue(null)).isEqualTo("done");
+        assertThat(done.path("progress").isNull()).isTrue();
+        assertThat(jdbc.queryForMap("SELECT progress_done, progress_total FROM reading_pronunciation_reports"))
+                .containsEntry("progress_done", 3).containsEntry("progress_total", 3);
     }
 
     @Test

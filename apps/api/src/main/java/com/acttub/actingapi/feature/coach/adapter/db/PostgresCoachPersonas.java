@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.acttub.actingapi.feature.auth.app.AccountFacts;
 import com.acttub.actingapi.feature.coach.app.CoachPersonas;
 import com.acttub.actingapi.feature.coach.app.CoachSessionSnapshot;
 import com.acttub.actingapi.integration.llm.StructuredJson;
@@ -25,7 +26,10 @@ class PostgresCoachPersonas implements CoachPersonas {
     private final EntityManager entityManager;
     private final Map<String, String> advisors;
 
-    PostgresCoachPersonas(EntityManager entityManager) {
+    private final AccountFacts accounts;
+
+    PostgresCoachPersonas(EntityManager entityManager, AccountFacts accounts) {
+        this.accounts = accounts;
         this.entityManager = entityManager;
         this.advisors = parse(StructuredJson.textResource("/coaching/direct-video/personas/advisors.txt"));
     }
@@ -43,10 +47,7 @@ class PostgresCoachPersonas implements CoachPersonas {
     @Override
     public String assign(CoachSessionSnapshot session) {
         if (session.userId() == null || advisors.isEmpty()) return "";
-        Object email = entityManager.createNativeQuery("SELECT email FROM users WHERE id=:id AND email IS NOT NULL")
-                .setParameter("id", session.userId()).getResultList().stream().findFirst().orElse(null);
-        if (!(email instanceof String text)) return "";
-        return advisors.getOrDefault(hash(text), "");
+        return accounts.email(session.userId()).map(email -> advisors.getOrDefault(hash(email), "")).orElse("");
     }
 
     static String hash(String email) {

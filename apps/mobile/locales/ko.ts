@@ -1594,7 +1594,10 @@ const ko = {
   },
   pronReport: {
     waitingTitle: '보고서를 만들고 있어요',
-    waiting: '녹음을 듣고 있어요. 1분쯤 걸려요.',
+    waiting: '녹음을 듣고 있어요. 긴 리딩은 몇 분 걸려요.\n나가도 괜찮아요. 다 되면 알림으로 알려 드릴게요.',
+    stalledTitle: '아직 만들고 있어요',
+    stalled: '긴 리딩이라 시간이 더 걸려요. 다 되면 알림으로 알려 드릴게요.',
+    checkAgain: '다시 확인',
     skippedTitle: '만들 보고서가 없어요',
     skipped: '녹음된 내 대사가 없거나, 대본대로 읽은 줄이 없어서 보고서를 만들지 않았어요.',
     failedTitle: '보고서를 만들지 못했어요',

@@ -27,6 +27,37 @@ public interface AiJobLedger {
     int MAX_ATTEMPTS = 3;
 
     /**
+     * 대기 작업 하나를 넣는다. <b>부르는 쪽의 트랜잭션에 참여한다</b> — 작업과 그 대상(회차·리포트·나누기 요청)은 함께
+     * 생기거나 함께 없다. 같은 사람의 같은 요청 id 가 이미 있으면 유일 제약으로 실패한다.
+     *
+     * @param kind {@code AiJobKind} 의 값
+     * @return 작업 id
+     */
+    UUID enqueue(UUID userId, String kind, UUID targetId, UUID requestId, String fingerprint, Instant now);
+
+    /**
+     * 활성 계정에만 대기 작업을 넣고, 그 계정의 지금 기억 세대를 함께 적는다. 탈퇴한 계정이거나 같은 요청 id 의 작업이 이미
+     * 있으면 넣지 않는다. 부르는 쪽의 트랜잭션에 참여한다.
+     *
+     * @return 넣었으면 참
+     */
+    boolean enqueueForActiveAccount(UUID userId, String kind, UUID targetId, UUID requestId, String fingerprint, Instant now);
+
+    /**
+     * 그 대상의 아직 끝나지 않은 작업을 취소로 닫는다(실패, 사유 {@code cancelled}). lease 를 떼므로 돌고 있던 워커의 늦은
+     * 완료와 재큐가 받아들여지지 않는다. 부르는 쪽의 트랜잭션에 참여한다.
+     *
+     * @return 닫은 작업의 수
+     */
+    int cancel(String kind, UUID targetId, Instant now);
+
+    /**
+     * 그 사람이 {@code since} 뒤로 넣은 그 종류의 요청 수(하루 한도를 셀 때). 옛 원장({@code external_operations})에 넣은 것도
+     * 함께 센다 — 두 원장이 공존하는 동안 배우에게는 한 계정의 하루다.
+     */
+    int countRequestedSince(UUID userId, String kind, Instant since);
+
+    /**
      * 대기 중인 작업 하나를 선점한다. 집을 게 없으면 {@code null}.
      *
      * @param kind {@code AiJobKind} 의 값

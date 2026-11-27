@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import com.acttub.actingapi.feature.reading.adapter.pron.HttpPronunciationScorer;
 import com.acttub.actingapi.feature.reading.app.PronunciationAudio;
+import com.acttub.actingapi.feature.reading.app.PronunciationMetrics;
 import com.acttub.actingapi.feature.reading.app.PronunciationReportRepository;
 import com.acttub.actingapi.feature.reading.app.PronunciationReportListener;
 import com.acttub.actingapi.feature.reading.app.PronunciationReportService;
@@ -17,6 +18,7 @@ import com.acttub.actingapi.feature.reading.app.PronunciationSettings;
 import com.acttub.actingapi.feature.reading.app.PronunciationWorker;
 import com.acttub.actingapi.feature.reading.app.VoicePlan;
 import tools.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -60,9 +62,9 @@ class PronunciationConfiguration {
     PronunciationWorker pronunciationWorker(PronunciationReportRepository reports, PronunciationScorer scorer,
             PronunciationAudio audio, PronunciationSettings settings, Clock clock,
             ObjectProvider<PronunciationReportListener> listener,
-            @Value("${PRON_REPORT_NOTIFY_AFTER_SECONDS:60}") long notifyAfterSeconds) {
+            @Value("${PRON_REPORT_NOTIFY_AFTER_SECONDS:60}") long notifyAfterSeconds, MeterRegistry registry) {
         return new PronunciationWorker(reports, scorer, audio, settings, clock, listener.getIfAvailable(),
-                Duration.ofSeconds(Math.max(0, notifyAfterSeconds)));
+                Duration.ofSeconds(Math.max(0, notifyAfterSeconds)), new PronunciationMetrics(registry));
     }
 
     static Set<UUID> parseUsers(String raw) {

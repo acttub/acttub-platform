@@ -8,11 +8,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.billing.app.BillingRepository;
 import com.acttub.actingapi.feature.billing.app.BillingRules;
 import com.acttub.actingapi.feature.billing.schema.BillingCheckoutEntity;
 import com.acttub.actingapi.feature.billing.schema.BillingPaymentEntity;
 import com.acttub.actingapi.feature.billing.schema.BillingSubscriptionEntity;
+import com.acttub.actingapi.feature.consent.app.TermsPublication;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
@@ -43,9 +45,17 @@ class PostgresBillingRepository implements BillingRepository {
     private final BillingProGrantJpaRepository grants;
     private final TransactionTemplate transaction;
 
+    private final AccountRowLock accountRows;
+
+    private final TermsPublication terms;
+
     PostgresBillingRepository(EntityManager entityManager, BillingSubscriptionJpaRepository subscriptions,
             BillingCheckoutJpaRepository checkouts, BillingPaymentJpaRepository payments, BillingProGrantJpaRepository grants,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            AccountRowLock accountRows,
+            TermsPublication terms) {
+        this.terms = terms;
+        this.accountRows = accountRows;
         this.entityManager = entityManager;
         this.subscriptions = subscriptions;
         this.checkouts = checkouts;
@@ -116,24 +126,7 @@ class PostgresBillingRepository implements BillingRepository {
 
     @Override
     public Optional<Instant> termsV2PublishedAt() {
-        return transaction.execute(tx -> {
-            var rows = entityManager.createNativeQuery(
-                    // 유료 조항이 처음 실린 약관(v2)의 발행 시각. 운영 DB에는 v2 행이 있다. manifest 가 v3 이후를 가리키는 빈 DB
-                    // (테스트·새 환경)에는 v2 행이 없으므로, v1 이 아닌 판 가운데 가장 먼저 발행된 것을 쓴다.
-                    "SELECT min(published_at) FROM consent_documents WHERE type='terms' AND version <> 'v1' AND locale='ko'")
-                    .getResultList();
-            if (rows.isEmpty() || rows.get(0) == null) {
-                return Optional.<Instant>empty();
-            }
-            Object value = rows.get(0);
-            if (value instanceof OffsetDateTime offset) {
-                return Optional.of(offset.toInstant());
-            }
-            if (value instanceof Instant direct) {
-                return Optional.of(direct);
-            }
-            return Optional.of(((java.sql.Timestamp) value).toInstant());
-        });
+        return transaction.execute(tx -> terms.paidTermsPublishedAt());
     }
 
     @Override
@@ -199,10 +192,7 @@ class PostgresBillingRepository implements BillingRepository {
 
     /** 탈퇴와 같은 users 행을 잡고 아직 활성인지 본다 — 탈퇴가 먼저 끝났으면 쓰지 않는다(CONTRACT 32, common 「탈퇴와 겹친 쓰기」). */
     private boolean lockActiveUser(UUID userId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
-                        "SELECT status FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
-                .setParameter("userId", userId));
-        return !rows.isEmpty() && "active".equals(rows.getFirst().get("status", String.class));
+        return accountRows.lockActive(userId);
     }
 
     @Override

@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.app.PronunciationScorer;
+import com.acttub.actingapi.feature.reading.app.PronunciationScorer.ServerTime;
+import com.acttub.actingapi.feature.reading.app.PronunciationScorer.TooLong;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Phone;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.ScoredLine;
 import com.acttub.actingapi.feature.reading.domain.PronunciationRules.Word;
@@ -52,6 +54,9 @@ public class HttpPronunciationScorer implements PronunciationScorer {
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                     .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray()))
                     .build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() == 422 && response.body().contains("audio_too_long")) {
+                throw new TooLong("pronunciation scorer returned 422 audio_too_long");
+            }
             if (response.statusCode() != 200) {
                 throw new IllegalStateException("pronunciation scorer returned " + response.statusCode());
             }
@@ -69,16 +74,26 @@ public class HttpPronunciationScorer implements PronunciationScorer {
         for (JsonNode w : root.path("words")) {
             List<Phone> phones = new ArrayList<>();
             for (JsonNode p : w.path("phones")) {
+                // 옛 채점 서비스가 보내는 flagged 는 읽지 않는다 — 짚는 기준은 PronunciationRules 가 정한다(SOMA-1171).
                 phones.add(new Phone(LenientJson.asText(p.path("expected")), LenientJson.asText(p.path("heard")), LenientJson.asDouble(p.path("lpr")),
                         LenientJson.asBoolean(p.path("vowel")), intOrNull(p.get("syllable")), intOrNull(p.get("start_ms")),
-                        intOrNull(p.get("end_ms")), LenientJson.asBoolean(p.path("flagged"))));
+                        intOrNull(p.get("end_ms"))));
             }
             words.add(new Word(LenientJson.asInt(w.path("index")), LenientJson.asText(w.path("word")), LenientJson.asBoolean(w.path("number")), phones));
         }
         JsonNode match = root.get("script_match");
         Double scriptMatch = match == null || match.isNull() ? null : LenientJson.asDouble(match);
         return new Scored(new ScoredLine(LenientJson.asText(root.path("scored_text"), null), words, scriptMatch),
-                LenientJson.asText(root.path("model_version"), null));
+                LenientJson.asText(root.path("model_version"), null), serverTime(root.get("timings_ms")));
+    }
+
+    /** {@code timings_ms}(SOMA-1171). 옛 채점 서비스는 보내지 않는다. */
+    private static ServerTime serverTime(JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        return new ServerTime(LenientJson.asLong(node.path("decode")), LenientJson.asLong(node.path("model")),
+                LenientJson.asLong(node.path("gop")), LenientJson.asLong(node.path("total")));
     }
 
     private static Integer intOrNull(JsonNode node) {

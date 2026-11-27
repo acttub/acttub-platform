@@ -1,6 +1,5 @@
 package com.acttub.actingapi.feature.auth.adapter.db;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
@@ -48,14 +47,6 @@ interface UserJpaRepository extends JpaRepository<UserEntity, UUID> {
             where u.id = :id
             """)
     Optional<AuthenticatedUser> findAuthenticated(@Param("id") UUID id, @Param("guest") IdentityProvider guest);
-
-    /** 옮겨진 게스트를 닫는다. 자기 트랜잭션을 열지 않는다. */
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("""
-            update UserEntity u set u.status = :status, u.deactivatedAt = :now, u.updatedAt = :now
-            where u.id = :id
-            """)
-    int close(@Param("id") UUID id, @Param("status") UserStatus status, @Param("now") Instant now);
 
     /** 대소문자를 가리지 않고 아무도(자기 자신도) 쓰지 않는 이메일일 때만 바꾼다. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)

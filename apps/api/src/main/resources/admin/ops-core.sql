@@ -52,10 +52,10 @@ team AS (
 -- ── 0.1.0 전환 (SOMA-566) ─────────────────────────────────────────────
 -- 0.1.0 부터 연습은 practices · analyses · coach_conversations · coach_messages · ai_jobs 에 쌓인다.
 -- 옛 테이블(practice_sessions · summaries · coach_sessions · coach_turns · external_operations)은 남아 있고,
--- 이관 명령(POST /v2/admin/practice-migration)이 옛 행을 <b>같은 id 로</b> 새 테이블에 옮긴다
+-- 옛 행은 <b>같은 id 로</b> 새 테이블에 옮겼다
 -- (practices.id = practice_sessions.id, coach_conversations.id = coach_sessions.id). 그래서
--- "새 테이블 전부 + 새 테이블에 아직 없는 옛 행"은 이관 전·중·후 어느 때에도 한 번씩만 센다.
--- 요약·작업은 새 id 로 옮겨지므로 이관 대응표(practice_migration_entries)로 옮겨진 옛 행을 뺀다.
+-- "새 테이블 전부 + 새 테이블에 없는 옛 행"은 한 번씩만 센다. 새 테이블에 없는 옛 행은 옮기지 않고 남긴 것이다(앞선 대화 등).
+-- 요약·작업은 새 id 로 옮겼으므로 대응표(practice_migration_entries)로 옮겨진 옛 행을 뺀다.
 --
 -- 옛 행의 모양은 이 파일의 이전 쿼리가 쓰던 그대로다 — 0.1.0 이전 숫자는 바뀌지 않는다.
 ps_all AS (

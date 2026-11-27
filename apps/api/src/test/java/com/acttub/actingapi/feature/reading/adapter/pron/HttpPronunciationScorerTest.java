@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.acttub.actingapi.feature.reading.app.PronunciationScorer;
 import com.acttub.actingapi.feature.reading.app.PronunciationScorer.Scored;
 import tools.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
@@ -82,11 +83,21 @@ class HttpPronunciationScorerTest {
         assertThat(first.lpr()).isEqualTo(-5.2);
         assertThat(first.syllable()).isEqualTo(1);
         assertThat(first.startMs()).isEqualTo(120);
-        assertThat(first.flagged()).isTrue();
         var second = scored.line().words().get(0).phones().get(1);
         assertThat(second.syllable()).isNull();
         assertThat(second.startMs()).isNull();
         assertThat(scored.line().words().get(1).number()).isTrue();
+    }
+
+    @Test
+    void 채점_서비스가_보낸_자기_시간을_읽고_없으면_비운다() throws IOException {
+        assertThat(scorer().score(audio(), "audio/mp4", "다리").serverTime()).isNull();
+
+        body = OK_BODY.replaceFirst("\\{", "{\"timings_ms\":{\"decode\":41,\"model\":903,\"gop\":288,\"total\":1260},");
+        Scored scored = scorer().score(audio(), "audio/mp4", "다리");
+
+        assertThat(scored.serverTime()).isEqualTo(new PronunciationScorer.ServerTime(41, 903, 288, 1_260));
+        assertThat(scored.line().words()).hasSize(2);
     }
 
     @Test
@@ -104,6 +115,19 @@ class HttpPronunciationScorerTest {
         Path file = audio();
         assertThatThrownBy(() -> scorer().score(file, "audio/mp4", "다리"))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("500");
+    }
+
+    @Test
+    void 너무_길다는_거절은_따로_던지고_다른_422_는_실패로_던진다() throws IOException {
+        status = 422;
+        body = "{\"detail\":\"audio_too_long\"}";
+        Path file = audio();
+        assertThatThrownBy(() -> scorer().score(file, "audio/mp4", "다리")).isInstanceOf(PronunciationScorer.TooLong.class);
+
+        body = "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"text\"]}]}";
+        assertThatThrownBy(() -> scorer().score(file, "audio/mp4", "다리"))
+                .isInstanceOf(IllegalStateException.class).isNotInstanceOf(PronunciationScorer.TooLong.class)
+                .hasMessageContaining("422");
     }
 
     @Test

@@ -51,7 +51,9 @@ class PostgresPronunciationReportRepository implements PronunciationReportReposi
             }
             reports.enqueue(UUID.randomUUID(), sessionId, userId, now);
             ReadingPronunciationReportJpaRepository.State row = reports.state(sessionId).orElseThrow();
-            return new ReportState(row.getStatus(), row.getResult());
+            Progress progress = "running".equals(row.getStatus()) && row.getProgressDone() != null && row.getProgressTotal() != null
+                    ? new Progress(row.getProgressDone(), row.getProgressTotal()) : null;
+            return new ReportState(row.getStatus(), row.getResult(), progress);
         });
     }
 
@@ -96,6 +98,12 @@ class PostgresPronunciationReportRepository implements PronunciationReportReposi
     public boolean fail(UUID reportId, UUID leaseToken, String failure, boolean retry, Instant now) {
         Integer updated = transaction.execute(tx ->
                 reports.fail(reportId, leaseToken, retry ? "queued" : "failed", failure, now));
+        return updated != null && updated == 1;
+    }
+
+    @Override
+    public boolean progress(UUID reportId, UUID leaseToken, int done, int total) {
+        Integer updated = transaction.execute(tx -> reports.progress(reportId, leaseToken, done, total));
         return updated != null && updated == 1;
     }
 
