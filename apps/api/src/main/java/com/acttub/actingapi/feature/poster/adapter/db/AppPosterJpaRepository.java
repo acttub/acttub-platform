@@ -66,7 +66,8 @@ interface AppPosterJpaRepository extends Repository<AppPosterEntity, UUID> {
     /**
      * 다른 포스터가 같은 {@code (slug, locale)}(언어 없음끼리도 같다)을 쓰면 0행이다. revision 은 열 값에 더해 올리므로 함께
      * 올리는 두 요청이 모두 센다. NOT EXISTS 는 문장 시작의 스냅숏으로 보므로, 함께 같은 값으로 바꾸는 두 트랜잭션은 둘 다
-     * 지나고 뒤의 것은 {@code uq_app_posters_slug_locale} 에서 막힌다.
+     * 지나고 뒤의 것은 {@code uq_app_posters_slug_locale} 에서 막힌다. 그 위반은 {@code PostgresPosterRepository#update} 가
+     * 0행과 같게 돌려준다.
      */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

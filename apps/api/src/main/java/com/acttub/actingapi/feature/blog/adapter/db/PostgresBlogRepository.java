@@ -9,6 +9,8 @@ import com.acttub.actingapi.feature.blog.app.BlogRepository;
 import com.acttub.actingapi.feature.blog.domain.BlogDraft;
 import com.acttub.actingapi.feature.blog.domain.BlogPost;
 import com.acttub.actingapi.feature.blog.schema.BlogPostEntity;
+import com.acttub.actingapi.platform.persistence.UniqueViolation;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -19,6 +21,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>넣기·고치기는 HQL 에 {@code RETURNING} 이 없어 한 문장으로 쓴 뒤 영향 행 수가 1 이면 같은 트랜잭션에서 id 로 다시 읽는다.
  * 넣은 행·고친 행은 이 트랜잭션이 커밋까지 잡고 있어 읽은 값은 방금 쓴 값이다. 0 이면 다시 읽지 않는다(apps/api/CONTRACT.md §5-9).
+ *
+ * <p>두 글을 함께 같은 slug 로 고치면 둘 다 {@code NOT EXISTS} 를 지나고 뒤의 것은 {@code uq_blog_posts_slug} 에서 막힌다.
+ * 그 위반도 "이미 있다" 로 돌려준다.
  */
 @Repository
 class PostgresBlogRepository implements BlogRepository {
@@ -61,9 +66,16 @@ class PostgresBlogRepository implements BlogRepository {
 
     @Override
     public Optional<BlogPost> update(UUID id, BlogDraft draft, Instant publishedAt, Instant now) {
-        return transaction.execute(tx -> posts.updateUnlessSlugTaken(id, draft.slug(), draft.title(), draft.summary(),
-                draft.category(), draft.coverImageUrl(), draft.bodyMarkdown(), draft.appCta(), draft.status(),
-                publishedAt, now) == 0 ? Optional.<BlogPost>empty() : find(id));
+        try {
+            return transaction.execute(tx -> posts.updateUnlessSlugTaken(id, draft.slug(), draft.title(),
+                    draft.summary(), draft.category(), draft.coverImageUrl(), draft.bodyMarkdown(), draft.appCta(),
+                    draft.status(), publishedAt, now) == 0 ? Optional.<BlogPost>empty() : find(id));
+        } catch (DataIntegrityViolationException race) {
+            if (UniqueViolation.of(race, "uq_blog_posts_slug")) {
+                return Optional.empty();
+            }
+            throw race;
+        }
     }
 
     private static BlogPost map(BlogPostEntity row) {
