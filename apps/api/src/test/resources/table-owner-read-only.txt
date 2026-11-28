@@ -45,7 +45,6 @@ feature/challenge/adapter/db/ChallengeVisibility.java users
 feature/challenge/adapter/db/ChallengeVisibility.java videos
 feature/challenge/adapter/db/EntryCards.java user_profiles
 feature/challenge/adapter/db/EntryCards.java videos
-feature/challenge/adapter/db/EntryLocks.java users
 feature/challenge/adapter/db/NotificationEvents.java push_tokens
 feature/challenge/adapter/db/NotificationEvents.java user_profiles
 feature/challenge/adapter/db/PostgresAiReportRepository.java ai_jobs
@@ -138,9 +137,6 @@ feature/push/adapter/db/PostgresPushOpenRepository.java users
 feature/push/adapter/db/PostgresPushTokenRepository.java practice_sessions
 feature/push/adapter/db/PostgresPushTokenRepository.java practices
 feature/push/adapter/db/PostgresPushTokenRepository.java user_profiles
-feature/reading/adapter/db/PostgresCloudVoiceRepository.java consent_documents
-feature/reading/adapter/db/PostgresCloudVoiceRepository.java user_consents
-feature/reading/adapter/db/PostgresReadingVoiceMaterials.java practices
 feature/reading/adapter/db/PostgresRetranscribeRepository.java users
 feature/reading/adapter/db/PostgresScriptImportRepository.java ai_jobs
 feature/reading/adapter/db/PostgresScriptImportRepository.java consent_documents

@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import javax.sql.DataSource;
 
+import com.acttub.actingapi.feature.auth.app.AccountFacts;
 import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +29,9 @@ class AccountRowLockIT {
 
     @Autowired
     AccountRowLock accountRows;
+
+    @Autowired
+    AccountFacts accountFacts;
 
     @Autowired
     JdbcTemplate jdbc;
@@ -72,22 +76,69 @@ class AccountRowLockIT {
     }
 
     @Test
+    @DisplayName("잠그지 않고 활성인지만 물을 수 있다: 탈퇴한 계정과 없는 계정은 거짓이고, 트랜잭션 밖에서도 답한다")
+    void tellsWhetherTheAccountIsActiveWithoutLocking() {
+        assertThat(accountFacts.active(active)).isTrue();
+        assertThat(accountFacts.active(closed)).isFalse();
+        assertThat(accountFacts.active(UUID.randomUUID())).isFalse();
+        transaction.executeWithoutResult(tx -> {
+            accountFacts.active(active);
+            assertThat(anotherConnectionCanLock(active)).as("잠그지 않는다").isTrue();
+        });
+    }
+
+    @Test
+    @DisplayName("잠그기만 할 때와 읽기로 잠글 때는 계정이 있는지를 답한다 — 탈퇴한 계정도 있는 계정이다")
+    void tellsWhetherTheAccountExists() {
+        assertThat(lockRow(active)).isTrue();
+        assertThat(lockRow(closed)).isTrue();
+        assertThat(lockRow(UUID.randomUUID())).isFalse();
+        assertThat(lockShared(active)).isTrue();
+        assertThat(lockShared(closed)).isTrue();
+        assertThat(lockShared(UUID.randomUUID())).isFalse();
+    }
+
+    @Test
+    @DisplayName("읽기 잠금은 FOR SHARE 다: 다른 연결의 읽기 잠금과 함께 쥐고, 쓰기 잠금은 트랜잭션이 끝날 때까지 막는다")
+    void theSharedLockLetsReadersInAndKeepsWritersOut() {
+        transaction.executeWithoutResult(tx -> {
+            accountRows.lockShared(active);
+            assertThat(anotherConnectionCanLock(active, "FOR SHARE")).isTrue();
+            assertThat(anotherConnectionCanLock(active, "FOR UPDATE")).isFalse();
+        });
+        assertThat(anotherConnectionCanLock(active)).as("트랜잭션이 끝나면 풀린다").isTrue();
+    }
+
+    @Test
     @DisplayName("트랜잭션 밖에서 부르면 거절한다 — 잠금이 바로 풀려 줄을 세우지 못한다")
     void refusesToLockOutsideATransaction() {
         assertThatThrownBy(() -> accountRows.lockActive(active)).isInstanceOf(RuntimeException.class);
         assertThatThrownBy(() -> accountRows.lockRow(active)).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> accountRows.lockShared(active)).isInstanceOf(RuntimeException.class);
     }
 
     private boolean lockActive(UUID userId) {
         return transaction.execute(tx -> accountRows.lockActive(userId));
     }
 
-    /** 다른 연결에서 기다리지 않고 그 행을 잡아 본다. */
+    private boolean lockRow(UUID userId) {
+        return transaction.execute(tx -> accountRows.lockRow(userId));
+    }
+
+    private boolean lockShared(UUID userId) {
+        return transaction.execute(tx -> accountRows.lockShared(userId));
+    }
+
     private boolean anotherConnectionCanLock(UUID userId) {
+        return anotherConnectionCanLock(userId, "FOR UPDATE");
+    }
+
+    /** 다른 연결에서 기다리지 않고 그 행을 그 세기로 잡아 본다. */
+    private boolean anotherConnectionCanLock(UUID userId, String strength) {
         try (Connection other = dataSource.getConnection()) {
             other.setAutoCommit(false);
             try (Statement statement = other.createStatement()) {
-                statement.executeQuery("SELECT id FROM users WHERE id='" + userId + "' FOR UPDATE NOWAIT").close();
+                statement.executeQuery("SELECT id FROM users WHERE id='" + userId + "' " + strength + " NOWAIT").close();
                 return true;
             } catch (SQLException locked) {
                 assertThat(locked.getSQLState()).as("잠겨서 못 잡은 것이어야 한다").isEqualTo("55P03");

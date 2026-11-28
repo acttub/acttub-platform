@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.app.PracticeLoopRound;
+import com.acttub.actingapi.feature.auth.app.AccountFacts;
 import com.acttub.actingapi.feature.auth.app.MemoryEpoch;
 import com.acttub.actingapi.feature.memory.app.ActorMemory;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryStore;
@@ -27,6 +28,7 @@ import com.acttub.actingapi.feature.memory.app.ProfileMaterial;
 import com.acttub.actingapi.feature.memory.domain.ActorMemoryFields;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.feature.memory.domain.MemoryValue;
+import com.acttub.actingapi.feature.practice.app.PracticeOwners;
 import com.acttub.actingapi.feature.video.app.VideoTranscripts;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
@@ -88,10 +90,14 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     private final MemoryEpoch epochs;
 
     private final VideoTranscripts videoTranscripts;
+    private final AccountFacts accounts;
+    private final PracticeOwners practiceOwners;
 
     PostgresActorMemoryStore(ActorMemoryJpaRepository memories, EntityManager entityManager,
             PlatformTransactionManager transactionManager, AiJobLedger jobs, MemoryEpoch epochs,
-            VideoTranscripts videoTranscripts) {
+            VideoTranscripts videoTranscripts, AccountFacts accounts, PracticeOwners practiceOwners) {
+        this.accounts = accounts;
+        this.practiceOwners = practiceOwners;
         this.videoTranscripts = videoTranscripts;
         this.epochs = epochs;
         this.memories = memories;
@@ -147,16 +153,8 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
      */
     @Override
     public Map<String, String> forPractice(UUID userId, UUID practiceId) {
-        UUID sceneRoot = practiceId == null ? null : sceneRoot(userId, practiceId);
+        UUID sceneRoot = practiceId == null ? null : practiceOwners.groupOf(userId, practiceId);
         return MemoryScope.forScene(scopedRows(userId), sceneRoot);
-    }
-
-    private UUID sceneRoot(UUID userId, UUID practiceId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
-                "SELECT root_id FROM practices WHERE id=:practiceId AND user_id=:userId", Tuple.class)
-                .setParameter("practiceId", practiceId)
-                .setParameter("userId", userId));
-        return rows.isEmpty() ? null : rows.getFirst().get("root_id", UUID.class);
     }
 
     private List<MemoryScope.Row> scopedRows(UUID userId) {
@@ -460,10 +458,7 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
 
     @Override
     public ProfileMaterial profileMaterial(UUID userId, Instant now) {
-        boolean active = !NativeTuples.list(entityManager.createNativeQuery(
-                "SELECT id FROM users WHERE id=:userId AND status='active'", Tuple.class)
-                .setParameter("userId", userId)).isEmpty();
-        if (!active) {
+        if (!accounts.active(userId)) {
             return null;
         }
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""

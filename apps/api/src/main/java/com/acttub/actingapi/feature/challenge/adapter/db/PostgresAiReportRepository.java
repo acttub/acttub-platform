@@ -1,7 +1,6 @@
 package com.acttub.actingapi.feature.challenge.adapter.db;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -48,12 +47,9 @@ class PostgresAiReportRepository implements AiReportRepository {
     @Override @Transactional
     public Requested request(UUID owner, UUID entryId, UUID requestId, String fingerprint, Instant now) {
         locks.people(owner, owner, false);
-        var replay = NativeTuples.list(em.createNativeQuery(
-                "SELECT kind,target_id,request_fingerprint FROM ai_jobs WHERE user_id=:owner AND request_id=:request", Tuple.class)
-                .setParameter("owner", owner).setParameter("request", requestId));
-        if (!replay.isEmpty()) {
-            Tuple job = replay.getFirst();
-            if (!KIND.equals(job.get("kind", String.class)) || !fingerprint.equals(job.get("request_fingerprint", String.class).strip())) {
+        var replay = ledger.findRequest(owner, requestId);
+        if (replay.isPresent()) {
+            if (!KIND.equals(replay.get().kind()) || !fingerprint.equals(replay.get().fingerprint().strip())) {
                 throw new ApiException(422, "request_fingerprint_mismatch");
             }
             return new Requested(find(owner, entryId), false);
@@ -73,9 +69,7 @@ class PostgresAiReportRepository implements AiReportRepository {
             return new Requested(find(owner, entryId), false);
         }
         Instant midnight = ChallengeRules.koreanMidnight(now);
-        long today = ((Number) em.createNativeQuery(
-                "SELECT count(*) FROM ai_jobs WHERE user_id=:owner AND kind='challenge_report' AND created_at>=:since")
-                .setParameter("owner", owner).setParameter("since", midnight.atOffset(ZoneOffset.UTC)).getSingleResult()).longValue();
+        long today = ledger.countEnqueuedSince(owner, KIND, midnight);
         if (today >= ChallengeReportRules.DAILY_REQUESTS) throw new ApiException(429, "daily_report_request_limit");
         UUID job = ledger.enqueue(owner, KIND, entryId, requestId, fingerprint, now);
         reports.start(UUID.randomUUID(), entryId, owner, job, EntryAiReportStatus.PENDING, ChallengeReportRules.FORMAT_VERSION, now);
@@ -166,8 +160,7 @@ class PostgresAiReportRepository implements AiReportRepository {
         if (result.suggestion() == null) body.putNull("suggestion"); else body.put("suggestion", result.suggestion());
         var samples = body.putArray("samples");
         result.samples().stream().filter(eligible::contains).forEach(id -> samples.add(id.toString()));
-        int attempts = ((Number) em.createNativeQuery("SELECT attempt_count FROM ai_jobs WHERE id=:job")
-                .setParameter("job", jobId).getSingleResult()).intValue();
+        int attempts = ledger.attemptCount(jobId);
         reports.complete(entryId, body, model, attempts, now);
         if (!ledger.succeed(jobId, leaseToken, now)) throw new IllegalStateException("challenge report job was closed: " + jobId);
         events.record(locked.getFirst().get("user_id", UUID.class), "entry_ai_report_ready", null,

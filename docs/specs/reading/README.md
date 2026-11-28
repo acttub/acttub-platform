@@ -32,7 +32,7 @@ AI 코치가 듣고 들린 것 하나를 짚는다.
 리딩 경로(`/v2/reading/**`)의 동의 판정은 회원과 게스트가 다르다. 회원은 다른 보호 경로와 같이 지금 버전의 문서를 모두 결정해야 하고,
 필수 문서인 AI 분석 동의(ai_analysis)도 그 안에 든다(`AccessGate#gatedUser`). 게스트는 AI 분석 동의를 받지 않는다. 게스트가 받는
 문서는 [account.guest](../account/guest.md#규칙제약)의 기능별 표다. 대본 나누기(script_split)와 고품질 목소리(cloud_voice)의 동의는
-개인정보 수집·이용 동의 v9 이상에 동의했으면 있는 것으로 본다(`PostgresScriptImportRepository#privacyCoversReading`).
+개인정보 수집·이용 동의 v9 이상에 동의했으면 있는 것으로 본다(consent 의 `ReadingConsents`).
 
 
 ## 용어

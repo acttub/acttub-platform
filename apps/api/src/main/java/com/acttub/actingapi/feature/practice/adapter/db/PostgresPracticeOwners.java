@@ -24,4 +24,13 @@ class PostgresPracticeOwners implements PracticeOwners {
                 .getResultList()
                 .isEmpty();
     }
+
+    @Override
+    public UUID groupOf(UUID userId, UUID practiceId) {
+        return entityManager.createQuery(
+                        "select p.rootId from PracticeEntity p where p.id = :practiceId and p.userId = :userId", UUID.class)
+                .setParameter("practiceId", practiceId)
+                .setParameter("userId", userId)
+                .getResultList().stream().findFirst().orElse(null);
+    }
 }

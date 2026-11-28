@@ -9,4 +9,7 @@ public interface PracticeOwners {
 
     /** 그 회차가 이 사람의 것인가. 없는 회차면 거짓이다. */
     boolean owns(UUID userId, UUID practiceId);
+
+    /** 그 회차가 속한 묶음(첫 회차)의 id. 이 사람의 회차가 아니거나 없는 회차면 {@code null}. */
+    UUID groupOf(UUID userId, UUID practiceId);
 }

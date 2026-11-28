@@ -15,8 +15,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 리딩 녹음 코칭(SOMA-791)의 재료. 리딩 회차·대본 줄·녹음은 리딩 표에서, 시작한 코칭 회차는 practices.reading_session_id 로 찾는다.
- * {@code practices} 는 practice 의 표라 그 두 조회는 native SQL 로 둔다(apps/api/CONTRACT.md §5-9).
+ * 리딩 녹음 코칭(SOMA-791)의 재료: 리딩 회차·대본 줄·녹음.
  */
 @Repository
 class PostgresReadingVoiceMaterials implements ReadingVoiceMaterials {
@@ -69,26 +68,5 @@ class PostgresReadingVoiceMaterials implements ReadingVoiceMaterials {
                     .toList();
             return new Material(Set.copyOf(mine), lines, recordings);
         });
-    }
-
-    @Override
-    public UUID practiceOf(UUID userId, UUID readingSessionId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
-                "SELECT id FROM practices WHERE user_id=:userId AND reading_session_id=:readingSessionId", Tuple.class)
-                .setParameter("userId", userId)
-                .setParameter("readingSessionId", readingSessionId));
-        return rows.isEmpty() ? null : rows.getFirst().get("id", UUID.class);
-    }
-
-    @Override
-    public UUID readingSessionOf(UUID userId, UUID practiceId) {
-        // 영상으로 이은 회차도 묶음 첫 회차의 리딩 회차를 가리킨다 — 코치는 리딩으로 시작한 회차에서만 묻는다.
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT r.reading_session_id FROM practices p JOIN practices r ON r.id=p.root_id
-                WHERE p.id=:practiceId AND p.user_id=:userId AND r.reading_session_id IS NOT NULL
-                """, Tuple.class)
-                .setParameter("practiceId", practiceId)
-                .setParameter("userId", userId));
-        return rows.isEmpty() ? null : rows.getFirst().get("reading_session_id", UUID.class);
     }
 }

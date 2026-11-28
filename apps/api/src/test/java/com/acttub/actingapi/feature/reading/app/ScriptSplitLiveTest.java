@@ -130,6 +130,12 @@ class ScriptSplitLiveTest {
 
         @Override public int countRequestedSince(UUID userId, String kind, Instant since) { throw new UnsupportedOperationException(); }
 
+        @Override public int countEnqueuedSince(UUID userId, String kind, Instant since) { throw new UnsupportedOperationException(); }
+        @Override public java.util.Optional<Requested> findRequest(UUID userId, UUID requestId) { throw new UnsupportedOperationException(); }
+        @Override public int attemptCount(UUID jobId) { throw new UnsupportedOperationException(); }
+        @Override public String lockStatus(UUID jobId) { throw new UnsupportedOperationException(); }
+        @Override public List<UUID> exhaustedPending(String kind) { throw new UnsupportedOperationException(); }
+
         @Override public boolean succeed(UUID jobId, UUID leaseToken, Instant now) { return true; }
         @Override public boolean fail(UUID jobId, UUID leaseToken, String reason, Instant now) { return true; }
         @Override public void release(UUID jobId, UUID leaseToken, String reason, Instant now) { }

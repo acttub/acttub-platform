@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.AccountRowLock;
+import com.acttub.actingapi.feature.consent.app.ReadingConsents;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadRepository;
@@ -29,9 +30,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 채 하므로 같은 회원의 요청이 겹쳐도 하루 한도·대본 수 한도가 정확하다(CONTRACT §6-14). 대본 저장은 {@link ScriptRepository}
  * 를 그대로 쓴다 — 저장 규칙이 두 벌이 되지 않게.
  *
- * <p>리딩의 표만 읽고 쓰는 문장은 Spring Data 저장소에 있다. 사람 행의 잠금·손님 판정(auth 의 표), 동의(consent 의 표), 나누기
- * 작업({@code ai_jobs}, platform/operation 의 표)을 읽는 문장은 native SQL 로 둔다(apps/api/CONTRACT.md §5-9). 작업을 넣는 것은
- * {@code AiJobLedger} 가 한다.
+ * <p>리딩의 표만 읽고 쓰는 문장은 Spring Data 저장소에 있다. 사람 행의 잠금은 auth 의 {@code AccountRowLock}, 동의는 consent 의
+ * {@code ReadingConsents}, 작업을 넣고 하루 수를 세는 것은 {@code AiJobLedger} 가 한다. 리딩의 표와 다른 기능의 표를 한 문장에서
+ * 읽는 문장(손님 판정이 든 재료 읽기, 나누기 작업의 상태를 함께 읽는 조회)은 native SQL 로 둔다(apps/api/CONTRACT.md §5-9).
  */
 @Repository
 class PostgresScriptImportRepository implements ScriptImportRepository {
@@ -53,14 +54,16 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     private final int reuseMaxAgeDays;
 
     private final AccountRowLock accountRows;
+    private final ReadingConsents consents;
 
     PostgresScriptImportRepository(EntityManager em, PlatformTransactionManager manager, ScriptRepository scripts,
             ScriptUploadRepository uploads, AiJobLedger ledger, ScriptImportJpaRepository requests, ScriptJpaRepository scriptRows,
             ScriptUploadJpaRepository uploadRows, ScriptCharacterJpaRepository characterRows, ScriptLineJpaRepository lineRows,
             @org.springframework.beans.factory.annotation.Value("${SCRIPT_SPLIT_REUSE_ENABLED:true}") boolean reuseEnabled,
             @org.springframework.beans.factory.annotation.Value("${SCRIPT_SPLIT_REUSE_MAX_AGE_DAYS:30}") int reuseMaxAgeDays,
-            AccountRowLock accountRows) {
+            AccountRowLock accountRows, ReadingConsents consents) {
         this.accountRows = accountRows;
+        this.consents = consents;
         this.em = em;
         this.transaction = new TransactionTemplate(manager);
         this.scripts = scripts;
@@ -76,8 +79,9 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     }
 
     /**
-     * 그 사용자의 {@code script_split} 현재 판(한국어 행이 신원) 마지막 결정을 내는 SQL 식. 문서가 없거나 결정이 없으면 NULL 이다.
-     * 나누기 접수와 실패 원본 보관의 시작이 같은 판을 보게 한 곳에 둔다.
+     * 그 사용자의 {@code script_split} 현재 문서(한국어 행이 신원) 마지막 결정을 내는 SQL 식. 문서가 없거나 결정이 없으면 NULL 이다.
+     * 대본 올리기가 자기 문장 안에서 행마다 읽는 자리(실패 원본 보관의 시작)에 쓴다. 나누기 접수가 묻는 동의는 consent 의
+     * {@link ReadingConsents#scriptSplit} 이 같은 규칙으로 답한다 — 한쪽을 바꾸면 다른 쪽도 바꾼다({@code ScriptUploadConsentParityIT}).
      */
     static String splitDecision(String userColumn) {
         return """
@@ -121,10 +125,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
 
     @Override
     public String consent(UUID userId) {
-        String action = list(em.createNativeQuery("SELECT " + splitDecision(":userId") + " AS action", Tuple.class)
-                .setParameter("userId", userId)).getFirst().get("action", String.class);
-        if (action == null) return "undecided";
-        return "granted".equals(action) ? "granted" : "denied";
+        return consents.scriptSplit(userId);
     }
 
     @Override
@@ -175,10 +176,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
                 scriptId = created.scriptId();
                 lines = ready.lines().size();
             } else {
-                long today = ((Number) em.createNativeQuery(
-                        "SELECT count(*) FROM ai_jobs WHERE user_id=:userId AND kind=:kind AND created_at>=:since")
-                        .setParameter("userId", userId).setParameter("kind", KIND)
-                        .setParameter("since", now.atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toOffsetDateTime()).getSingleResult()).longValue();
+                long today = ledger.countEnqueuedSince(userId, KIND, now.atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toInstant());
                 if (today >= dailyLimit) {
                     return new Requested(null, null, Outcome.OVER_DAILY_LIMIT);
                 }
