@@ -5,9 +5,21 @@ import { useEffect, useState } from "react";
 
 import { PAYMENT_START_NOTICE } from "@/features/help/help-content";
 import { cancelBillingSubscription, fetchBillingMe, type BillingMe } from "@/lib/api/v2/billing";
-import { cancelConfirmMessage, cancelDoneMessage, subscriptionViewOf } from "./billing-flow";
+import {
+  CONSENT_REQUIRED_MESSAGE,
+  cancelConfirmMessage,
+  cancelDoneMessage,
+  isConsentRequired,
+  subscriptionViewOf,
+} from "./billing-flow";
 
-type State = { kind: "loading" } | { kind: "closed" } | { kind: "error" } | { kind: "ready"; me: BillingMe };
+type State =
+  | { kind: "loading" }
+  | { kind: "closed" }
+  | { kind: "error" }
+  // 새 판 문서를 결정하지 않아 서버가 막았고, 배우가 동의 시트를 닫았다.
+  | { kind: "consent" }
+  | { kind: "ready"; me: BillingMe };
 
 /**
  * 내 계정의 「구독」 칸 (SOMA-818, SOMA-834). 이 화면에서 상자로 묶는 곳은 여기 하나뿐이다.
@@ -19,6 +31,8 @@ export function SubscriptionCard() {
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // 늘리면 다시 읽는다. 다시 읽는 요청이 또 막히면 공용 클라이언트가 동의 시트를 다시 띄운다.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -26,10 +40,11 @@ export function SubscriptionCard() {
       .then((me) => setState({ kind: "ready", me }))
       .catch((error: { status?: number; name?: string }) => {
         if (error?.name === "AbortError") return;
-        setState(error?.status === 404 ? { kind: "closed" } : { kind: "error" });
+        if (isConsentRequired(error)) setState({ kind: "consent" });
+        else setState(error?.status === 404 ? { kind: "closed" } : { kind: "error" });
       });
     return () => controller.abort();
-  }, []);
+  }, [attempt]);
 
   async function cancel() {
     if (pending) return;
@@ -61,6 +76,26 @@ export function SubscriptionCard() {
         <div className="mt-4 h-4 w-56 animate-pulse rounded bg-[#e5e8eb]" />
       </>,
       true,
+    );
+  }
+
+  if (state.kind === "consent") {
+    return frame(
+      <>
+        <p className="text-base leading-7 text-[#4e5968]">
+          {CONSENT_REQUIRED_MESSAGE} 동의하면 구독 정보를 볼 수 있어요.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setState({ kind: "loading" });
+            setAttempt((value) => value + 1);
+          }}
+          className="mt-3 rounded-2xl bg-[#3182f6] px-4 py-2.5 text-sm font-bold text-white"
+        >
+          동의 문서 보기
+        </button>
+      </>,
     );
   }
 
