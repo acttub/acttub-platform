@@ -45,7 +45,7 @@ import com.acttub.actingapi.feature.portfolio.schema.PortfolioPhotoEntity;
 import com.acttub.actingapi.feature.profile.schema.UserProfileDirectionEntity;
 import com.acttub.actingapi.feature.profile.schema.UserProfileEntity;
 import com.acttub.actingapi.feature.push.schema.PushTokenEntity;
-import com.acttub.actingapi.feature.profile.schema.AccountCleanupOperationEntity;
+import com.acttub.actingapi.platform.operation.schema.AccountCleanupOperationEntity;
 import com.acttub.actingapi.feature.reading.schema.LineMemorizationEntity;
 import com.acttub.actingapi.feature.reading.schema.ReadingPronunciationReportEntity;
 import com.acttub.actingapi.feature.reading.schema.ReadingRecordingEntity;

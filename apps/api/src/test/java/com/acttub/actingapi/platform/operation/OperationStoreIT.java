@@ -32,6 +32,7 @@ import com.acttub.actingapi.feature.auth.app.ClosingAccount;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.observability.DatabaseHealthIndicator;
+import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
@@ -42,6 +43,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.health.contributor.Status;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -51,7 +53,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 작업 장부({@code ai_jobs})와 옛 원장({@code external_operations})을 고치는 platform/operation 문장의 결과·잠금·경합·문장 수를
  * 실제 PostgreSQL 에서 고정한다 — 선점·완료·실패·놓기·정리, 하루 요청 수, 탈퇴의 닫기, 이관의 주인 바꾸기, 상태 표본 게이지, DB 연결
- * 확인. 네이티브 SQL 을 JPA 로 옮기기 전에 네이티브 구현에서 먼저 통과시킨다(apps/api/CONTRACT.md §5-9).
+ * 확인. 정리 장부({@code account_cleanup_operations})에 넣는 문장도 여기서 본다. 네이티브 SQL 을 JPA 로 옮기기 전에 네이티브 구현에서 먼저 통과시킨다(apps/api/CONTRACT.md §5-9).
  *
  * <p>lease 계약의 큰 줄기(선점의 배타, 만료된 lease 의 완료, 시도 소진, 넣기의 트랜잭션 참여, 취소)는 {@link AiJobLedgerIT} 가,
  * 낡은 감시 값을 무시하는 게이지는 {@link ExternalOperationSnapshotIT} 가 본다. 여기서는 그 테스트가 밟지 않는 고르는 순서, 시각의
@@ -96,6 +98,12 @@ class OperationStoreIT {
 
     @Autowired
     ExternalOperationMetrics metrics;
+
+    @Autowired
+    PostgresObjectCleanupLedger cleanups;
+
+    @Autowired
+    AccountSecrets secrets;
 
     @Autowired
     MeterRegistry meters;
@@ -350,6 +358,45 @@ class OperationStoreIT {
         assertThat(health.health().getStatus()).isEqualTo(Status.UP);
     }
 
+    // ---- 정리 장부 넣기(PostgresObjectCleanupLedger) ----
+
+    @Test
+    @DisplayName("정리 장부 넣기는 종류마다 모든 칸을 적는다 — 첫 시도는 지금과 미룰 시각 가운데 늦은 쪽, 기한은 그 7일 뒤, 시각은 마이크로초로 반올림한다")
+    void cleanupLedgerWritesEveryColumn() {
+        Instant at = now.plusNanos(1_500);
+        UUID later = inTransaction(() -> cleanups.schedule(user, List.of("users/a/photo.jpg"), at, at.plusSeconds(3600)));
+        UUID earlier = inTransaction(() -> cleanups.schedule(user, List.of("users/a/1.mp4", "users/a/1.jpg"), at,
+                at.minusSeconds(60)));
+        UUID recording = inTransaction(() -> cleanups.schedule(user, List.of("users/a/r.m4a"), at));
+        UUID video = inTransaction(() -> cleanups.scheduleObjectDelete(other, List.of("users/b/v.mp4"), at, at.plusSeconds(60)));
+        UUID provider = inTransaction(() -> cleanups.enqueue(user, "kakao_unlink", "d1:kakao", at));
+        UUID customer = inTransaction(() -> cleanups.enqueueCustomerDeletion(user, "d1:customer", at));
+
+        assertThat(cleanupRow(later)).isEqualTo(user + "|object_delete|0|04:00:00.000002|12-04 04:00:00.000002|03:00:00.000002|03:00:00.000002|-");
+        assertThat(secrets.decrypt(payload(later))).isEqualTo("[\"users/a/photo.jpg\"]");
+        assertThat(cleanupRow(earlier)).isEqualTo(user + "|object_delete|0|03:00:00.000002|12-04 03:00:00.000002|03:00:00.000002|03:00:00.000002|-");
+        assertThat(secrets.decrypt(payload(earlier))).isEqualTo("[\"users/a/1.mp4\",\"users/a/1.jpg\"]");
+        assertThat(cleanupRow(recording)).isEqualTo(user + "|reading_recording_delete|0|03:00:00.000002|12-04 03:00:00.000002|03:00:00.000002|03:00:00.000002|-");
+        assertThat(secrets.decrypt(payload(recording))).isEqualTo("[\"users/a/r.m4a\"]");
+        assertThat(cleanupRow(video)).isEqualTo(other + "|object_delete|0|03:01:00.000002|12-04 03:01:00.000002|03:00:00.000002|03:00:00.000002|-");
+        assertThat(cleanupRow(provider)).isEqualTo(user + "|kakao_unlink|0|03:00:00.000002|12-04 03:00:00.000002|03:00:00.000002|03:00:00.000002|-");
+        assertThat(payload(provider)).isEqualTo("d1:kakao");
+        assertThat(cleanupRow(customer)).isEqualTo(user + "|revenuecat_delete|0|03:00:00.000002|12-04 03:00:00.000002|03:00:00.000002|03:00:00.000002|-");
+        assertThat(payload(customer)).isEqualTo("d1:customer");
+    }
+
+    @Test
+    @DisplayName("정리 장부 넣기는 부르는 쪽의 트랜잭션에 얹힌다 — 트랜잭션 없이 부르면 거절하고, 부르는 쪽이 되돌리면 줄도 없다")
+    void cleanupLedgerJoinsTheCallersTransaction() {
+        assertThatThrownBy(() -> cleanups.schedule(user, List.of("users/a/photo.jpg"), now, now))
+                .isInstanceOf(InvalidDataAccessApiUsageException.class);
+        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+            cleanups.schedule(user, List.of("users/a/photo.jpg"), now, now);
+            tx.setRollbackOnly();
+        });
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM account_cleanup_operations", Integer.class)).isZero();
+    }
+
     // ---- 문장 ----
 
     @Test
@@ -395,6 +442,8 @@ class OperationStoreIT {
             return null;
         })).containsExactly("select external_operations");
         assertThat(statementsOf(() -> health.health())).as("연결 확인은 다른 스레드에서 돈다").isEmpty();
+        assertThat(statementsOf(() -> inTransaction(() -> cleanups.schedule(user, List.of("users/a/photo.jpg"), now, now))))
+                .containsExactly("insert account_cleanup_operations");
     }
 
     // ---- 도움 ----
@@ -471,6 +520,26 @@ class OperationStoreIT {
                        || to_char(updated_at AT TIME ZONE 'UTC', 'HH24:MI:SS.US') || ':' || coalesce(failure_reason, '-')
                   FROM ai_jobs WHERE id=?
                 """, String.class, id);
+    }
+
+    /** 정리 장부 한 줄의 값 칸 말고 전부. 시각은 UTC 마이크로초. */
+    private String cleanupRow(UUID id) {
+        return jdbc.queryForObject("""
+                SELECT user_id || '|' || kind || '|' || attempt_count || '|'
+                       || to_char(next_attempt_at AT TIME ZONE 'UTC', 'HH24:MI:SS.US') || '|'
+                       || to_char(expires_at AT TIME ZONE 'UTC', 'MM-DD HH24:MI:SS.US') || '|'
+                       || to_char(created_at AT TIME ZONE 'UTC', 'HH24:MI:SS.US') || '|'
+                       || to_char(updated_at AT TIME ZONE 'UTC', 'HH24:MI:SS.US') || '|' || coalesce(last_error, '-')
+                FROM account_cleanup_operations WHERE id=?
+                """, String.class, id);
+    }
+
+    private String payload(UUID id) {
+        return jdbc.queryForObject("SELECT payload_encrypted FROM account_cleanup_operations WHERE id=?", String.class, id);
+    }
+
+    private <T> T inTransaction(Supplier<T> call) {
+        return new TransactionTemplate(transactionManager).execute(tx -> call.get());
     }
 
     private double gauge(String name, String kind, String state, String waiting) {

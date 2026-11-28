@@ -12,8 +12,8 @@ import java.util.UUID;
  * 객체 삭제를 장부({@code account_cleanup_operations})에 함께 남기고, 커밋 뒤에 시도한다. 실패하면 장부가
  * 7일 동안 다시 시도하고 실패마다 보고한다(apps/api/CONTRACT.md §6-8).
  *
- * <p>선언은 쓰는 쪽(여기)에 있고 구현은 장부의 주인인 {@code profile} 이 한다 (ADR-017). 간선은
- * {@code profile → portfolio.app} 한 방향이다({@link PortfolioOwners} 와 같다).
+ * <p>선언은 쓰는 쪽(여기)에 있고 구현은 장부의 주인인 배관({@code platform/operation})이 한다 (ADR-017). 간선은
+ * {@code platform.operation → portfolio.app} 한 방향이다.
  */
 public interface PortfolioPhotoCleanup {
 

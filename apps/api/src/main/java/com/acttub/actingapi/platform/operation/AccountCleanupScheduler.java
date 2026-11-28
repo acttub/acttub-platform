@@ -1,6 +1,5 @@
-package com.acttub.actingapi.feature.profile.adapter.sched;
+package com.acttub.actingapi.platform.operation;
 
-import com.acttub.actingapi.feature.profile.app.AccountCleanup;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

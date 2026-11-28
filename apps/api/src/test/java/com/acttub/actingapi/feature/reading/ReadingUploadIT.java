@@ -25,7 +25,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
-import com.acttub.actingapi.feature.profile.app.AccountCleanup;
+import com.acttub.actingapi.platform.operation.AccountCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadService;
 import com.acttub.actingapi.feature.reading.domain.SampleScript;
