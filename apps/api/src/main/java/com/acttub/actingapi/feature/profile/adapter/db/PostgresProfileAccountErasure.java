@@ -50,19 +50,6 @@ class PostgresProfileAccountErasure implements AccountErasure {
         return List.of();
     }
 
-    /**
-     * 프로필과 유입 기록은 계정 행과 함께 지워진다({@code ON DELETE CASCADE}). 정리 장부에 남은 일은 계정 행을 가리킨 채
-     * 끝까지 가야 하므로 자료로 센다.
-     */
-    @Override
-    public boolean hasRecords(UUID userId) {
-        return !entityManager.createQuery("select o.id from AccountCleanupOperationEntity o where o.userId = :userId", UUID.class)
-                .setParameter("userId", userId)
-                .setMaxResults(1)
-                .getResultList()
-                .isEmpty();
-    }
-
     private void eraseSignupAttribution(UUID userId) {
         // 가입 유입 기록(SOMA-588)은 사람과 끊어 남기지 않고 행째 지운다 — 통계는 탈퇴 전 값으로 충분하다.
         entityManager.createQuery("delete from UserSignupAttributionEntity a where a.userId = :userId")

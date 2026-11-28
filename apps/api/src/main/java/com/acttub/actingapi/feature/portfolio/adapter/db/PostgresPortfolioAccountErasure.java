@@ -50,10 +50,4 @@ class PostgresPortfolioAccountErasure implements AccountErasure {
                 .executeUpdate();
         return scheduled;
     }
-
-    /** 포트폴리오는 계정 행과 함께 지워진다({@code ON DELETE CASCADE}). */
-    @Override
-    public boolean hasRecords(UUID userId) {
-        return false;
-    }
 }

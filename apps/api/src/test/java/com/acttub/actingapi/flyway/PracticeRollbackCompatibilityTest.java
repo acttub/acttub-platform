@@ -7,6 +7,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.sql.Connection;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.SchemaFingerprint;
@@ -60,7 +63,7 @@ class PracticeRollbackCompatibilityTest {
 
     @Test
     @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 은퇴한 옛 구조를 지운 V96·V99, 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
-            + "리딩 회차의 멈춤을 없앤 V31·말한 것을 더한 V32·대본의 NULL 허용 같은 글 해시(V33)·배역의 NULL 허용 성별·나이대(V42)·대사 줄의 NULL 허용 말·소리 낼 글(V45)·배역의 NULL 허용 묶음(V50)·배역의 기본값 있는 이름 없음 표시(V51)·동의 결정 값에서 revoked 를 뺀 V93 말고는 V13 의 모양 그대로다")
+            + "리딩 회차의 멈춤을 없앤 V31·말한 것을 더한 V32·대본의 NULL 허용 같은 글 해시(V33)·배역의 NULL 허용 성별·나이대(V42)·대사 줄의 NULL 허용 말·소리 낼 글(V45)·배역의 NULL 허용 묶음(V50)·배역의 기본값 있는 이름 없음 표시(V51)·동의 결정 값에서 revoked 를 뺀 V93·외래 키의 삭제 동작과 장부의 NULL 허용 계정(V104) 말고는 V13 의 모양 그대로다")
     void expandingToOneZeroLeavesEveryLegacyTableUntouched() throws Exception {
         List<String> before = fingerprintAt(BEFORE_ONE_ZERO);
         List<String> after = fingerprintAt(null);
@@ -110,8 +113,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V103 —연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대·기기 ID 임시 보관·유입 기록 출처와 가입 판·대사 줄의 말·코칭 세션 목적·연습 알림 보낸 기록·리딩 녹음 코치·발음 보고서·묶음 배역·이름 없는 독백 배역·배우 기억 장면 단위(V52, SOMA-795)·원본 파일명(V53)·챌린지 얼굴 모자이크(V54)·영상 없는 코칭(V55, SOMA-745)·찍을 대사 같이 만들기(V56, SOMA-721)·마저 하기 알림 대화 표시(V57, SOMA-753)·공지 매번 보이기(V58, SOMA-799)·배우 일지(V59, SOMA-720)·코칭 얼굴 가리기(V60)·예시 대본(V61, SOMA-824)·예시 대본 미리 만든 음성(V62)·웹 문의하기(V63, SOMA-834)·ACTTUB Pro 결제(V64, SOMA-818)·탈퇴 때 RevenueCat 고객 삭제(V65, SOMA-818)·앱 광고 칸(V66, SOMA-876)·노트 대사별로 본 것(V67, SOMA-900)·창립 멤버(V68, SOMA-861)·리딩 녹음 코칭(V69, SOMA-791)·챌린지 AI 검사(V70, SOMA-907)·입시 준비 첫 화면(V71, SOMA-864)·푸시 탭 기록(V72, SOMA-926)·공지 각주와 그림 배경색(V73, SOMA-927)·입시 준비 첫 화면 빼기(V74, SOMA-864)·창립 멤버 빼기(V75, SOMA-861)·화면별 광고 칸 스위치(V76, SOMA-876)·우리 앱 광고 노출 비율(V77, SOMA-876)·광고 빈도 상한(V78)·리딩 녹음 서버 다시 받아쓰기(V79)·웹 블로그 글(V80, SOMA-834)·대본 나누기 진행률(V83, SOMA-960)·회차를 만든 사람의 말(V84, SOMA-946)·연습 삭제(V85, SOMA-985)·배우 게시판 분류와 신고 사유(V86, SOMA-873)·게시판 글 사진(V87, SOMA-873)·게시판 분류 자유·질문·홍보(V88, SOMA-1012)·챌린지 얼굴 보임(V90, SOMA-1066)·얼굴 없는 모자이크 다시 처리(V91, SOMA-1066)·쓰지 않는 동의·신고 판정 값 빼기(V93, SOMA-1130)·코치 대화 종료 사유 gap_stated 빼기(V94, SOMA-1130)·영상 데이터 제3자 제공 동의(V95, SOMA-1149)·은퇴한 옛 구조 지우기(V96, SOMA-1142)·영상 크기 칸 지우기(V97, SOMA-1142)·저녁 알림 장부 지우기(V98, SOMA-1142)·옛 코칭 연결 지우기(V99, SOMA-1142)·참여작 공유 프레임(V100, SOMA-1156)·발음 보고서 채점 진행(V101, SOMA-1171)·일지 상태 skipped 빼기(V102, SOMA-1174)·광고마다 보이지 않을 계정(V103, SOMA-1069)이 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 90;
+    /** V14~V104 —연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대·기기 ID 임시 보관·유입 기록 출처와 가입 판·대사 줄의 말·코칭 세션 목적·연습 알림 보낸 기록·리딩 녹음 코치·발음 보고서·묶음 배역·이름 없는 독백 배역·배우 기억 장면 단위(V52, SOMA-795)·원본 파일명(V53)·챌린지 얼굴 모자이크(V54)·영상 없는 코칭(V55, SOMA-745)·찍을 대사 같이 만들기(V56, SOMA-721)·마저 하기 알림 대화 표시(V57, SOMA-753)·공지 매번 보이기(V58, SOMA-799)·배우 일지(V59, SOMA-720)·코칭 얼굴 가리기(V60)·예시 대본(V61, SOMA-824)·예시 대본 미리 만든 음성(V62)·웹 문의하기(V63, SOMA-834)·ACTTUB Pro 결제(V64, SOMA-818)·탈퇴 때 RevenueCat 고객 삭제(V65, SOMA-818)·앱 광고 칸(V66, SOMA-876)·노트 대사별로 본 것(V67, SOMA-900)·창립 멤버(V68, SOMA-861)·리딩 녹음 코칭(V69, SOMA-791)·챌린지 AI 검사(V70, SOMA-907)·입시 준비 첫 화면(V71, SOMA-864)·푸시 탭 기록(V72, SOMA-926)·공지 각주와 그림 배경색(V73, SOMA-927)·입시 준비 첫 화면 빼기(V74, SOMA-864)·창립 멤버 빼기(V75, SOMA-861)·화면별 광고 칸 스위치(V76, SOMA-876)·우리 앱 광고 노출 비율(V77, SOMA-876)·광고 빈도 상한(V78)·리딩 녹음 서버 다시 받아쓰기(V79)·웹 블로그 글(V80, SOMA-834)·대본 나누기 진행률(V83, SOMA-960)·회차를 만든 사람의 말(V84, SOMA-946)·연습 삭제(V85, SOMA-985)·배우 게시판 분류와 신고 사유(V86, SOMA-873)·게시판 글 사진(V87, SOMA-873)·게시판 분류 자유·질문·홍보(V88, SOMA-1012)·챌린지 얼굴 보임(V90, SOMA-1066)·얼굴 없는 모자이크 다시 처리(V91, SOMA-1066)·쓰지 않는 동의·신고 판정 값 빼기(V93, SOMA-1130)·코치 대화 종료 사유 gap_stated 빼기(V94, SOMA-1130)·영상 데이터 제3자 제공 동의(V95, SOMA-1149)·은퇴한 옛 구조 지우기(V96, SOMA-1142)·영상 크기 칸 지우기(V97, SOMA-1142)·저녁 알림 장부 지우기(V98, SOMA-1142)·옛 코칭 연결 지우기(V99, SOMA-1142)·참여작 공유 프레임(V100, SOMA-1156)·발음 보고서 채점 진행(V101, SOMA-1171)·일지 상태 skipped 빼기(V102, SOMA-1174)·광고마다 보이지 않을 계정(V103, SOMA-1069)·만 14세 미만 닫기의 계정 행 삭제(V104, SOMA-1166)가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 91;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
@@ -156,7 +159,7 @@ class PracticeRollbackCompatibilityTest {
      * 둘이다. <b>더한 것뿐이고 바꾼 것은 없다</b>: 옛 서버는 모르는 컬럼을 select 하지 않고, NULL 허용이라
      * 옛 서버의 INSERT 도 그대로 통한다.
      */
-    private static List<String> withExpectedAdditions(List<String> legacyBefore) {
+    private static List<String> withExpectedAdditions(List<String> legacyBefore) throws Exception {
         List<String> expected = new java.util.ArrayList<>(legacyBefore);
         // V24 가 동의 문서 종류에 cloud_voice 를 더했다(ADR-033). CHECK 는 옛 서버의 validate 가 보지 않고,
         // 넓히기만 했으므로 옛 값은 그대로 통한다.
@@ -250,7 +253,35 @@ class PracticeRollbackCompatibilityTest {
                 // V51 의 이름 없는 독백 배역 표시(SOMA-597). 기본값이 있어 이 칸을 모르는 옛 서버의 INSERT 도 통한다.
                 "COLUMN script_characters.unnamed ord=11 type=bool len=- null=NO default=false",
                 "CONSTRAINT script_characters script_characters_unnamed_not_null NOT NULL unnamed"));
+        // V104 가 users 에서 닿는 외래 키를 ON DELETE CASCADE(남길 칸은 SET NULL)로 다시 만들고 정리 장부의 user_id 에 NULL 을
+        // 허용했다(SOMA-1166). validate 는 외래 키의 삭제 동작과 NULL 허용을 보지 않고, 옛 서버는 장부에 늘 값을 넣는다.
+        Map<String, String> deleteActions = deleteActionsOfV104();
+        expected.replaceAll(line -> {
+            for (Map.Entry<String, String> change : deleteActions.entrySet()) {
+                if (line.startsWith("CONSTRAINT ") && line.contains(" " + change.getKey() + " FOREIGN KEY ")) {
+                    return line.replace(" ON DELETE RESTRICT", "") + " ON DELETE " + change.getValue();
+                }
+            }
+            return line.startsWith("COLUMN account_cleanup_operations.user_id ") ? line.replace(" null=NO ", " null=YES ") : line;
+        });
+        expected.remove("CONSTRAINT account_cleanup_operations account_cleanup_operations_user_id_not_null NOT NULL user_id");
         return expected.stream().sorted().toList();
+    }
+
+    /** V104 가 다시 만든 외래 키의 이름과 삭제 동작. */
+    private static Map<String, String> deleteActionsOfV104() throws Exception {
+        String sql;
+        try (var in = PracticeRollbackCompatibilityTest.class.getClassLoader()
+                .getResourceAsStream("db/migration/V104__underage_closure_deletes_account_row.sql")) {
+            sql = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+        Map<String, String> actions = new java.util.HashMap<>();
+        Matcher added = Pattern.compile("ADD CONSTRAINT (\\w+) FOREIGN KEY .* ON DELETE (CASCADE|SET NULL)").matcher(sql);
+        while (added.find()) {
+            actions.put(added.group(1), added.group(2));
+        }
+        assertThat(actions).as("V104 를 읽지 못하면 아래 비교가 조용히 빗나간다").hasSizeGreaterThan(80);
+        return actions;
     }
 
     /** 그 칸을 지우면 함께 사라지는 줄인가: 칸 줄, 그 칸만 거는 NOT NULL, 그 칸만 보는 값 CHECK. */

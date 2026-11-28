@@ -28,9 +28,6 @@ public final class StatementTrace implements StatementInspector {
 
     private static final ThreadLocal<List<String>> EVENTS = new ThreadLocal<>();
 
-    /** 줄이지 않은 문장. 어느 칸을 보는지까지 봐야 하는 검사가 쓴다({@link #sql}). */
-    private static final ThreadLocal<List<String>> SQL = new ThreadLocal<>();
-
     /** 잠금 절({@code for update}, {@code for no key update})과 {@code on conflict do update} 의 update 는 쓰는 문장이 아니다. */
     private static final Pattern WRITE =
             Pattern.compile("\\b(insert into|(?<!for )(?<!no key )(?<!do )update|delete from)\\s+(\\w+)");
@@ -40,12 +37,6 @@ public final class StatementTrace implements StatementInspector {
     /** 이 스레드의 기록을 시작한다. */
     static void start() {
         EVENTS.set(new ArrayList<>());
-        SQL.set(new ArrayList<>());
-    }
-
-    /** {@link #start} 뒤로 이 스레드가 보낸 문장 그대로(소문자, 공백 하나). {@link #stop} 앞에 읽는다. */
-    static List<String> sql() {
-        return List.copyOf(SQL.get());
     }
 
     /**
@@ -57,7 +48,6 @@ public final class StatementTrace implements StatementInspector {
     static List<String> stop() {
         List<String> events = EVENTS.get();
         EVENTS.remove();
-        SQL.remove();
         List<List<String>> units = new ArrayList<>();
         List<String> open = null;
         for (String event : events) {
@@ -96,7 +86,6 @@ public final class StatementTrace implements StatementInspector {
         List<String> events = EVENTS.get();
         if (events != null) {
             events.add("  " + label(sql));
-            SQL.get().add(sql.strip().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT));
         }
         return sql;
     }

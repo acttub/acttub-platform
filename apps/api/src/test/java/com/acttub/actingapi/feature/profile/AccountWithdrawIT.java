@@ -552,7 +552,7 @@ class AccountWithdrawIT {
     }
 
     @Test
-    @DisplayName("account.profile: 연습이 있는 0.1.0 이전 회원이 게이트에서 만 14세 미만 — 탈퇴와 같은 절차로 닫히고, 보관에 동의했어도 영상을 파기한다")
+    @DisplayName("account.profile: 연습이 있는 0.1.0 이전 회원이 게이트에서 만 14세 미만 — 탈퇴와 같은 순서로 닫힌 뒤 계정 행까지 지워지고, 보관에 동의했어도 영상을 파기한다")
     void accountProfile_underageLegacyMemberLosesTheVideosRegardlessOfConsent() throws Exception {
         Member member = member("kakao", "987654321", "granted");
         jdbc.update("DELETE FROM user_profile_directions WHERE user_id=?", member.id());
@@ -576,12 +576,13 @@ class AccountWithdrawIT {
         assertThat(response.getStatus()).isEqualTo(422);
         assertThat(mapper.readTree(response.getContentAsString()).path("detail").stringValue(null))
                 .isEqualTo("under_14_account_closed");
-        assertThat(jdbc.queryForObject("SELECT status FROM users WHERE id=?", String.class, member.id()))
-                .isEqualTo("deactivated");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE id=?", Integer.class, member.id())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_identities WHERE user_id=?", Integer.class, member.id()))
+                .as("신원은 해시도 남기지 않는다").isZero();
         assertThat(storage.objects).as("보관 동의와 무관하게 파기한다").doesNotContainKey("videos/child.mp4");
-        assertThat(kakao.unlinkedUserIds).as("제공자 연결도 탈퇴와 같이 끊는다").containsExactly("987654321");
-        assertThat(jdbc.queryForObject("SELECT uid_hash IS NOT NULL FROM user_identities WHERE user_id=?",
-                Boolean.class, member.id())).isTrue();
+        assertThat(kakao.unlinkedUserIds)
+                .as("제공자 연결도 탈퇴와 같이 끊는다. 계정 행이 지워진 뒤에도 장부가 커밋 바깥에서 한다")
+                .containsExactly("987654321");
     }
 
     @Test
