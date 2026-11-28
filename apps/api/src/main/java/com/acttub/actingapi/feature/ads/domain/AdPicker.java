@@ -85,7 +85,7 @@ public final class AdPicker {
                지면 같은 난수를 직접 광고 몫만큼 당겨 우리 앱 광고에 넘긴다 — 그래서 한 칸의 비율이
                직접 → 우리 앱 → AdMob 순서로 쌓인다(예: 직접 20 · 우리 앱 30 이면 AdMob 50). */
             Ad chosen = rotate(direct, viewer.userId(), slot, day);
-            if (chosen.sharePercent() >= AdRules.SHARE_PERCENT_MAX) {
+            if (chosen.sharePercent() >= AdDraft.SHARE_PERCENT_MAX) {
                 return new Pick(Kind.DIRECT, slot, chosen);
             }
             int drawn = roll.getAsInt();
