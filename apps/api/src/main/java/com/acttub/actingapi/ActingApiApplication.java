@@ -14,8 +14,8 @@ import org.springframework.boot.persistence.autoconfigure.EntityScan;
  * 빠지므로, {@code schema/EntityMappingIT}가 엔티티 개수를 못박아 그 침묵을 빨간불로 바꾼다.
  *
  * <p>도메인별 재편(SOMA-397)으로 각 도메인이 자기 {@code <도메인>/schema} 를 갖는다. 어느
- * 도메인의 것도 아닌 것 — 여러 도메인이 함께 쓰는 어휘, {@code PgEnum} 배관, 도메인을 가로지르는
- * 원장 — 은 {@code platform/schema} 에 남는다.
+ * 도메인의 것도 아닌 것 — 여러 도메인이 함께 쓰는 어휘, {@code PgEnum} 배관 — 은 {@code platform/schema} 에 남는다.
+ * 도메인을 가로지르는 원장(작업 장부, 옛 원장, 정리 장부)은 주인인 {@code platform/operation/schema} 에 있다.
  * <b>여기에 한 줄을 더하는 것을 잊으면 그 테이블만 검증에서 빠진다</b> — 개수 검사가 그것을 잡는다.
  */
 @SpringBootApplication

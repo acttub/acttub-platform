@@ -24,8 +24,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 앱 Pro 정기결제의 장부(V64, SOMA-818). 자기 표 넷(구독·카드 등록 창·결제·Pro 부여)은 Spring Data·JPQL·HQL 로 읽고 쓴다. 상태를
- * 바꾸는 조건부 갱신은 모두 한 문장이다.
+ * 앱 Pro 정기결제의 장부(V64, SOMA-818). 자기 표 넷(구독·카드 등록 창·결제·Pro 부여)은 Spring Data·JPQL·HQL 로 읽고 쓴다. 구독과
+ * 카드 등록 창의 상태를 바꾸는 조건부 갱신은 {@link PostgresBillingStatusTransitions} 에 모여 있고 모두 한 문장이다.
  *
  * <p>native SQL 로 남은 것: 다른 기능의 표({@code users}·{@code user_profiles}·{@code consent_documents})를 읽거나 잠그는 문장,
  * 갱신할 구독과 확인할 결제를 {@code SKIP LOCKED} 로 집으며 고치는 점유 문장 둘(HQL 은 서브쿼리 안에서 잠그지 못해 읽고 쓰는 두
@@ -43,6 +43,7 @@ class PostgresBillingRepository implements BillingRepository {
     private final BillingCheckoutJpaRepository checkouts;
     private final BillingPaymentJpaRepository payments;
     private final BillingProGrantJpaRepository grants;
+    private final PostgresBillingStatusTransitions transitions;
     private final TransactionTemplate transaction;
 
     private final AccountRowLock accountRows;
@@ -51,6 +52,7 @@ class PostgresBillingRepository implements BillingRepository {
 
     PostgresBillingRepository(EntityManager entityManager, BillingSubscriptionJpaRepository subscriptions,
             BillingCheckoutJpaRepository checkouts, BillingPaymentJpaRepository payments, BillingProGrantJpaRepository grants,
+            PostgresBillingStatusTransitions transitions,
             PlatformTransactionManager transactionManager,
             AccountRowLock accountRows,
             TermsPublication terms) {
@@ -61,6 +63,7 @@ class PostgresBillingRepository implements BillingRepository {
         this.checkouts = checkouts;
         this.payments = payments;
         this.grants = grants;
+        this.transitions = transitions;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
@@ -143,7 +146,7 @@ class PostgresBillingRepository implements BillingRepository {
     /** 조건부 갱신은 한 문장이고, 집었으면(1행) 같은 트랜잭션에서 그 창을 다시 읽는다 — 이 트랜잭션이 그 행을 잡고 있다. */
     @Override
     public Optional<Checkout> claimCheckout(String stateHash, Instant now) {
-        return transaction.execute(tx -> checkouts.claim(stateHash, now) == 0
+        return transaction.execute(tx -> transitions.claimCheckout(stateHash, now) == 0
                 ? Optional.<Checkout>empty()
                 : checkouts.findByStateHash(stateHash).map(PostgresBillingRepository::checkout));
     }
@@ -155,7 +158,7 @@ class PostgresBillingRepository implements BillingRepository {
 
     @Override
     public void finishCheckout(UUID checkoutId, String status, String resultCode, Instant now) {
-        transaction.executeWithoutResult(tx -> checkouts.finish(checkoutId, status, resultCode, now));
+        transaction.executeWithoutResult(tx -> transitions.finishCheckout(checkoutId, status, resultCode, now));
     }
 
     @Override
@@ -185,7 +188,7 @@ class PostgresBillingRepository implements BillingRepository {
             if (!lockActiveUser(userId)) {
                 return false;
             }
-            subscriptions.activate(subscriptionId, periodStart, periodEnd, now);
+            transitions.activate(subscriptionId, periodStart, periodEnd, now);
             return true;
         });
     }
@@ -197,17 +200,17 @@ class PostgresBillingRepository implements BillingRepository {
 
     @Override
     public void advance(UUID subscriptionId, Instant periodStart, Instant periodEnd, Instant now) {
-        transaction.executeWithoutResult(tx -> subscriptions.advance(subscriptionId, periodStart, periodEnd, now));
+        transaction.executeWithoutResult(tx -> transitions.advance(subscriptionId, periodStart, periodEnd, now));
     }
 
     @Override
     public void markPastDue(UUID subscriptionId, int retryCount, Instant nextRetryAt, Instant now) {
-        transaction.executeWithoutResult(tx -> subscriptions.markPastDue(subscriptionId, retryCount, nextRetryAt, now));
+        transaction.executeWithoutResult(tx -> transitions.markPastDue(subscriptionId, retryCount, nextRetryAt, now));
     }
 
     @Override
     public void expire(UUID subscriptionId, Instant now) {
-        transaction.executeWithoutResult(tx -> subscriptions.expire(subscriptionId, now));
+        transaction.executeWithoutResult(tx -> transitions.expire(subscriptionId, now));
     }
 
     @Override
@@ -217,7 +220,7 @@ class PostgresBillingRepository implements BillingRepository {
 
     @Override
     public boolean cancel(UUID subscriptionId, Instant now) {
-        Integer updated = transaction.execute(tx -> subscriptions.cancel(subscriptionId, now));
+        Integer updated = transaction.execute(tx -> transitions.cancel(subscriptionId, now));
         return updated != null && updated == 1;
     }
 
@@ -378,7 +381,7 @@ class PostgresBillingRepository implements BillingRepository {
 
     @Override
     public boolean expireStore(UUID userId, Instant now) {
-        return transaction.execute(tx -> subscriptions.expireStore(userId, now)) > 0;
+        return transaction.execute(tx -> transitions.expireStore(userId, now)) > 0;
     }
 
     private static Subscription subscription(BillingSubscriptionEntity row) {

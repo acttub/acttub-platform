@@ -1,21 +1,24 @@
-package com.acttub.actingapi.feature.profile.app;
+package com.acttub.actingapi.platform.operation;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository.Abandoned;
-import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository.CleanupOperation;
-import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository.Overdue;
 import com.acttub.actingapi.integration.oidc.AppleTokenClient;
 import com.acttub.actingapi.integration.oidc.KakaoUserClient;
 import com.acttub.actingapi.integration.oidc.NaverTokenClient;
 import com.acttub.actingapi.integration.revenuecat.RevenueCatCustomerClient;
+import com.acttub.actingapi.integration.storage.NoCredentialsError;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.operation.AccountCleanupRepository.Abandoned;
+import com.acttub.actingapi.platform.operation.AccountCleanupRepository.CleanupOperation;
+import com.acttub.actingapi.platform.operation.AccountCleanupRepository.Overdue;
 import com.acttub.actingapi.platform.security.AccountSecrets;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -48,7 +51,8 @@ public class AccountCleanup {
     private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final AccountCleanupRepository operations;
-    private final ProfilePhotoStorage storage;
+    /** 저장소 빈이 없는 기동 형태가 있다. 그때 객체 삭제는 실패로 남아 다시 시도된다. */
+    private final Optional<ObjectStorage> storage;
     private final AppleTokenClient apple;
     private final KakaoUserClient kakao;
     private final NaverTokenClient naver;
@@ -59,7 +63,7 @@ public class AccountCleanup {
 
     public AccountCleanup(
             AccountCleanupRepository operations,
-            ProfilePhotoStorage storage,
+            Optional<ObjectStorage> storage,
             AppleTokenClient apple,
             KakaoUserClient kakao,
             NaverTokenClient naver,
@@ -140,7 +144,9 @@ public class AccountCleanup {
         } catch (Exception unreadable) {
             throw new IllegalStateException("object_delete payload is not a key list");
         }
-        keys.forEach(storage::delete);
+        keys.forEach(key -> storage
+                .orElseThrow(() -> new NoCredentialsError("storage is not configured"))
+                .delete(key));
     }
 
     private void abandoned(Abandoned operation) {

@@ -67,7 +67,7 @@ class TableOwnerTest {
      *
      * <p>늘려야 할 것 같으면 먼저 주인의 {@code app} 층에 Port 를 두거나 주인을 다시 정한다.
      */
-    private static final int EXCEPTION_CEILING = 196;
+    private static final int EXCEPTION_CEILING = 192;
 
     /** 쓰기 예외 목록의 줄 수. 0 이 됐다. 늘리지 않는다 — 남의 테이블에 쓰는 문장은 주인의 app 층 Port 로 옮긴다. */
     private static final int WRITE_EXCEPTION_CEILING = 0;

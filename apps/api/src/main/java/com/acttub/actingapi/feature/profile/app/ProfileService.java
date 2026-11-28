@@ -44,7 +44,7 @@ public class ProfileService implements ProfileGate {
 
     private final ProfileRepository profiles;
     private final ProfilePhotoStorage photos;
-    private final AccountCleanup cleanup;
+    private final AccountCleanupLedger cleanup;
     private final Clock clock;
     private final AirbridgeAttributionClient airbridge;
     private final PendingConsentDocuments consents;
@@ -53,7 +53,7 @@ public class ProfileService implements ProfileGate {
     public ProfileService(
             ProfileRepository profiles,
             ProfilePhotoStorage photos,
-            AccountCleanup cleanup,
+            AccountCleanupLedger cleanup,
             Clock clock,
             AirbridgeAttributionClient airbridge,
             PendingConsentDocuments consents,
@@ -205,7 +205,7 @@ public class ProfileService implements ProfileGate {
 
     /**
      * 탈퇴. 파기와 상태 전환은 한 트랜잭션이고, 객체 삭제와 제공자 해제는 그 <b>뒤에</b> 시도한다 —
-     * 바깥 호출이 실패해도 탈퇴는 끝났고, 실패한 것은 장부가 다시 시도한다 — 제공자 해제는 7일까지, 객체 삭제는 성공할 때까지 ({@link AccountCleanup}).
+     * 바깥 호출이 실패해도 탈퇴는 끝났고, 실패한 것은 장부가 다시 시도한다 — 제공자 해제는 7일까지, 객체 삭제는 성공할 때까지 ({@link AccountCleanupLedger}).
      *
      * <p>이미 탈퇴한 계정이 다시 와도 같은 결과다. 최초 탈퇴 시각을 돌려주고 파기만 다시 돈다 —
      * 탈퇴 도중 앱이 죽어 다시 누른 경우를 위해서다.

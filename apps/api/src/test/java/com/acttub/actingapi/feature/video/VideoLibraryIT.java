@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntSupplier;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
-import com.acttub.actingapi.feature.profile.app.AccountCleanup;
+import com.acttub.actingapi.platform.operation.AccountCleanup;
 import com.acttub.actingapi.feature.video.app.VideoPosterWorker;
 import com.acttub.actingapi.feature.video.domain.VideoRules;
 import com.acttub.actingapi.integration.media.PosterFrameExtractor;

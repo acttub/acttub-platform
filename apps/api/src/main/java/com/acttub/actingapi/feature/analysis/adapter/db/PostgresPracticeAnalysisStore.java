@@ -134,10 +134,7 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
             Tuple row = rows.getFirst();
             // 그만두기·탈퇴·연습 삭제가 작업을 먼저 닫았으면 늦게 끝난 결과를 받지 않는다. 작업 행을 잡아 두므로
             // 이 트랜잭션이 끝날 때까지 그쪽도 작업을 닫지 못한다.
-            Object jobStatus = entityManager.createNativeQuery("SELECT status FROM ai_jobs WHERE id=:jobId FOR UPDATE")
-                    .setParameter("jobId", jobId)
-                    .getSingleResult();
-            if (!"running".equals(jobStatus)) {
+            if (!"running".equals(jobs.lockStatus(jobId))) {
                 return null;
             }
             // 탈퇴가 먼저 끝났으면 결과를 저장하지 않고 작업만 닫는다 — 닫힌 계정에 분석이 남지 않는다.
@@ -196,14 +193,10 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
      */
     @Override
     public int sweepMaxAttempts(Instant now) {
-        List<Tuple> exhausted = list(entityManager.createNativeQuery("""
-                SELECT id FROM ai_jobs
-                WHERE kind='analyze' AND status='pending' AND attempt_count>=:maxAttempts
-                """, Tuple.class)
-                .setParameter("maxAttempts", AiJobLedger.MAX_ATTEMPTS));
+        List<UUID> exhausted = jobs.exhaustedPending("analyze");
         int swept = jobs.sweepMaxAttempts(now);
-        for (Tuple row : exhausted) {
-            closePractice(row.get("id", UUID.class), now);
+        for (UUID jobId : exhausted) {
+            closePractice(jobId, now);
         }
         // 작업과 회차를 한 트랜잭션에서 닫는다 — 사이에서 끊기면 failed 작업 옆에 analyzing 회차가 남아 다시 갇힌다.
         int abandoned = transaction.execute(tx -> {

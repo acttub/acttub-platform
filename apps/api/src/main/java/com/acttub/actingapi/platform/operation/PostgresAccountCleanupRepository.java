@@ -1,4 +1,4 @@
-package com.acttub.actingapi.feature.profile.adapter.db;
+package com.acttub.actingapi.platform.operation;
 
 import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
@@ -8,7 +8,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import jakarta.persistence.Tuple;

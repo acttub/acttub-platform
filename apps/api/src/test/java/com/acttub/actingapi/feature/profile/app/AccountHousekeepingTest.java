@@ -25,7 +25,7 @@ class AccountHousekeepingTest {
     private final StaleRefreshTokens refreshTokens = mock(StaleRefreshTokens.class);
     private final StaleTransferCodes transferCodes = mock(StaleTransferCodes.class);
     private final DeletedPracticePurge deletedPractices = mock(DeletedPracticePurge.class);
-    private final AccountCleanup cleanup = mock(AccountCleanup.class);
+    private final AccountCleanupLedger cleanup = mock(AccountCleanupLedger.class);
     private final RecordingFailureReporter failures = new RecordingFailureReporter();
     private final AccountHousekeeping housekeeping = new AccountHousekeeping(
             profiles, accounts, refreshTokens, transferCodes, deletedPractices, cleanup, failures, Clock.fixed(Instant.parse("2026-10-02T19:30:00Z"), ZoneOffset.UTC));

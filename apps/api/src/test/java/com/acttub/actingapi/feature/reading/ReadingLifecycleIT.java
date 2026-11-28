@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntSupplier;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
-import com.acttub.actingapi.feature.profile.app.AccountCleanup;
+import com.acttub.actingapi.platform.operation.AccountCleanup;
 import com.acttub.actingapi.feature.profile.app.AccountHousekeeping;
 import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.support.AccountFixtures;

@@ -1,4 +1,4 @@
-package com.acttub.actingapi.feature.profile.schema;
+package com.acttub.actingapi.platform.operation.schema;
 
 import java.time.Instant;
 import java.util.UUID;

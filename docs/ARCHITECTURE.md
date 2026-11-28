@@ -91,12 +91,12 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 
 상태 칸을 바꾸는 문장은 그 상태의 파일 한 곳에 모으고, 허용되는 길은 주인의 `domain`에 표로 둔다. 다른 기능은 주인의 `app`에
 있는 전이 Port를 부른다. 조건은 SQL에 그대로 둔다([CONTRACT §5-2](../apps/api/CONTRACT.md)). 모은 상태의 목록과 대조하는 규칙은
-`StateTransitionTest`에 있다(회차의 단계, AI 작업의 상태, 계정의 상태).
+`StateTransitionTest`에 있다(회차의 단계, AI 작업의 상태, 계정의 상태, 구독의 상태, 카드 등록 창의 상태).
 
 | 주인 | 테이블 |
 |---|---|
 | `feature/auth` | `users`, `user_identities`, `refresh_tokens`, `user_active_days` |
-| `feature/profile` | `user_profiles`, `user_profile_directions`, `user_signup_attributions`, `user_discovery_answers`, `user_airbridge_device_lookups`, `account_cleanup_operations` |
+| `feature/profile` | `user_profiles`, `user_profile_directions`, `user_signup_attributions`, `user_discovery_answers`, `user_airbridge_device_lookups` |
 | `feature/consent` | `consent_documents`, `user_consents` |
 | `feature/transfer` | `guest_transfer_codes` |
 | `feature/portfolio` | `portfolios`, `portfolio_credits`, `portfolio_photos` |
@@ -116,7 +116,7 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 | `feature/audition` | `audition_postings` |
 | `feature/blog` | `blog_posts` |
 | `feature/support` | `support_inquiries` |
-| `platform/operation` | `ai_jobs`, `external_operations` |
+| `platform/operation` | `ai_jobs`, `external_operations`, `account_cleanup_operations` |
 
 ### 연습 화면의 전환
 

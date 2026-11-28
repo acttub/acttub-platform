@@ -12,6 +12,9 @@ public interface AccountFacts {
     /** 가입한 시각. 없는 계정이면 비어 있다. */
     Optional<Instant> signedUpAt(UUID userId);
 
+    /** 활성 계정인가. 없는 계정과 탈퇴한 계정이면 거짓이다. 잠그지 않는다 — 쓰기 앞에서 줄을 세우려면 {@link AccountRowLock} 을 쓴다. */
+    boolean active(UUID userId);
+
     /** 이메일. 없는 계정이거나 이메일이 없으면(게스트, 탈퇴한 계정) 비어 있다. */
     Optional<String> email(UUID userId);
 }
