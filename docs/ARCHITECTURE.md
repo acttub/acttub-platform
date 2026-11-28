@@ -56,8 +56,8 @@ ArchUnit 테스트 `PackageLayerTest`가 강제한다. 이렇게 정한 이유�
 - Port 하나는 한 쪽만 구현한다. Port 안의 질문들이 서로 다른 도메인의 데이터를 물으면 답하는 쪽의 소유를 따라 Port를 나눈다
   (예: 사용자 조회와 동의 여부를 가른 `PendingConsentGate`).
 - `apps/api`는 Gradle 모듈 하나다. 패키지 사이 순환은 모듈 경계가 아니라 `PackageCycleTest`가 막고, 공유 타입을 위한
-  커널 패키지를 따로 만들지 않고 각자 제 역할의 패키지에 둔다. 한 패키지 안의 클래스 순환은 `feature/coach/app`만
-  `ClassCycleTest`가 막는다.
+  커널 패키지를 따로 만들지 않고 각자 제 역할의 패키지에 둔다. 한 패키지 안의 클래스 순환은
+  `ClassCycleTest`가 모든 패키지에서 막는다.
 
 ### 테이블 주인
 

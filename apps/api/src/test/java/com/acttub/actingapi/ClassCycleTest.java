@@ -29,10 +29,12 @@ import com.sun.source.util.TreeScanner;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@code feature/coach/app} 안의 클래스끼리 서로를 돌아 참조하지 않음을 강제한다(SOMA-1016).
+ * {@code src/main/java} 아래 모든 패키지에서, 한 패키지 안의 클래스끼리 서로를 돌아 참조하지 않음을 강제한다(SOMA-1016·SOMA-1183).
  *
- * <p>{@link PackageCycleTest}는 패키지 사이만 본다. 이 패키지는 클래스가 쉰 개가 넘고, 그 가운데 스무 개가 한 묶음으로 서로를
- * 참조하고 있었다. 묶음을 푼 뒤에 막는 것이 없으면 아래 클래스가 서비스의 상수 하나를 읽는 것만으로 다시 묶인다.
+ * <p>{@link PackageCycleTest}는 패키지 사이만 본다. {@code feature/coach/app}은 클래스 스무 개가 한 묶음으로 서로를 참조하고
+ * 있었고, {@code feature/reading/domain}·{@code integration/observation}·{@code feature/ads/domain}에도 두세 개씩 묶인 곳이
+ * 있었다. 묶음을 푼 뒤에 막는 것이 없으면 아래 클래스가 위 클래스의 상수 하나를 읽는 것만으로 다시 묶인다. 광고 도메인의 묶음은
+ * SonarQube 목록에도 없던 상수 하나였다.
  *
  * <p><b>컴파일된 클래스가 아니라 소스를 읽는다.</b> 묶음을 만들던 참조의 절반이 상수({@code static final int}·{@code String})
  * 였는데, 컴파일러가 상수 값을 쓰는 쪽에 그대로 넣어 클래스 파일에는 그 참조가 남지 않는다. ArchUnit 으로는 그 참조를 볼 수 없다.
@@ -42,24 +44,47 @@ import org.junit.jupiter.api.Test;
  */
 class ClassCycleTest {
 
-    private static final Path COACH_APP = Path.of("src/main/java/com/acttub/actingapi/feature/coach/app");
+    private static final Path SOURCES = Path.of("src/main/java");
 
     @Test
-    void coachAppClassesAreFreeOfCycles() throws IOException {
+    void noPackageHasClassCycles() throws IOException {
+        Map<String, List<String>> cycles = new TreeMap<>();
+        int packages = 0;
+        int references = 0;
+        try (Stream<Path> dirs = Files.walk(SOURCES)) {
+            for (Path dir : dirs.filter(Files::isDirectory).toList()) {
+                Map<String, String> sources = sources(dir);
+                if (sources.isEmpty()) {
+                    continue;
+                }
+                Map<String, Set<String>> uses = uses(sources);
+                packages++;
+                references += uses.values().stream().mapToInt(Set::size).sum();
+                List<String> found = cycles(uses);
+                if (!found.isEmpty()) {
+                    cycles.put(SOURCES.relativize(dir).toString(), found);
+                }
+            }
+        }
+
+        assertThat(packages).as("패키지를 거의 못 찾았다 — 경로가 빗나갔다").isGreaterThan(100);
+        assertThat(references)
+                .as("참조를 거의 못 찾았다 — 파서가 이름을 못 읽는다")
+                .isGreaterThan(packages);
+        assertThat(cycles)
+                .as("한 패키지 안에서 서로를 돌아 참조하는 클래스가 있다. 아래 클래스가 위 클래스의 상수·도우미를 읽으면 그것을 아래로 내린다")
+                .isEmpty();
+    }
+
+    /** 그 폴더 바로 아래의 소스. 클래스 이름 → 글. */
+    private static Map<String, String> sources(Path dir) throws IOException {
         Map<String, String> sources = new TreeMap<>();
-        try (Stream<Path> files = Files.list(COACH_APP)) {
+        try (Stream<Path> files = Files.list(dir)) {
             for (Path file : files.filter(path -> path.toString().endsWith(".java")).toList()) {
                 sources.put(file.getFileName().toString().replace(".java", ""), Files.readString(file));
             }
         }
-        Map<String, Set<String>> uses = uses(sources);
-
-        assertThat(uses.values().stream().mapToInt(Set::size).sum())
-                .as("참조를 하나도 못 찾았다 — 경로가 빗나갔거나 파서가 이름을 못 읽는다")
-                .isGreaterThan(sources.size());
-        assertThat(cycles(uses))
-                .as("서로를 돌아 참조하는 클래스가 있다. 아래 클래스가 위 클래스의 상수·도우미를 읽으면 그것을 아래로 내린다")
-                .isEmpty();
+        return sources;
     }
 
     /** 검사가 실제로 잡는지 본다. 상수만 읽는 참조도 잡아야 하고, 주석·문자열 속 이름은 잡지 않아야 한다. */
