@@ -8,8 +8,8 @@ import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 class GeminiLayerOneObserverTest {
-    private static SpeechFacts.Word w(String word, double start, double end) {
-        return new SpeechFacts.Word(word, start, end);
+    private static SpeechAnalysis.Word w(String word, double start, double end) {
+        return new SpeechAnalysis.Word(word, start, end);
     }
 
     @Test

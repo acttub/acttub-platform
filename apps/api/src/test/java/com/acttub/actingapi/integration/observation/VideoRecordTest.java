@@ -63,8 +63,8 @@ class VideoRecordTest {
         ObjectNode record = empty(16000);
         VideoRecord.append(record, chunk().put("chunk_id", "c0"), 0);
         VideoRecord.append(record, chunk().put("chunk_id", "c1"), 8000);
-        List<SpeechFacts.Word> words = new ArrayList<>();
-        for (int i = 0; i < 20; i++) words.add(new SpeechFacts.Word("말", i * .7, i * .7 + .2));
+        List<SpeechAnalysis.Word> words = new ArrayList<>();
+        for (int i = 0; i < 20; i++) words.add(new SpeechAnalysis.Word("말", i * .7, i * .7 + .2));
         VideoRecord.finish(record, SpeechFacts.calculate("말 ".repeat(20), words));
         assertThat(record.path("events")).hasSize(28);
         assertThat(LenientJson.asInt(record.path("speech").path("utterances").get(1).path("start_ms"))).isEqualTo(12000);

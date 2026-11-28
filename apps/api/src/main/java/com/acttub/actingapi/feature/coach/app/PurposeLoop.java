@@ -22,7 +22,7 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * {@code <인물 카드>}(인물 여섯 칸), {@code <장면>}(배우가 바로잡은 장면), {@code <다음 테이크>}(정리의 행동 한 줄).
  * 서버가 걷어 내 상태 {@code purpose_loop} 에 두고 응답의 {@code purpose} 로 내보낸다. 코치 말에는 남지 않는다.
  */
-final class PurposeLoop {
+public final class PurposeLoop {
     private PurposeLoop() {}
 
     static final String STATE_KEY = "purpose_loop";
@@ -514,7 +514,7 @@ final class PurposeLoop {
     static ObjectNode cardOf(String body) {
         ObjectNode card = JsonNodeFactory.instance.objectNode();
         for (String[] pair : new String[][] {{"잘 된 곳", "good"}, {"아쉬운 곳", "issue"}, {"다음 테이크", "next"}}) {
-            String value = DirectVideoPracticeLoop.statusField(body, pair[0]);
+            String value = PracticeLoopRouter.statusField(body, pair[0]);
             if (value.isBlank() || value.startsWith("없음")) continue;
             ObjectNode item = card.putObject(pair[1]);
             Lead lead = leadTime(value);
@@ -561,7 +561,7 @@ final class PurposeLoop {
         ObjectNode card = JsonNodeFactory.instance.objectNode();
         ArrayNode cells = card.putArray("cells");
         for (String[] cell : CELLS) {
-            String value = DirectVideoPracticeLoop.statusField(body, cell[0]);
+            String value = PracticeLoopRouter.statusField(body, cell[0]);
             if (value.isBlank() || value.startsWith("없음") || value.startsWith("모름") || value.startsWith("빈 칸")) continue;
             String[] split = splitSource(value);
             value = split[0];
@@ -578,7 +578,7 @@ final class PurposeLoop {
 
     /** 첫 응답 설계의 「장면: 상황 | 인물 | 상대」. 줄이 없으면 {@code null}. */
     static ObjectNode scene(String design) {
-        String line = DirectVideoPracticeLoop.statusField(design, "장면");
+        String line = PracticeLoopRouter.statusField(design, "장면");
         return line.isBlank() || line.startsWith("없음") ? null : sceneLine(line);
     }
 
@@ -601,8 +601,8 @@ final class PurposeLoop {
     /** 첫 응답 설계의 「대사 시간: 0:03 "가르쳐 줘" / 0:12 "취소해"」. 대사가 확인되지 않았으면 빈 목록. */
     static ArrayNode lines(String design) {
         ArrayNode lines = JsonNodeFactory.instance.arrayNode();
-        if (DirectVideoPracticeLoop.statusField(design, "대사 확인").startsWith("확인 안 됨")) return lines;
-        String field = DirectVideoPracticeLoop.statusField(design, "대사 시간");
+        if (PracticeLoopRouter.statusField(design, "대사 확인").startsWith("확인 안 됨")) return lines;
+        String field = PracticeLoopRouter.statusField(design, "대사 시간");
         Matcher m = TIMED_LINE.matcher(field);
         while (m.find() && lines.size() < LINES_MAX) {
             String text = m.group(3).strip();
@@ -773,7 +773,7 @@ final class PurposeLoop {
         }
         for (var answer : loop.path("answers").properties()) {
             String text = LenientJson.asText(answer.getValue(), "").strip();
-            if (WRAP.equals(answer.getKey()) || text.isEmpty() || DirectVideoPracticeLoop.isVague(text)) continue;
+            if (WRAP.equals(answer.getKey()) || text.isEmpty() || PracticeLoopRouter.isVague(text)) continue;
             picked.add(new String[] {text, text});
         }
         var turns = session.turns();
@@ -816,6 +816,55 @@ final class PurposeLoop {
             if (choice.at() == null) item.putNull("at");
             else item.put("at", choice.at());
         }
+    }
+
+    /** 화면이 그리는 값을 저장된 목적과 대화 상태에서 만든다. 목적이 없으면 {@code null}. */
+    public static PurposeView view(String sessionPurpose, JsonNode state) {
+        Purpose purpose = Purpose.of(sessionPurpose);
+        if (purpose == null) return null;
+        JsonNode loop = state == null ? null : state.path(STATE_KEY);
+        if (loop == null || !loop.isObject()) {
+            return new PurposeView(purpose.id, purpose.steps.getFirst(), List.of(), null, List.of(), null, null);
+        }
+        int index = Math.max(0, Math.min(purpose.steps.size() - 1, LenientJson.asInt(loop.path("step"), 0)));
+        var choices = new ArrayList<PurposeView.Choice>();
+        for (JsonNode choice : loop.path("choices")) {
+            choices.add(new PurposeView.Choice(LenientJson.asText(choice.path("label"), ""), secondsAt(choice.path("at"))));
+        }
+        PurposeView.Scene scene = null;
+        if (loop.path("scene").isObject()) {
+            JsonNode s = loop.path("scene");
+            scene = new PurposeView.Scene(LenientJson.asText(s.path("situation"), ""), LenientJson.asText(s.path("character"), ""), LenientJson.asText(s.path("partner"), ""));
+        }
+        var lines = new ArrayList<PurposeView.Line>();
+        for (JsonNode line : loop.path("lines")) {
+            lines.add(new PurposeView.Line(LenientJson.asInt(line.path("at"), 0), LenientJson.asText(line.path("text"), "")));
+        }
+        PurposeView.Card card = null;
+        if (loop.path("card").isObject()) {
+            JsonNode c = loop.path("card");
+            card = new PurposeView.Card(cardItem(c.path("good")), cardItem(c.path("issue")), cardItem(c.path("next")));
+        }
+        PurposeView.CharacterCard characterCard = null;
+        if (loop.path("character_card").path("cells").isArray()) {
+            var cells = new ArrayList<PurposeView.Cell>();
+            for (JsonNode cell : loop.path("character_card").path("cells")) {
+                cells.add(new PurposeView.Cell(LenientJson.asText(cell.path("key"), ""), LenientJson.asText(cell.path("label"), ""),
+                        LenientJson.asText(cell.path("value"), ""), LenientJson.asText(cell.path("source"), "")));
+            }
+            characterCard = new PurposeView.CharacterCard(List.copyOf(cells));
+        }
+        return new PurposeView(purpose.id, purpose.steps.get(index), List.copyOf(choices), scene, List.copyOf(lines),
+                card, characterCard);
+    }
+
+    private static PurposeView.CardItem cardItem(JsonNode node) {
+        if (node == null || !node.isObject()) return null;
+        return new PurposeView.CardItem(secondsAt(node.path("at")), LenientJson.asText(node.path("text"), ""));
+    }
+
+    private static Integer secondsAt(JsonNode node) {
+        return node != null && node.isNumber() ? LenientJson.asInt(node) : null;
     }
 
     /** 상태 칸. 노트·응답 상한이 읽는 「배우의 말」「할 일」「다음 테이크」 칸 이름은 연습 루프와 같다. */

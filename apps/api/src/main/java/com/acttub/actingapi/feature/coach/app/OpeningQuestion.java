@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import tools.jackson.databind.JsonNode;
 import com.acttub.actingapi.platform.json.LenientJson;
@@ -32,10 +31,6 @@ final class OpeningQuestion {
         if (questionCount(message) > 1) failures.add("첫 응답의 질문은 최대 하나다. 설명만으로 도움을 줄 수 있으면 질문하지 않는다. 인용한 대사의 물음표는 질문이 아니다.");
         if (vagueReading(message)) failures.add("첫 응답에서 말의 무게·처럼 읽힌다는 해석을 붙이지 않는다. 구체적인 영상 근거로 설명하고 질문은 꼭 필요할 때만 한다.");
         return failures;
-    }
-
-    static boolean legacyOpening(CoachSessionSnapshot session) {
-        return CoachBranch.isBlockageUnspecified(session.blockageKind()) && CoachPrompt.turnNumber(session) == 1;
     }
 
     static boolean legacyMaterial(CoachSessionSnapshot session) {

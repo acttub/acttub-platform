@@ -120,6 +120,11 @@ class GuestTransferIT {
                 INSERT INTO user_signup_attributions(user_id,source,platform,channel,recorded_at)
                 VALUES (?,'airbridge','ios','facebook.business',?)
                 """, member, clock.instant().minus(Duration.ofDays(1)).atOffset(ZoneOffset.UTC));
+        // 게스트는 토큰을 등록하지 못한다(member_only). 남아 있는 행이 있어도 지워지는지 보려고 직접 넣는다.
+        jdbc.update("INSERT INTO push_tokens(user_id,token,platform) VALUES (?,'ExponentPushToken[guest-left]','ios')",
+                guest.id());
+        jdbc.update("INSERT INTO push_tokens(user_id,token,platform) VALUES (?,'ExponentPushToken[member-kept]','ios')",
+                member);
 
         JsonNode issued = issueCode(guest);
         assertThat(issued.propertyNames().iterator()).toIterable().containsExactlyInAnyOrder("code", "expires_in", "expires_at");
@@ -157,6 +162,10 @@ class GuestTransferIT {
                 .containsEntry("total", 1L).containsEntry("revoked", 1L);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM user_consents WHERE user_id=?", Integer.class, guest.id()))
                 .as("동의 기록은 게스트 행에 남긴다").isEqualTo(1);
+        assertThat(jdbc.queryForList(
+                "SELECT token FROM push_tokens WHERE user_id IN (?,?)", String.class, guest.id(), member))
+                .as("닫힌 게스트의 푸시 토큰은 지우고 회원의 것은 둔다")
+                .containsExactly("ExponentPushToken[member-kept]");
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM user_signup_attributions WHERE user_id=?", Integer.class, guest.id()))
                 .as("명시적으로 연결된 게스트의 유입 행은 닫힌 게스트에 남기지 않는다").isZero();

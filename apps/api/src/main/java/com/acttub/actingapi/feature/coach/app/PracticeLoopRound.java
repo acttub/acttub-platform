@@ -65,7 +65,7 @@ public final class PracticeLoopRound {
             String text = turn.text() == null ? "" : turn.text().strip();
             if (text.isEmpty()) continue;
             String kind = statuses == null || !statuses.isArray() ? ""
-                    : DirectVideoPracticeLoop.statusField(LenientJson.asText(statuses.path(coachIndex), ""), "배우의 말");
+                    : PracticeLoopRouter.statusField(LenientJson.asText(statuses.path(coachIndex), ""), "배우의 말");
             PracticeLoopRouter.Kind classified = PracticeLoopRouter.Kind.ofLabel(kind);
             words.add(classified == null ? text : "(" + classified.label + ") " + text);
         }

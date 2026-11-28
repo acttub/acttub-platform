@@ -23,7 +23,7 @@ class ObservationPackTest {
 
     @Test
     void newPackRoundTripsMeasuredFieldsUsingTheSpecifiedNames() throws Exception {
-        var speech = SpeechFacts.calculate("가지 마", List.of(new SpeechFacts.Word("가지 마", 1, 4)));
+        var speech = SpeechFacts.calculate("가지 마", List.of(new SpeechAnalysis.Word("가지 마", 1, 4)));
         var pack = new ObservationPack("장면", "0:01에 말한다", speech, List.of(), List.of());
         var json = mapper.valueToTree(pack);
         assertThat(json.at("/speech/avg_syllables_per_sec").isNumber()).isTrue();

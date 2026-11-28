@@ -41,7 +41,7 @@ class GeminiLayerOneObserverCallTest {
         @Override public void delete(String name) { deleted.add(name); }
     }
 
-    private static SpeechAnalyzer words(SpeechFacts.Word... words) {
+    private static SpeechAnalyzer words(SpeechAnalysis.Word... words) {
         return (video, practice, user) -> new SpeechAnalysis("", 0, List.of(), List.of(), List.of(words));
     }
 
@@ -50,7 +50,7 @@ class GeminiLayerOneObserverCallTest {
         var gateway = new Gateway();
         gateway.responses.add(GenerateContentResponse.fromJson(OK));
         var telemetry = new RecordingLlmTelemetry();
-        var observer = new GeminiLayerOneObserver(words(new SpeechFacts.Word("됐어", 1, 2)), gateway, null,
+        var observer = new GeminiLayerOneObserver(words(new SpeechAnalysis.Word("됐어", 1, 2)), gateway, null,
                 new ObjectMapper(), new RecordingFailureReporter(), telemetry);
         String block = observer.observe(Path.of("v.mp4"), "", "상황", UUID.randomUUID(), UUID.randomUUID());
         assertThat(block).contains("\"됐어\" — 본 것: 정면을 본다").contains("장면 흐름: 담담하다");
@@ -64,7 +64,7 @@ class GeminiLayerOneObserverCallTest {
         var gateway = new Gateway();
         gateway.responses.add(GenerateContentResponse.fromJson(BROKEN));
         var telemetry = new RecordingLlmTelemetry();
-        var observer = new GeminiLayerOneObserver(words(new SpeechFacts.Word("됐어", 1, 2)), gateway, "gemini-x",
+        var observer = new GeminiLayerOneObserver(words(new SpeechAnalysis.Word("됐어", 1, 2)), gateway, "gemini-x",
                 new ObjectMapper(), new RecordingFailureReporter(), telemetry);
         assertThat(observer.observe(Path.of("v.mp4"), "video/mp4", null, UUID.randomUUID(), null)).isEmpty();
         assertThat(gateway.calls).isEqualTo(2);
@@ -85,7 +85,7 @@ class GeminiLayerOneObserverCallTest {
         var gateway = new Gateway();
         gateway.failure = new IllegalStateException("down");
         var telemetry = new RecordingLlmTelemetry();
-        var observer = new GeminiLayerOneObserver(words(new SpeechFacts.Word("됐어", 1, 2)), gateway, null,
+        var observer = new GeminiLayerOneObserver(words(new SpeechAnalysis.Word("됐어", 1, 2)), gateway, null,
                 new ObjectMapper(), new RecordingFailureReporter(), telemetry);
         assertThatThrownBy(() -> observer.observe(Path.of("v.mp4"), "video/mp4", "", UUID.randomUUID(), null))
                 .isInstanceOf(IllegalStateException.class);

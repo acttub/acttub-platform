@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
  *
  * <ul>
  *   <li>후보: 규칙으로 묶이지 않은 「같은 사람일 수 있는」 쌍(띄어쓰기 없앤 한 이름이 다른 이름에 들어 있거나 편집 거리 1)에서 대사가 적은 쪽,
- *       그리고 대사가 {@link #RARE} 개 이하인 이름이다. 숫자·A~E 한 글자만 다른 쌍과 함께 말하기 이름은 쌍으로 보지 않는다. 1만 자당
+ *       그리고 대사가 {@link SplitResponse#RARE} 개 이하인 이름이다. 숫자·A~E 한 글자만 다른 쌍과 함께 말하기 이름은 쌍으로 보지 않는다. 1만 자당
  *       {@link #PER_10K} 개(최소 그만큼)까지, 쌍 후보·대사 적은 후보 먼저다.</li>
  *   <li>보기 역할: 짝 이름, 후보가 붙은 원문 줄이 시작하는 배역 이름, 그 줄 앞뒤 대사의 배역이다. 다른 후보는 보기에 넣지 않는다(짝이
  *       모두 후보면 짝은 남긴다). 배역 정책상 다른 배역(한쪽에만 내레이션 꼬리, 숫자만 다름, 한쪽에만 가족·나이 낱말)도 보기에 넣지 않는다.
@@ -41,8 +41,6 @@ public final class SpeakerMerge {
     public static final String NONE = "none";
     public static final String UNSURE = "unsure";
     private static final String ROLE = "r";
-    /** 대사가 이 수 이하인 이름은 짝이 없어도 묻는다 — 한 번 나온 오타·문장·문장부호 이름이 여기 든다. */
-    static final int RARE = 2;
     static final int PER_10K = 8;
     static final int MAX_ROLES = 6;
     private static final Pattern PARENTHESIS = Pattern.compile("[(（]([^()（）]+)[)）]");
@@ -139,7 +137,7 @@ public final class SpeakerMerge {
         }
         Set<String> asked = new LinkedHashSet<>();
         partners.keySet().stream().sorted(Comparator.comparing(count::get)).forEach(asked::add);
-        names.stream().filter(name -> count.get(name) <= RARE).sorted(Comparator.comparing(count::get)).forEach(asked::add);
+        names.stream().filter(name -> count.get(name) <= SplitResponse.RARE).sorted(Comparator.comparing(count::get)).forEach(asked::add);
         int chars = lines.stream().mapToInt(line -> line.text().length()).sum();
         int limit = Math.max(PER_10K, PER_10K * chars / 10_000);
         TreeMap<Integer, String> bySource = new TreeMap<>(speakers);
