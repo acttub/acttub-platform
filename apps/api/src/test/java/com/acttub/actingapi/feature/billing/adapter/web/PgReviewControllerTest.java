@@ -412,6 +412,22 @@ class PgReviewControllerTest {
         assertThat(gateway.calls).isEmpty();
     }
 
+    /** state 만 틀린 성공 콜백은 시도를 닫지 않는다. 같은 시도의 맞는 성공 콜백이 뒤에 오면 승인까지 간다(billing.pg-review 「상태」). */
+    @Test
+    void aCallbackWithOnlyTheStateWrongLeavesTheAttemptOpenForTheRightOne() {
+        String cookie = login();
+        CheckoutResponse checkout = checkout(cookie);
+        String state = param(checkout.successUrl(), "state");
+
+        success(cookie, "wrong", checkout.customerKey(), AUTH_KEY);
+        assertThat(result(cookie).errorCode()).isEqualTo("state_mismatch");
+        assertThat(gateway.calls).isEmpty();
+
+        success(cookie, state, checkout.customerKey(), AUTH_KEY);
+        assertThat(result(cookie).status()).isEqualTo("approved");
+        assertThat(gateway.approvals).hasSize(1);
+    }
+
     @Test
     void anotherSessionCannotUseTheStateOfThisOne() {
         String owner = login();
