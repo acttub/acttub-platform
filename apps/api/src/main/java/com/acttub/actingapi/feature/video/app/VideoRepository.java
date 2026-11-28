@@ -132,7 +132,8 @@ public interface VideoRepository {
 
     /**
      * 파일만 파기한다 — 회차·참여작의 기록은 남기고 객체·받아쓰기만 지운다({@code purged_at}). 총량에서 빠진다.
-     * 이미 파기된 영상에 다시 걸면 같은 답이다.
+     * 이미 파기된 영상에 다시 걸면 같은 답이다. 공개 챌린지 참여작이 쓰는 영상은 파기하지 않는다({@code IN_PUBLIC_ENTRY}).
+     * 공개 참여작 확인과 파기는 영상 행을 잠근 채 한다(공개 전환·참여작 올리기와 겹쳐도 하나만 성공한다).
      */
     Removed purgeFile(UUID userId, UUID videoId, Instant now);
 
@@ -146,6 +147,8 @@ public interface VideoRepository {
         PURGED,
         /** 회차나 참여작이 참조한다. */
         IN_USE,
+        /** 공개 챌린지 참여작이 쓴다 — 참여작을 먼저 비공개로 돌리거나 지워야 파일을 파기할 수 있다. */
+        IN_PUBLIC_ENTRY,
         NOT_FOUND
     }
 

@@ -577,6 +577,29 @@ class VideoLibraryIT {
     }
 
     @Test
+    @DisplayName("practice.library: 공개 챌린지 참여작이 쓰는 영상을 \"파일만 파기\" — 409 video_in_public_entry 이고 객체·받아쓰기·재생 주소가 "
+            + "그대로다. 참여작을 비공개로 돌리면 파기된다")
+    void practiceLibrary_purgeFileRefusesAVideoThatAPublicEntryUses() throws Exception {
+        UUID video = seedVideo(member, 1_000, null);
+        seedTranscript(video);
+        UUID entry = seedEntry(member, video, "public");
+        String key = objectKey(video);
+
+        MockHttpServletResponse refused = perform(post("/v2/videos/{id}/purge-file", video), bearer);
+
+        assertThat(refused.getStatus()).isEqualTo(409);
+        assertThat(mapper.readTree(refused.getContentAsString()))
+                .isEqualTo(mapper.readTree("{\"detail\":\"video_in_public_entry\"}"));
+        assertThat(storage.objects).containsKey(key);
+        assertThat(count("video_transcripts")).isEqualTo(1);
+        assertThat(json(get("/v2/videos/{id}", video), 200).path("playback_url").isNull()).as("여전히 재생된다").isFalse();
+
+        jdbc.update("UPDATE challenge_entries SET visibility='private' WHERE id=?", entry);
+        assertThat(json(post("/v2/videos/{id}/purge-file", video), 200).path("purged_at").isNull()).isFalse();
+        assertThat(storage.objects).doesNotContainKey(key);
+    }
+
+    @Test
     @DisplayName("practice.library: 영상 상세 — 10분 서명 재생 주소와 만료 시각이 있고 다시 조회하면 새 만료 시각이다. 없는 영상·남의 영상은 404 video_not_found")
     void practiceLibrary_playbackUrlIsSignedAndRefreshedOnEachRead() throws Exception {
         UUID video = seedVideo(member, 2_000, null);
@@ -787,6 +810,21 @@ class VideoLibraryIT {
                                       blockage_kind,sub_branch)
                 VALUES (?,?,?,?,?,'closed','legacy','그 외','그 외')
                 """, id, owner, videoId, root, ordinal);
+    }
+
+    /** 그 영상을 쓰는 챌린지 참여작 하나. 챌린지 API 는 challenge 의 것이라 행을 직접 넣는다. */
+    private UUID seedEntry(UUID owner, UUID videoId, String visibility) {
+        UUID challenge = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenges(id,line,work,duration_days,origin,request_id,request_fingerprint,starts_at,ends_at)
+                VALUES (?,?,'창작',7,'team',?,?,now() - interval '1 day',now() + interval '6 days')
+                """, challenge, "대사 " + challenge, UUID.randomUUID(), "0".repeat(64));
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenge_entries(id,challenge_id,user_id,video_id,visibility,published_at,request_id,request_fingerprint)
+                VALUES (?,?,?,?,?,CASE WHEN ?='public' THEN now() END,?,?)
+                """, id, challenge, owner, videoId, visibility, visibility, UUID.randomUUID(), "0".repeat(64));
+        return id;
     }
 
     private void seedTranscript(UUID videoId) {

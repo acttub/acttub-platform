@@ -198,14 +198,14 @@ public class VideoService {
 
     /**
      * 파일만 파기한다 — 총량이 가득한 계정이 공간을 되찾는 길이다. 회차·참여작의 기록은 남고 그 영상은 재생
-     * 불가로 표시된다.
+     * 불가로 표시된다. 공개 챌린지 참여작이 쓰는 영상이면 409 {@code video_in_public_entry} 이고 아무것도 지우지 않는다.
      */
     public VideoView purgeFile(UUID userId, UUID videoId) {
         Removed removed = videos.purgeFile(userId, videoId, clock.instant());
         cleanup.attemptObjectDelete(removed.cleanupOperationIds());
         return switch (removed.outcome()) {
             case PURGED -> removed.video();
-            case IN_USE -> throw new ApiException(422, "video_in_use");
+            case IN_PUBLIC_ENTRY -> throw new ApiException(409, "video_in_public_entry");
             default -> throw notFound();
         };
     }

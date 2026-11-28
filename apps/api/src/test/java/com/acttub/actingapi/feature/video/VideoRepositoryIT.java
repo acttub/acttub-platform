@@ -432,6 +432,53 @@ class VideoRepositoryIT {
         assertThat(jdbc.queryForList("SELECT id FROM videos", UUID.class)).containsExactly(committed);
     }
 
+    @Test
+    @DisplayName("공개 참여작이 쓰는 영상의 purgeFile 은 IN_PUBLIC_ENTRY 이고 영상·받아쓰기·장부가 그대로다. 비공개로 돌리면 파기한다")
+    void purgeFileRefusesAVideoThatAPublicEntryUses() {
+        UUID owner = member();
+        UUID id = video(owner, 100, now, false);
+        transcript(id);
+        UUID entry = entry(challenge(), owner, id, null);
+        jdbc.update("UPDATE challenge_entries SET visibility='public', published_at=? WHERE id=?",
+                OffsetDateTime.ofInstant(now, ZoneOffset.UTC), entry);
+
+        assertThat(videos.purgeFile(owner, id, now)).isEqualTo(new Removed(RemoveOutcome.IN_PUBLIC_ENTRY, null, List.of()));
+        assertThat(videos.find(owner, id).purgedAt()).isNull();
+        assertThat(jdbc.queryForList("SELECT video_id FROM video_transcripts", UUID.class)).containsExactly(id);
+        assertThat(cleanup.scheduled).isEmpty();
+
+        jdbc.update("UPDATE challenge_entries SET visibility='private' WHERE id=?", entry);
+        assertThat(videos.purgeFile(owner, id, now).outcome()).isEqualTo(RemoveOutcome.PURGED);
+    }
+
+    @Test
+    @DisplayName("공개 전환이 그 영상 행을 잡고 참여작을 공개로 바꾸는 중이면 purgeFile 은 영상 행 잠금에서 기다렸다가, 커밋되면 "
+            + "IN_PUBLIC_ENTRY, 되돌려지면 파기한다")
+    void purgeFileWaitsForAnEntryThatIsBeingPublished() throws Exception {
+        UUID owner = member();
+        UUID committed = video(owner, 100, now, false);
+        UUID rolledBack = video(owner, 100, now, false);
+        UUID first = entry(challenge(), owner, committed, null);
+        UUID second = entry(challenge(), owner, rolledBack, null);
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try (Connection probe = probe()) {
+            publish(probe, committed, first);
+            Future<Removed> blocked = pool.submit(() -> videos.purgeFile(owner, committed, now));
+            assertThat(awaitStatementWaitingOn("videos")).contains("for update");
+            probe.commit();
+            assertThat(blocked.get(20, TimeUnit.SECONDS).outcome()).isEqualTo(RemoveOutcome.IN_PUBLIC_ENTRY);
+
+            publish(probe, rolledBack, second);
+            Future<Removed> later = pool.submit(() -> videos.purgeFile(owner, rolledBack, now));
+            awaitStatementWaitingOn("videos");
+            probe.rollback();
+            assertThat(later.get(20, TimeUnit.SECONDS).outcome()).isEqualTo(RemoveOutcome.PURGED);
+        } finally {
+            pool.shutdownNow();
+        }
+        assertThat(jdbc.queryForList("SELECT id FROM videos WHERE purged_at IS NOT NULL", UUID.class)).containsExactly(rolledBack);
+    }
+
     // ---- 문장 ----
 
     @Test
@@ -473,7 +520,8 @@ class VideoRepositoryIT {
         soft.assertThat(statementsOf(() -> videos.attachPoster(new PosterJob(video[0], owner, "k", 1), "posters/p.jpg", now)))
                 .containsExactly("select users for update of ue1_0", "select videos for update of ve1_0", "update videos");
         soft.assertThat(statementsOf(() -> videos.purgeFile(owner, video[0], now)))
-                .containsExactly("select videos for update of ve1_0", "delete video_transcripts", "update videos",
+                .as("공개 참여작은 영상 행을 잡은 뒤에 본다")
+                .containsExactly("select videos for update of ve1_0", "select (none)", "delete video_transcripts", "update videos",
                         "select challenge_entries", "select videos");
         soft.assertThat(statementsOf(() -> videos.delete(owner, video[0], now)))
                 .containsExactly("select videos for update of ve1_0", "select (none)", "delete video_transcripts",
@@ -605,7 +653,7 @@ class VideoRepositoryIT {
         return id;
     }
 
-    private void entry(UUID challenge, UUID owner, UUID videoId, String mosaicKey) {
+    private UUID entry(UUID challenge, UUID owner, UUID videoId, String mosaicKey) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO challenge_entries (id,challenge_id,user_id,video_id,visibility,request_id,request_fingerprint,created_at)
@@ -614,6 +662,7 @@ class VideoRepositoryIT {
         if (mosaicKey != null) {
             jdbc.update("UPDATE challenge_entries SET mosaic_key=? WHERE id=?", mosaicKey, id);
         }
+        return id;
     }
 
     private Instant instant(String sql, Object... args) {
@@ -630,6 +679,16 @@ class VideoRepositoryIT {
     private static void lockVideo(Connection probe, UUID id, String strength) throws SQLException {
         try (PreparedStatement statement = probe.prepareStatement("SELECT 1 FROM videos WHERE id=? " + strength)) {
             statement.setObject(1, id);
+            statement.execute();
+        }
+    }
+
+    /** 공개 전환처럼 영상 행을 FOR UPDATE 로 잡고 참여작을 공개로 바꾼다. 커밋하지 않는다. */
+    private static void publish(Connection probe, UUID videoId, UUID entryId) throws SQLException {
+        lockVideo(probe, videoId, "FOR UPDATE");
+        try (PreparedStatement statement = probe.prepareStatement(
+                "UPDATE challenge_entries SET visibility='public', published_at=now() WHERE id=?")) {
+            statement.setObject(1, entryId);
             statement.execute();
         }
     }

@@ -354,6 +354,11 @@ class PostgresVideoRepository implements VideoRepository {
             if (locked.purgedAt() != null) {
                 return new Removed(RemoveOutcome.PURGED, find(userId, videoId), List.of());
             }
+            // 영상 행을 잡은 뒤에 본다 — 공개 전환·참여작 올리기도 이 행을 FOR UPDATE 로 잡고 파기 여부를 보므로, 먼저 잡은 쪽만
+            // 성공한다(이쪽이 먼저면 공개는 422 video_not_ready, 공개가 먼저면 여기서 그 참여작이 보인다).
+            if (inPublicEntry(videoId)) {
+                return new Removed(RemoveOutcome.IN_PUBLIC_ENTRY, null, List.of());
+            }
             transcripts.deleteByVideo(videoId);
             videos.markPurged(videoId, now);
             // 이 영상으로 낸 챌린지 참여작의 얼굴 모자이크본도 영상에서 나온 것이라 함께 지운다. 참여작 행은 잠그지 않는다
@@ -453,6 +458,13 @@ class PostgresVideoRepository implements VideoRepository {
         return !NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT 1 AS used WHERE EXISTS(SELECT 1 FROM practices WHERE video_id=:videoId)
                    OR EXISTS(SELECT 1 FROM challenge_entries WHERE video_id=:videoId)
+                """, Tuple.class)
+                .setParameter("videoId", videoId)).isEmpty();
+    }
+
+    private boolean inPublicEntry(UUID videoId) {
+        return !NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT 1 AS used WHERE EXISTS(SELECT 1 FROM challenge_entries WHERE video_id=:videoId AND visibility='public')
                 """, Tuple.class)
                 .setParameter("videoId", videoId)).isEmpty();
     }

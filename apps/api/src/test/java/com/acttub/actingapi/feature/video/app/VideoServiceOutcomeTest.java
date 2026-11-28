@@ -122,10 +122,10 @@ class VideoServiceOutcomeTest {
         verify(videos, never()).restamp(any(), any(), any(), any());
     }
 
-    @Test void purgingAFileInUseOrMissingIsRejected() {
+    @Test void purgingAFileThatAPublicEntryUsesOrAMissingFileIsRejected() {
         UUID id = UUID.randomUUID();
-        when(videos.purgeFile(eq(user), eq(id), any())).thenReturn(new Removed(RemoveOutcome.IN_USE, null, List.of()));
-        rejects(() -> service.purgeFile(user, id), 422, "video_in_use");
+        when(videos.purgeFile(eq(user), eq(id), any())).thenReturn(new Removed(RemoveOutcome.IN_PUBLIC_ENTRY, null, List.of()));
+        rejects(() -> service.purgeFile(user, id), 409, "video_in_public_entry");
         when(videos.purgeFile(eq(user), eq(id), any())).thenReturn(new Removed(RemoveOutcome.NOT_FOUND, null, List.of()));
         rejects(() -> service.purgeFile(user, id), 404, "video_not_found");
     }
