@@ -69,7 +69,7 @@ test("첫 화면은 앱 아이콘·제목·QR 카드·두 스토어 배지를 �
 test("공용 사이트 머리와 바닥을 쓰고 예전 시연·단계 블록은 없다", () => {
   render(react.createElement(AppDownloadView));
 
-  assert.equal(screen.getByRole("link", { name: "ACTTUB 홈" }).getAttribute("href"), "/?intro=1");
+  assert.equal(screen.getByRole("link", { name: "ACTTUB 홈" }).getAttribute("href"), "/");
   assert.ok(screen.getByRole("navigation", { name: "주요 메뉴" }));
   assert.ok(screen.getByRole("link", { name: "해지·환불 정책" }));
   assert.equal(screen.queryByText(/자동 시연|상대 대사 듣기|무료로 시작해요/), null);
