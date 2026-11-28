@@ -25,12 +25,14 @@ public record AdDraft(
         Instant endsAt,
         int sharePercent) {
 
+    /** 노출 비율 상한(%). 이 비율이면 그 칸을 다 쓴다. */
+    public static final int SHARE_PERCENT_MAX = 100;
     /** 우리 앱 광고 노출 비율 기본값(%) — 나머지는 AdMob. */
     public static final int DEFAULT_SHARE_PERCENT = 50;
 
     /** 만들 때 비율을 안 보냈을 때의 값 — 직접 광고는 칸을 다 쓰고(100), 우리 앱 광고는 AdMob 과 반씩(50). */
     public static int defaultSharePercent(String kind) {
-        return Ad.DIRECT.equals(kind) ? AdRules.SHARE_PERCENT_MAX : DEFAULT_SHARE_PERCENT;
+        return Ad.DIRECT.equals(kind) ? SHARE_PERCENT_MAX : DEFAULT_SHARE_PERCENT;
     }
 
     public AdDraft {
