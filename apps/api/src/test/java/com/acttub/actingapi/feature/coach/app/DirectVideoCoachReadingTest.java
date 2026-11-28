@@ -106,7 +106,7 @@ class DirectVideoCoachReadingTest {
         verify(model).reply(eq(uploaded), anyList(), prompts.capture());
         assertThat(prompts.getValue()).contains("[리딩 녹음으로 하는 코칭]", "[이번 첫 응답: 리딩 녹음", "[리딩 녹음]",
                 "1. 민수(내 대사, 녹음 1): 가지 마, 제발.", "[서버가 잰 소리]");
-        var view = PurposeView.from("reading", result.session().coachingState());
+        var view = PurposeLoop.view("reading", result.session().coachingState());
         assertThat(view.purpose()).isEqualTo("reading");
         assertThat(view.step()).isEqualTo("hear");
         assertThat(view.choices()).extracting(PurposeView.Choice::label).contains("남아 줄게", "미안해", "다시 생각해 볼게");
@@ -134,7 +134,7 @@ class DirectVideoCoachReadingTest {
         verify(model, times(2)).reply(eq(uploaded), anyList(), prompts.capture());
         assertThat(prompts.getValue()).contains("[리딩 녹음으로 하는 코칭]", "[리딩 녹음 코칭의 길]", "할 일: 그 대사에서 해 볼 것",
                 "[리딩 녹음]");
-        assertThat(PurposeView.from("reading", result.session().coachingState()).step()).isEqualTo("try");
+        assertThat(PurposeLoop.view("reading", result.session().coachingState()).step()).isEqualTo("try");
         verifyNoInteractions(videos, storage);
     }
 

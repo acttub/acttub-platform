@@ -13,21 +13,21 @@ class SpeechFactsWordTest {
     @Test
     void wordWithoutTextOrWithImpossibleTimesIsRejected() {
         for (Runnable invalid : List.<Runnable>of(
-                () -> new SpeechFacts.Word(null, 0, 1),
-                () -> new SpeechFacts.Word("가", Double.NaN, 1),
-                () -> new SpeechFacts.Word("가", 0, Double.POSITIVE_INFINITY),
-                () -> new SpeechFacts.Word("가", -0.1, 1),
-                () -> new SpeechFacts.Word("가", 2, 1))) {
+                () -> new SpeechAnalysis.Word(null, 0, 1),
+                () -> new SpeechAnalysis.Word("가", Double.NaN, 1),
+                () -> new SpeechAnalysis.Word("가", 0, Double.POSITIVE_INFINITY),
+                () -> new SpeechAnalysis.Word("가", -0.1, 1),
+                () -> new SpeechAnalysis.Word("가", 2, 1))) {
             assertThatThrownBy(invalid::run)
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("invalid transcription word or timestamp");
         }
-        assertThat(new SpeechFacts.Word("가", 1, 1).end()).isEqualTo(1.0);
+        assertThat(new SpeechAnalysis.Word("가", 1, 1).end()).isEqualTo(1.0);
     }
 
     @Test
     void speechWithoutSyllablesHasNoRelativePace() {
-        SpeechAnalysis analysis = SpeechFacts.calculate("", List.of(new SpeechFacts.Word("", 0, 1.0)));
+        SpeechAnalysis analysis = SpeechFacts.calculate("", List.of(new SpeechAnalysis.Word("", 0, 1.0)));
 
         assertThat(analysis.avgSyllablesPerSec()).isZero();
         assertThat(analysis.chunks()).singleElement().satisfies(chunk -> {

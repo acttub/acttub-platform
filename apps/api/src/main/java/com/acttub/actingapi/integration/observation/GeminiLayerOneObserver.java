@@ -144,12 +144,12 @@ public final class GeminiLayerOneObserver implements LayerOneObserver {
     record Chunk(double start, double end, String text) { }
 
     /** 받아쓴 단어를 쉼으로 덩어리로 묶는다. 너무 짧은 덩어리는 앞에 붙이고, {@link #MAX_CHUNKS} 개까지만 쓴다. */
-    static List<Chunk> chunks(List<SpeechFacts.Word> words) {
+    static List<Chunk> chunks(List<SpeechAnalysis.Word> words) {
         List<Chunk> raw = new ArrayList<>();
         StringBuilder text = null;
         double start = 0;
         double end = 0;
-        for (SpeechFacts.Word word : words == null ? List.<SpeechFacts.Word>of() : words) {
+        for (SpeechAnalysis.Word word : words == null ? List.<SpeechAnalysis.Word>of() : words) {
             String w = word.word() == null ? "" : word.word().strip();
             if (w.isEmpty()) continue;
             if (text != null && word.start() - end < CHUNK_GAP) {

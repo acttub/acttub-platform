@@ -52,17 +52,4 @@ class PostgresCoachAccountErasure implements AccountErasure {
         }
         return List.of();
     }
-
-    /**
-     * 노트 평가는 값이 남으므로 계정 행을 지울 수 없게 한다(외래 키에 ON DELETE 가 없다). 배우 일지는 계정 행과 함께 지워지는
-     * 외래 키(ON DELETE CASCADE)라 세지 않는다.
-     */
-    @Override
-    public boolean hasRecords(UUID userId) {
-        return !entityManager.createQuery("select r.id from NoteRatingEntity r where r.userId = :userId", UUID.class)
-                .setParameter("userId", userId)
-                .setMaxResults(1)
-                .getResultList()
-                .isEmpty();
-    }
 }

@@ -23,16 +23,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 class PostgresCommunityAccountErasure implements AccountErasure {
 
-    /** 이 계정을 가리키는 게시판 자료. 한 줄이라도 있으면 계정 행을 지울 수 없다(외래 키에 ON DELETE 가 없다). */
-    private static final List<String> RECORDS = List.of(
-            "select p.id from CommunityPostEntity p where p.authorId = :userId",
-            "select c.id from CommunityCommentEntity c where c.authorId = :userId",
-            "select l.id from CommunityPostLikeEntity l where l.userId = :userId",
-            "select i.id from CommunityPostImageEntity i where i.uploaderId = :userId",
-            "select a.id from CommunityAnonymousAliasEntity a where a.userId = :userId",
-            "select r.id from CommunityReportEntity r where r.reporterId = :userId",
-            "select b.id from CommunityBlockEntity b where b.blockerId = :userId or b.blockedId = :userId");
-
     private final EntityManager entityManager;
     private final CommunityImageCleanup cleanups;
 
@@ -59,14 +49,5 @@ class PostgresCommunityAccountErasure implements AccountErasure {
                 .setParameter("userId", account.userId())
                 .executeUpdate();
         return scheduled;
-    }
-
-    @Override
-    public boolean hasRecords(UUID userId) {
-        return RECORDS.stream().anyMatch(query -> !entityManager.createQuery(query, UUID.class)
-                .setParameter("userId", userId)
-                .setMaxResults(1)
-                .getResultList()
-                .isEmpty());
     }
 }

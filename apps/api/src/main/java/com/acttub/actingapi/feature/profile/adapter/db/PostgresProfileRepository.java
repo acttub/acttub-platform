@@ -576,21 +576,6 @@ class PostgresProfileRepository
     }
 
     /**
-     * 가입 중에 만 14세 미만으로 드러난 계정. 여기서 트랜잭션을 열고, 자료가 있는지와 무엇을 지우는지는 각 표의 주인이 답한다
-     * ({@link AccountErasureSequence#closeUnderage}).
-     */
-    @Override
-    public Closed closeUnderage(UUID userId, Instant now, LocalDate today) {
-        return transaction.execute(status -> {
-            AccountErasureSequence.ClosedUnderage closed = closing.closeUnderage(userId, now, today);
-            if (closed == null) {
-                return null;
-            }
-            return new Closed(closed.erased() ? Closure.ERASED : Closure.DEACTIVATED, closed.cleanupOperationIds());
-        });
-    }
-
-    /**
      * 탈퇴 트랜잭션 (account.withdraw, ADR-029).
      *
      * <p>행을 지우지 않는다 — 연습 기록과 남의 화면에 얽힌 행이 {@code user_id} 를 참조하므로 지우면
@@ -616,11 +601,17 @@ class PostgresProfileRepository
      * <p>이미 탈퇴한 계정이면 <b>최초 탈퇴 시각을 유지</b>한다. 파기는 멱등하게 다시 돈다.
      */
     @Override
-    public Withdrawn withdraw(UUID userId, boolean destroyMediaRegardless, Instant now, LocalDate today) {
+    public Withdrawn withdraw(UUID userId, Instant now, LocalDate today) {
         return transaction.execute(status -> {
-            AccountErasureSequence.Closed closed = closing.close(userId, destroyMediaRegardless, now, today);
+            AccountErasureSequence.Closed closed = closing.close(userId, now, today);
             return closed == null ? null : new Withdrawn(closed.deactivatedAt(), closed.cleanupOperationIds());
         });
+    }
+
+    /** 만 14세 미만 계정 닫기. 여기서 트랜잭션을 열고, 순서는 {@link AccountErasureSequence#closeUnderage} 가 정한다. */
+    @Override
+    public List<UUID> closeUnderage(UUID userId, Instant now, LocalDate today) {
+        return transaction.execute(status -> closing.closeUnderage(userId, now, today));
     }
 
     private static Account account(Tuple row) {

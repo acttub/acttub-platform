@@ -111,11 +111,11 @@ public class ProfileService implements ProfileGate {
             if (before.profileComplete()) {
                 throw new ApiException(422, "under_14");
             }
-            // 연습이 있는 0.1.0 이전 회원은 탈퇴와 같은 절차로 닫히고, 보관 동의와 무관하게 영상을
-            // 파기한다. 객체 삭제와 제공자 해제는 탈퇴와 같이 트랜잭션 밖에서 시도한다.
-            ProfileRepository.Closed closed = profiles.closeUnderage(userId, clock.instant(), today());
-            if (closed != null) {
-                cleanup.attempt(closed.cleanupOperationIds());
+            // 탈퇴와 같은 순서로 닫아 제공자 해제(애플 토큰 폐기)와 객체 삭제를 정리 장부에 올리고, 끝에 계정 행을
+            // 지운다(SOMA-1166). 장부의 일은 탈퇴와 같이 트랜잭션 밖에서 시도한다.
+            List<UUID> cleanups = profiles.closeUnderage(userId, clock.instant(), today());
+            if (cleanups != null) {
+                cleanup.attempt(cleanups);
             }
             throw new ApiException(422, "under_14_account_closed");
         }
@@ -213,7 +213,7 @@ public class ProfileService implements ProfileGate {
      * @return 최초 탈퇴 시각
      */
     public Instant withdraw(UUID userId) {
-        ProfileRepository.Withdrawn withdrawn = profiles.withdraw(userId, false, clock.instant(), today());
+        ProfileRepository.Withdrawn withdrawn = profiles.withdraw(userId, clock.instant(), today());
         if (withdrawn == null) {
             throw userNotFound();
         }

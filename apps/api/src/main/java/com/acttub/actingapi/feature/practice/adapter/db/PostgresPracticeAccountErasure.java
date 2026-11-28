@@ -54,18 +54,4 @@ class PostgresPracticeAccountErasure implements AccountErasure {
                 .executeUpdate();
         return List.of();
     }
-
-    /** 회차와 옛 연습의 행은 계정 행을 가리킨 채 남는다(외래 키에 ON DELETE 가 없다). */
-    @Override
-    public boolean hasRecords(UUID userId) {
-        return !entityManager.createQuery("select p.id from PracticeEntity p where p.userId = :userId", UUID.class)
-                .setParameter("userId", userId)
-                .setMaxResults(1)
-                .getResultList()
-                .isEmpty()
-                || !entityManager.createNativeQuery("SELECT 1 FROM practice_sessions WHERE user_id=:userId LIMIT 1")
-                        .setParameter("userId", userId)
-                        .getResultList()
-                        .isEmpty();
-    }
 }

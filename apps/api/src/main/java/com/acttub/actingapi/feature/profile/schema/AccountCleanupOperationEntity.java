@@ -23,7 +23,8 @@ import jakarta.persistence.Table;
 @Table(name = "account_cleanup_operations")
 public class AccountCleanupOperationEntity extends AppGeneratedUuidEntity {
 
-    @Column(name = "user_id", nullable = false)
+    /** 만 14세 미만 계정 닫기가 계정 행을 지우면 비워진다(V104). 일을 실행하는 데는 쓰지 않는다. */
+    @Column(name = "user_id")
     private UUID userId;
 
     @Convert(converter = AccountCleanupKind.JpaConverter.class)

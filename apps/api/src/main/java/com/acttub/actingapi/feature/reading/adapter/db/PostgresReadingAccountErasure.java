@@ -32,16 +32,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 class PostgresReadingAccountErasure implements AccountErasure, RetainedRecordings {
 
-    /** 이 계정을 가리키는 리딩 자료. 한 줄이라도 있으면 계정 행을 지울 수 없다(외래 키에 ON DELETE 가 없다). */
-    private static final List<String> RECORDS = List.of(
-            "select s.id from ScriptEntity s where s.userId = :userId",
-            "select s.id from ReadingSessionEntity s where s.userId = :userId",
-            "select r.id from ReadingRecordingEntity r where r.userId = :userId",
-            "select r.id from ReadingSessionRatingEntity r where r.userId = :userId",
-            "select m.id from LineMemorizationEntity m where m.userId = :userId",
-            "select i.id from ScriptImportEntity i where i.userId = :userId",
-            "select u.id from ScriptUploadEntity u where u.userId = :userId");
-
     private final EntityManager entityManager;
     private final ScriptFileCleanup scriptFiles;
     private final ReadingRecordingCleanup recordings;
@@ -70,15 +60,6 @@ class PostgresReadingAccountErasure implements AccountErasure, RetainedRecording
             }
             default -> throw new IllegalArgumentException("not a reading step: " + step);
         };
-    }
-
-    @Override
-    public boolean hasRecords(UUID userId) {
-        return RECORDS.stream().anyMatch(query -> !entityManager.createQuery(query, UUID.class)
-                .setParameter("userId", userId)
-                .setMaxResults(1)
-                .getResultList()
-                .isEmpty());
     }
 
     @Override

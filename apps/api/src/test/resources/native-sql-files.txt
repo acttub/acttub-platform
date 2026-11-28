@@ -38,7 +38,7 @@ feature/feedback/adapter/db/PostgresExitSurveyStore.java 1 남김: 접수(submit
 feature/memory/adapter/db/PostgresActorMemoryStore.java 14 남김: 다른 기능의 표를 함께 보거나 쓰는 문장. 화면 목록·재료·예약 판정·장면 찾기·맞춤 코칭 재료는 연습(practices)·코치 대화와 노트(coach_*·note_ratings)·분석(analyses)을 읽고, 배우 쓰기·덧붙이기·완료는 auth 의 users 행을 거르거나 잠그며, 밀린 예약 찾기와 재료는 platform 의 ai_jobs 를 읽는다. 이를 내주는 Port 가 없고, DISTINCT ON·JSON 연산·LATERAL·INSERT … SELECT … ON CONFLICT DO UPDATE … RETURNING 이 든다
 feature/memory/adapter/db/PostgresMemoryRepository.java 8 남김: 다른 기능의 표만 읽는다(practices·coach_conversations·coach_messages·coach_notes, 매핑을 내린 옛 practice_sessions·coach_sessions·coach_turns·practice_reports). 이를 내주는 Port 가 없고 JSON 연산·LATERAL 이 든다
 feature/practice/adapter/db/DeletedPracticeVideoPurge.java 2 남김: 파기할 지운 영상을 고르는 두 조회(purgeExpired·purgeAllOf)는 한 문장에서 다른 기능(video)의 videos 행을 함께 잠그고(FOR UPDATE OF d,v) 객체 키를 읽으며, 매일 정리 쪽은 consent 의 동의 결정도 행마다 본다. 나누면 문장이 늘고 잠금이 한 번에 잡히지 않는다
-feature/practice/adapter/db/PostgresPracticeAccountErasure.java 2 남김: 탈퇴가 분석 중이던 옛 연습을 닫는 문장과 이 계정의 옛 연습이 있는지 읽는 문장. practice_sessions 는 매핑을 내린 옛 연습 흐름 표다(§5-1)
+feature/practice/adapter/db/PostgresPracticeAccountErasure.java 1 남김: 탈퇴가 분석 중이던 옛 연습을 닫는 문장. practice_sessions 는 매핑을 내린 옛 연습 흐름 표다(§5-1)
 feature/practice/adapter/db/PostgresPracticeGroupErasure.java 1 남김: 영상을 다른 묶음·챌린지 참여작이 쓰는지 한 문장으로 읽는 조회(usedOutsideGroup, challenge 의 challenge_entries)
 feature/practice/adapter/db/PostgresPracticeOwnership.java 1 남김: 매핑을 내린 옛 practice_sessions(§5-1)의 주인을 바꾼다
 feature/practice/adapter/db/PostgresPracticeRepository.java 9 남김: 다른 기능의 표를 함께 보거나 쓰는 문장. 회차를 화면에 싣는 조회(하나·묶음·목록)는 영상(videos)·분석(analyses)·대화와 노트(coach_*)·작업(ai_jobs)을 LATERAL 로 조인하고, 연습한 날은 옛 practice_sessions·practice_reports 와 reading_sessions·challenge_entries 를 합친다. 시작은 videos 행을 잠근다. 이 조회·잠금을 내주는 Port 가 없다(분석 작업을 넣고 닫고 하루 요청 수를 세는 것은 AiJobLedger 가 한다)
@@ -62,7 +62,6 @@ feature/reading/adapter/db/PostgresScriptRepository.java 5 남김: HQL 로 같�
 feature/reading/adapter/db/PostgresScriptUploadRepository.java 2 남김: 실패 남기기(recordFailure)는 UPDATE 한 문장 안에서 다른 기능(consent)의 동의 결정을 읽어 보관 시한을 정한다. 미연결 정리(sweepUnlinked)는 SKIP LOCKED 로 고른 행을 DELETE … RETURNING 하는 CTE 이고 동의와 ai_jobs(platform/operation)를 함께 읽는다
 feature/reading/adapter/db/PostgresSessionRepository.java 1 남김: 진행 저장의 SET LOCAL synchronous_commit = off 는 HQL 에 없는 문장이다(SOMA-701 의 디스크 확정 대기 줄이기). set_config 함수로 바꾸면 다른 문장이 된다
 feature/video/adapter/db/PostgresPracticeGroupVideos.java 1 남김: 연습 삭제가 묶음의 영상을 잠그는 조회(lockOf)는 한 문장 안에서 다른 기능(practice)의 practices 로 묶음의 영상을 고른다. 회차를 먼저 읽으면 잠금 순서(영상 → 회차)가 뒤집히고 문장이 는다
-feature/video/adapter/db/PostgresVideoAccountErasure.java 1 남김: 이 계정을 가리키는 올리기 예약이 있는지 읽는 한 문장. 은퇴한 예약 장부(upload_intents)는 Schema Entity 가 없다(CONTRACT §5-1)
 feature/video/adapter/db/PostgresPendingUploads.java 1 남김: 올리기 예약이 아직 확정되지 않았는지 묻는 조회. 은퇴한 예약 장부(upload_intents)는 Schema Entity 가 없다(§5-1)
 feature/video/adapter/db/PostgresVideoOwnership.java 2 남김: 은퇴한 예약 장부(upload_intents, CONTRACT §5-1 에서 매핑을 내렸다)의 같은 요청 id 비우기와 주인 바꾸기. 은퇴 결정을 되돌려 매핑을 다시 만들지 않는다
 feature/video/adapter/db/PostgresVideoRetention.java 1 남김: 파기할 객체 키를 은퇴한 예약 장부(upload_intents, Schema Entity 가 없다)와 videos 에서 한 문장으로 모은다(UNION 으로 겹친 키를 한 번만 낸다)

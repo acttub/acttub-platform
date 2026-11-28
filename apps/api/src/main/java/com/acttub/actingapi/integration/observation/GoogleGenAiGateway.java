@@ -24,7 +24,7 @@ final class GoogleGenAiGateway implements GeminiGateway {
     public GeminiFile upload(Path path, String mimeType) {
         // The path overload guesses a second MIME for the resumable-upload header.
         // Stream upload uses the same explicit MIME in metadata and transport.
-        try (var input = Files.newInputStream(path)) {
+        try (var input = UploadFileInput.open(path)) {
             return file(client.files.upload(input, Files.size(path),
                     UploadFileConfig.builder().mimeType(mimeType).build()), mimeType);
         } catch (IOException failure) {

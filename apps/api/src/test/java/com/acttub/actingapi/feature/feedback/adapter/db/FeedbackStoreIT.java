@@ -236,14 +236,12 @@ class FeedbackStoreIT {
     // ---- 탈퇴(PostgresFeedbackAccountErasure) ----
 
     @Test
-    @DisplayName("탈퇴의 erase 는 그 사람의 연락처가 있는 줄만 비우고 순번을 올리고 보낸 표시를 지운다. hasRecords 는 줄이 있는지다")
+    @DisplayName("탈퇴의 erase 는 그 사람의 연락처가 있는 줄만 비우고 순번을 올리고 보낸 표시를 지운다")
     void accountErasureClearsContactsOfThatUser() {
         row(id(1), user, null, now, now, "a@example.test", null, 1);
         row(id(2), user, null, now, now, null, null, 1);
         row(id(3), other, null, now, now, "b@example.test", "010", 1);
 
-        assertThat(erasure.hasRecords(user)).isTrue();
-        assertThat(erasure.hasRecords(keeper)).isFalse();
         List<UUID> keys = new TransactionTemplate(transactionManager).execute(tx -> erasure.erase(
                 AccountErasureStep.PRACTICE_FEEDBACK, closing(user, now.plusNanos(1_500))));
         assertThat(keys).as("지울 객체 키가 없다").isEmpty();
@@ -255,7 +253,6 @@ class FeedbackStoreIT {
                 """, String.class))
                 .containsExactly("-:-:2:true:03:00:00.000002", "-:-:1:false:03:00:00.000000",
                         "b@example.test:010:1:false:03:00:00.000000");
-        assertThat(erasure.hasRecords(user)).isTrue();
     }
 
     // ---- 연습 삭제(PostgresFeedbackPracticeGroupPart) ----
@@ -364,7 +361,6 @@ class FeedbackStoreIT {
             surveys.reassign(other, keeper);
             return null;
         }))).containsExactly("update practice_feedback", "update users");
-        assertThat(statementsOf(() -> erasure.hasRecords(user))).containsExactly("select practice_feedback");
         assertThat(statementsOf(() -> new TransactionTemplate(transactionManager).execute(tx ->
                 erasure.erase(AccountErasureStep.PRACTICE_FEEDBACK, closing(other, now)))))
                 .containsExactly("update practice_feedback");

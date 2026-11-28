@@ -66,6 +66,8 @@ public final class SplitDraft {
     private static final Pattern MULTIPLE = Pattern.compile("[/,，&·•∙・、]");
     /** PDF·txt 의 쪽 번호 줄. 2026-10-13 105편에서 모델이 1,002줄 중 41줄을 대사·지문이라 해 대사 안에 「- 27 -」이 남았다. */
     private static final Pattern PAGE_NUMBER = Pattern.compile("[-–—]\\s*\\d{1,4}\\s*[-–—]");
+    /** 문장이 끝난 줄 끝 — 마침·물음·느낌표, 말줄임, 닫는 따옴표·괄호, 줄표(끊긴 말), 물결·음표. */
+    private static final Pattern ENDED = Pattern.compile("[.!?…。」』”\"'’)\\]\\-—~♪]$");
 
     /**
      * 원문 줄 하나가 조립에서 간 자리 — 최종 종류, 모델 판정(없으면 null), 뗀 머리, 본문, 들어간 대본 줄 번호(1부터, 안 들었으면 null).
@@ -82,6 +84,19 @@ public final class SplitDraft {
 
     static boolean pageNumber(String text) {
         return PAGE_NUMBER.matcher(ScriptText.visible(text).strip()).matches();
+    }
+
+    /** 줄이 문서의 줄 너비만큼 차서 문장 끝 부호 없이 끊겼는가 — 다음 줄이 그 말을 잇는다. */
+    static boolean cut(String text, int width) {
+        String visible = ScriptText.visible(text).strip();
+        return !ENDED.matcher(visible).find() && visible.codePointCount(0, visible.length()) * 10 >= width * 9;
+    }
+
+    /** 문서의 줄 너비 — 빈 줄을 뺀 줄 글자 수의 90번째 백분위. 이만큼 찬 줄은 PDF·문서 폭에서 끊긴 줄일 수 있다. */
+    static int width(List<NumberedLine> lines) {
+        int[] lengths = lines.stream().map(line -> ScriptText.visible(line.text()).strip())
+                .mapToInt(text -> text.codePointCount(0, text.length())).sorted().toArray();
+        return lengths.length == 0 ? 0 : lengths[lengths.length * 9 / 10];
     }
 
     /** 성별·나이대 없이 — 모두 모름. */
@@ -161,7 +176,7 @@ public final class SplitDraft {
         }
         List<Traced> traced = new ArrayList<>();
         String[] carried = null;
-        int width = LineReview.width(lines);
+        int width = width(lines);
         for (NumberedLine line : lines) {
             Row model = rows.get(line.no());
             Row row = rows.get(line.no());
@@ -187,7 +202,7 @@ public final class SplitDraft {
             Traced previous = traced.isEmpty() ? null : traced.getLast();
             if (kind == Kind.DIALOGUE && header.isEmpty() && inner == null && previous != null && previous.kind() == Kind.DIALOGUE
                     && !previous.header().isBlank() && previous.into() != null && previous.into() == (assembled.isEmpty() ? null : assembled.getLast())
-                    && previous.model() != null && previous.model().speaker().equals(row.speaker()) && !LineReview.cut(previous.line().text(), width)) {
+                    && previous.model() != null && previous.model().speaker().equals(row.speaker()) && !cut(previous.line().text(), width)) {
                 String[] other = otherLabel(shown, ScriptText.visible(previous.line().text()).stripLeading(), previous.header(), row.speaker(), known, listed, heads);
                 if (other != null) {
                     row = new Row(line.no(), Kind.DIALOGUE, other[0], other[1]);
@@ -220,7 +235,7 @@ public final class SplitDraft {
                     speaker = headerName(speaker, line.text(), header, lines, spoken, headerUses, listed, shortened, selfHeaded);
                     // 「강 국장 (소리)」는 「강 국장」의 화면 밖 목소리다 — 꼬리표는 화자 이름이나 원문 머리에서 떼어 대사 앞 지문으로 둔다(SOMA-709)
                     Matcher voiced = VOICE_TAG.matcher(speaker);
-                    Matcher headed = VOICE_TAG.matcher(nameOf(header));
+                    Matcher headed = VOICE_TAG.matcher(SplitResponse.nameOf(header));
                     String tag = null;
                     if (voiced.find() && voiced.start() > 0) {
                         tag = voiced.group(1);
@@ -393,7 +408,7 @@ public final class SplitDraft {
         if (source.contains(CharacterNames.squash(speaker)) || spokenGroup(speaker, spoken)) {
             return speaker;
         }
-        String named = fromSource(text, header) ? nameOf(header) : "";
+        String named = fromSource(text, header) ? SplitResponse.nameOf(header) : "";
         return named.isEmpty() || startedLines(named, lines) < 2 ? CharacterNames.fix(speaker, spoken) : named;
     }
 
@@ -407,7 +422,7 @@ public final class SplitDraft {
      * 보지 않는다.
      */
     private static String headerRole(String speaker, String text, String header, List<String> known) {
-        String named = fromSource(text, header) ? nameOf(header) : "";
+        String named = fromSource(text, header) ? SplitResponse.nameOf(header) : "";
         if (named.isEmpty() || MULTIPLE.matcher(named + speaker).find() || header.strip().endsWith(",")) {
             return speaker;
         }
@@ -458,7 +473,7 @@ public final class SplitDraft {
      */
     private static String headerName(String speaker, String text, String header, List<NumberedLine> lines, List<String> spoken,
             Map<String, Integer> headerUses, String listed, Map<String, Map<String, Integer>> shortened, Map<String, Integer> selfHeaded) {
-        String named = fromSource(text, header) ? nameOf(header) : "";
+        String named = fromSource(text, header) ? SplitResponse.nameOf(header) : "";
         String said = CharacterNames.squash(speaker);
         if (spokenGroup(speaker, spoken)) {
             return speaker;
@@ -546,7 +561,7 @@ public final class SplitDraft {
             String header = row != null && row.kind() == Kind.DIALOGUE ? headerOf(line.text(), row, heads) : "";
             String shown = ScriptText.visible(header).strip();
             if (fromSource(line.text(), header) && !shown.startsWith("(") && !shown.endsWith(",")) {
-                uses.merge(CharacterNames.squash(nameOf(header)), 1, Integer::sum);
+                uses.merge(CharacterNames.squash(SplitResponse.nameOf(header)), 1, Integer::sum);
             }
         }
         return uses;
@@ -556,11 +571,11 @@ public final class SplitDraft {
     private static Set<String> headers(List<NumberedLine> lines, Map<Integer, Row> rows, Heads heads) {
         Set<String> names = new HashSet<>();
         for (NumberedLine line : lines) {
-            names.add(CharacterNames.squash(nameOf(line.text())));
+            names.add(CharacterNames.squash(SplitResponse.nameOf(line.text())));
             Row row = rows.get(line.no());
             String header = row != null && row.kind() == Kind.DIALOGUE ? headerOf(line.text(), row, heads) : "";
             if (fromSource(line.text(), header)) {
-                names.add(CharacterNames.squash(nameOf(header)));
+                names.add(CharacterNames.squash(SplitResponse.nameOf(header)));
             }
         }
         names.remove("");
@@ -593,13 +608,13 @@ public final class SplitDraft {
             }
         }
         Map<Integer, Row> changed = new LinkedHashMap<>();
-        int width = LineReview.width(lines);
+        int width = width(lines);
         for (int at = 0; at < lines.size(); at++) {
             NumberedLine line = lines.get(at);
             Row row = rows.get(line.no());
             // 앞 줄이 줄 너비에서 끊겼으면 이 줄은 그 말을 잇는 줄이다 — 「모두 좋아해요」의 「모두」는 말의 일부다
             if (row == null || row.kind() != Kind.DIALOGUE || heads.containsKey(line.no()) || GROUP.matcher(row.speaker()).find()
-                    || at > 0 && LineReview.cut(lines.get(at - 1).text(), width)) {
+                    || at > 0 && cut(lines.get(at - 1).text(), width)) {
                 continue;
             }
             String text = ScriptText.visible(line.text()).stripLeading();
@@ -611,18 +626,6 @@ public final class SplitDraft {
             });
         }
         return changed;
-    }
-
-    static String nameOf(String header) {
-        // 원문 줄도 그대로 들어온다 — 이만큼 긴 글은 이름이 아니다
-        if (header.length() > SplitResponse.CELL_MAX) {
-            return "";
-        }
-        String name = ScriptText.visible(header).strip().replaceAll("[\\s:：.,，、\\-—]+$", "");
-        if (name.length() > 1 && (name.startsWith("[") && name.endsWith("]") || name.startsWith("(") && name.endsWith(")"))) {
-            name = name.substring(1, name.length() - 1).strip();
-        }
-        return name.codePoints().anyMatch(Character::isLetter) ? name : "";
     }
 
     /**
@@ -684,9 +687,9 @@ public final class SplitDraft {
         String found = nameHead(stripped, row.speaker(), model, indented, heads);
         // 모델이 한 번만 쓴 화자 이름이 줄 글을 먹었으면(「선생 요즘」 — 재생 008) 모델 머리보다 늘리지 않는다. 찾은 머리가 화자 이름 그대로이고
         // 탭·쌍점·두 칸 이상으로 끝나면 줄 글을 먹은 이름이 아니다 — 「모⇥두⇥」를 모델 머리 「모⇥」로 줄여 「두」가 대사에 남았다(SOMA-663 M7, 재생 066)
-        boolean exact = Boolean.TRUE.equals(relation(nameOf(found), row.speaker())) && STRONG_END.matcher(found).find();
+        boolean exact = Boolean.TRUE.equals(relation(SplitResponse.nameOf(found), row.speaker())) && STRONG_END.matcher(found).find();
         boolean longer = model.length() > found.length() || !exact && !model.isEmpty() && !heads.speaks(row.speaker())
-                && !CharacterNames.squash(withoutVoice(nameOf(found))).equals(CharacterNames.squash(withoutVoice(nameOf(model))));
+                && !CharacterNames.squash(withoutVoice(SplitResponse.nameOf(found))).equals(CharacterNames.squash(withoutVoice(SplitResponse.nameOf(model))));
         return longer && trusted(model, stripped, row.speaker(), heads) ? model : found;
     }
 
