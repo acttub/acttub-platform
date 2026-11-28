@@ -46,28 +46,17 @@ const nextConfig: NextConfig = {
       // 없다. 프리렌더한 껍데기 하나(/p)를 서빙하고 브라우저가 경로에서 slug 를 읽는다 — slug
       // 마다 서버 렌더나 캐시 파일이 생기지 않는다. 한 단계만 받는다(/p/a/b 는 404).
       { source: "/p/:slug", destination: "/p" },
-      // 리딩 대본 상세(reading.session, SOMA-546). 같은 방식 — 프리렌더한 껍데기 하나(/reading/scripts)를
-      // 서빙하고 브라우저가 경로에서 대본 id 를 읽는다.
-      { source: "/reading/scripts/:id", destination: "/reading/scripts" },
-      // 영상 보관함 상세(practice.library, SOMA-546). 같은 방식 — 껍데기(/library)를 서빙하고 브라우저가 id 를 읽는다.
-      { source: "/library/:id", destination: "/library" },
     ];
   },
-  // 상대역 리딩(/reading)은 브라우저 안에서 onnxruntime wasm 으로 음성을 만든다. 멀티스레드
-  // wasm 에는 SharedArrayBuffer 가 필요하고, 그건 교차 출처 격리(COOP+COEP)가 켜진 문서에만 있다.
-  // **이 경로에만** 건다 — 교차 출처 격리가 필요한 화면은 리딩뿐이다. 처음 이렇게 좁힌 까닭은
-  // 사이트 전체에 걸면 Google/Apple 로그인 팝업이 opener 를 잃어서였다(SOMA-447). 웹 로그인은
-  // 0.1.0 에서 없어졌지만(SOMA-528) 범위는 그대로 둔다 — 필요한 곳에만 거는 편이 외부 창·임베드와
-  // 덜 부딪힌다. credentialless 라 외부 CSS·모델(HF CDN)은 CORP 헤더 없이도 자격증명 없이 받아진다.
   // /guide 는 블로그로 합쳤다(SOMA-834). 검색 노출을 이어받도록 영구(308) 이동이다.
   async redirects() {
     return [
       { source: "/guide", destination: "/blog", permanent: true },
       { source: "/guide/:slug", destination: "/blog/:slug", permanent: true },
-      // SOMA-1087: 웹에서는 코칭·리딩을 하지 않는다. 연습 주소는 앱 설치 안내(/app)로 보낸다.
-      // 임시(307)라 되돌리기 쉽다. 쿼리(utm 등)는 Next 가 그대로 이어 붙인다. 연습 기능 코드는 지우지 않았다.
+      // 웹의 코칭·리딩·연습 기능은 없앴다(SOMA-1087 뒤 코드까지 삭제). 옛 연습 주소는 앱 설치 안내(/app)로
+      // 영구(308) 이동한다. 쿼리(utm 등)는 Next 가 그대로 이어 붙인다.
       ...["/reading", "/reading/:path*", "/practice", "/practice/:path*", "/home", "/library", "/library/:path*", "/memory"].map(
-        (source) => ({ source, destination: "/app", permanent: false as const }),
+        (source) => ({ source, destination: "/app", permanent: true as const }),
       ),
     ];
   },
@@ -79,28 +68,6 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
         ],
       },
-      {
-        source: "/reading/:path*",
-        headers: [
-          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-          { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
-        ],
-      },
-      {
-        source: "/reading",
-        headers: [
-          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-          { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
-        ],
-      },
-      // 격리된 문서가 띄우는 **워커 스크립트**도 같은 COEP 를 달고 와야 한다 — 없으면 브라우저가
-      // 워커 로드를 ERR_BLOCKED_BY_RESPONSE 로 막고, 음성 모델 다운로드가 0MB 에서 멈춘다(2026-08-27).
-      // 워커 번들은 /_next/static 아래(dev 는 Turbopack, build 는 webpack 둘 다), wasm 런타임은 /ort 에 있다.
-      // COEP 는 문서·워커에만 뜻이 있어 다른 화면의 청크에 붙어도 아무 영향이 없다. COOP 는 문서용이라 여기엔 안 단다.
-      ...["/_next/static/:path*", "/ort/:path*"].map((source) => ({
-        source,
-        headers: [{ key: "Cross-Origin-Embedder-Policy", value: "credentialless" }],
-      })),
     ];
   },
 };

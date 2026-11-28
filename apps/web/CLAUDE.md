@@ -32,13 +32,12 @@
   최상위의 `window`·`navigator` 접근을 피하며, 클라이언트 번들에는 공개값만 넣습니다.
 - 보안 컨텍스트 전용 브라우저 API는 HTTP로 여는 LAN 개발 환경에서도 동작할 폴백을 둡니다.
 
-## 연습 화면
+## 주소
 
-- 연습의 Practice Stage 여섯은 라우터 이동 없이 같은 컴포넌트 안에서 바뀝니다
-  (`features/workspace/workspace-state.ts`의 `WorkspaceScreen`). `/home`·`/practice/new`·`/practice/history`
-  셋이 같은 `WorkspaceApp`을 렌더합니다.
-- 화면이 바뀔 때 주소는 `history.replaceState`로 갈아끼웁니다. `router.replace`를 쓰면 `useSearchParams`를
-  감싼 Suspense가 다시 걸려 흰 화면이 깜빡입니다. 로그인·로그아웃처럼 화면을 실제로 옮기는 이동만 `router`를 씁니다.
+- 웹에는 코칭·리딩·연습 화면이 없습니다. 옛 주소(`/home`·`/practice/**`·`/reading/**`·`/library/**`·`/memory`)는
+  `next.config.ts`가 `/app`으로 영구 이동합니다. 이 주소에 화면을 다시 만들지 않습니다.
+- 같은 화면에서 주소만 고칠 때(쿼리 지우기 등)는 `history.replaceState`를 씁니다. `router.replace`를 쓰면
+  `useSearchParams`를 감싼 Suspense가 다시 걸려 흰 화면이 깜빡입니다. 화면을 실제로 옮기는 이동만 `router`를 씁니다.
 
 ## 데이터·API
 

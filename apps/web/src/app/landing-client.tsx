@@ -55,6 +55,19 @@ function Qr({ size }: { size: number }) {
   );
 }
 
+/**
+ * 예전 연습 화면 로고가 홈을 `/?intro=1` 로 가리켰다. 그 주소가 이미 퍼져 있어 들어오는 건 그대로 받고,
+ * 주소창에서는 `intro` 하나만 지운다. utm 같은 다른 쿼리와 #해시는 남긴다. 계측은 `intro` 를 읽지 않는다
+ * (GA 는 캠페인 파라미터만 남긴다, lib/analytics/ga.ts). next.config 리디렉트로 하지 않는 까닭은 utm 을
+ * 잃거나 같은 주소로 되도는 위험을 피하려는 것이다.
+ */
+export function stripIntroParam(): void {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("intro")) return;
+  url.searchParams.delete("intro");
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 type Feature = {
   id: string;
   kicker: string;
@@ -78,6 +91,10 @@ export default function LandingClient({
   const appSectionHref = useAppDownloadHref("landing_app_section");
   // 스크롤 뒤 구간 맞춤과 화면에 들어올 때 나타나기는 뺐다. 멈춘 뒤 페이지가 튀고 글이 늦게
   // 보인다는 QA(2026-11-27) 때문이다. 스크롤은 브라우저 기본 그대로, 내용은 처음부터 보인다.
+
+  useEffect(() => {
+    stripIntroParam();
+  }, []);
 
   // 어느 안이 보였는지, 어느 안에서 다운로드·웹 체험을 눌렀는지 GA4 에 남긴다(SOMA-918).
   // 클릭은 문서 캡처 단계에서 듣는다 — 다운로드 가로채기 스크립트가 곧바로 이동시키기 전에 먼저 받는다.

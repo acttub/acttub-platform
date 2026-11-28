@@ -10,7 +10,6 @@ const { registerConsentPrompt } = await import(
   "../src/lib/api/v2/consent-prompt.ts"
 );
 const { errorMessage } = await import("../src/lib/api/v2/errors.ts");
-const { postIdempotent } = await import("../src/lib/api/v2/idempotency.ts");
 const { clearTokens, setTokens } = await import(
   "../src/lib/auth/token-store.ts"
 );
@@ -236,27 +235,4 @@ test("account.guest: 회원 전용 403 member_only에는 시트를 띄우지 않
     (error) => error?.status === 403 && error?.code === "member_only",
   );
   assert.equal(promptCount, 0);
-});
-
-test("account.guest: 하루 네 번째 분석(429 guest_daily_analysis_limit)은 기다렸다 다시 보내지 않고 안내 문구를 돌려준다", async () => {
-  let fetchCount = 0;
-  globalThis.fetch = async () => {
-    fetchCount += 1;
-    return jsonResponse({ detail: "guest_daily_analysis_limit" }, 429);
-  };
-
-  let caught;
-  try {
-    await postIdempotent("/v2/practices", { upload_intent_id: "intent-1" });
-  } catch (error) {
-    caught = error;
-  }
-
-  assert.equal(caught?.status, 429);
-  assert.equal(caught?.code, "guest_daily_analysis_limit");
-  assert.equal(fetchCount, 1);
-  assert.equal(
-    errorMessage(caught, "기본 문구"),
-    "오늘은 세 번까지 분석할 수 있어요. 앱으로 옮기면 계속할 수 있어요.",
-  );
 });
