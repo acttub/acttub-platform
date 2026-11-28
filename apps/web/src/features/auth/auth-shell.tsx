@@ -9,7 +9,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-dvh flex-col break-keep bg-white text-[#191f28]">
       <header className="border-b border-[#edf0f3]">
         <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-5 sm:h-[72px] sm:px-8">
-          <Link href="/?intro=1" aria-label="ACTTUB 홈">
+          <Link href="/" aria-label="ACTTUB 홈">
             <Image src={wordmark} alt="Acttub" priority className="h-6 w-auto sm:h-7" />
           </Link>
           <Link href="/help" className="text-[15px] font-semibold text-[#4e5968]">고객센터</Link>
