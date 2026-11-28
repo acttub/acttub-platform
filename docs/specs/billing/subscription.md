@@ -178,7 +178,7 @@ entitlement 를 읽어 사람당 한 줄을 덮어쓴다 — 여러 번 불러�
   시간 비교). 비어 있거나 다르면 401. 운영 웹훅은 Production 만, dev 웹훅은 Sandbox 만 받도록 대시보드에서 나눈다.
 - 본문의 상태 값은 믿지 않는다. `event` 의 `app_user_id`·`original_app_user_id`·`aliases`·`transferred_from`·`transferred_to` 중 UUID 꼴인 우리 사람(최대 10명)을
   골라 각자 RevenueCat 을 다시 읽어 위 규칙으로 덮어쓴다. 그래서 같은 이벤트가 여러 번 오거나 순서가 바뀌어도 결과가 같다(멱등). `TEST`·익명 ID·기능
-  꺼짐은 무시하고 200. 본문 꼴이 틀리면 400, RevenueCat 조회 실패는 502·503 으로 돌려 RevenueCat 이 다시 보내게 한다.
+  꺼짐은 무시하고 200. 본문 꼴이 틀리면 400 `invalid_notification`, RevenueCat 조회 실패는 502·503 으로 돌려 RevenueCat 이 다시 보내게 한다.
 
 ### 설정
 서버 환경 변수(`BILLING_REVENUECAT_*`·`REVENUECAT_*`)와 기본값은 위 「설정」과 같은 곳이 정본이다. 앱 빌드에는 RevenueCat 공개 SDK 키

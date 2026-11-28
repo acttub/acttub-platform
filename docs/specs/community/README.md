@@ -27,14 +27,16 @@
   댓글 쓰기가 422 `community_contact_info`로 거절된다. 판정은 보수적이다 — 평범한 문장이 막히지 않는 쪽을 택하고 전자우편은 보지 않는다.
 - 차단은 사람 단위 `user_blocks`를 챌린지와 함께 쓴다(challenge.block, ADR-032). 어느 쪽이 걸었든 서로의 실명 글·댓글이
   보이지 않는다. 0.1.0 전의 `community_blocks`는 옮기지 않고 그대로 읽어 차단한 쪽에서만 가린다. 익명 행은 차단으로 가리지 않는다.
-- 게시판에서는 차단 걸기(`POST /v2/community/blocks`, `user_blocks`에 넣는다)만 하고, 차단 목록 보기와 풀기는 챌린지와 같은
+- 게시판에서는 차단 걸기(`POST /v2/community/blocks`, `user_blocks`에 넣는다, 자기 자신은 400 `cannot_block_self`)만 하고, 차단 목록 보기와 풀기는 챌린지와 같은
   `/v2/me/blocks`([challenge.block](../challenge/block.md))로 한다. 게시판의 차단 목록(`GET /v2/community/blocks`)·풀기
   (`DELETE /v2/community/blocks/{blocked_id}`)는 앱·웹이 부르지 않아 SOMA-1126에서 지웠다. `/v2/me/blocks`는 `user_blocks`만
   보여 주고 풀므로 0.1.0 전 `community_blocks` 행은 목록에 나오지 않고 풀 수도 없다.
+- 없는 분류로 글을 쓰면 404 `category_not_found`, 남의 글을 고치거나 지우거나 남의 댓글을 지우면 403 `not_author`, 글·댓글 목록의
+  커서가 틀리면 400 `invalid_cursor`다.
 - 댓글은 고치지 않고 지운다(`DELETE /v2/community/comments/{comment_id}`). 댓글 고치기(`PATCH /v2/community/comments/{comment_id}`)는
   앱·웹이 부르지 않아 SOMA-1126에서 지웠다.
 - 신고 사유는 챌린지와 같은 copyright·inappropriate·spam·duplicate·other이고, 옛 앱의 abuse·sexual·privacy도 받는다.
-  자기 글·댓글 신고는 400 `cannot_report_own`, 같은 대상 재신고는 409 `already_reported`. 서로 다른 세 사람의 처리 전
+  자기 글·댓글 신고는 400 `cannot_report_own`, 같은 대상 재신고는 409 `already_reported`, 없는 대상은 404 `target_not_found`. 서로 다른 세 사람의 처리 전
   신고가 모이면 대상이 가려진다(`status: hidden`). 가려진 글·댓글은 남에게 보이지 않고 작성자에게만 `status: hidden`으로 보인다.
   가려진 글에는 댓글을 달 수 없다. 되살리는 API는 없고 운영이 DB에서 푼다(아래).
 - 가린 글·댓글 되살리기: 운영이 한 트랜잭션에서 대상의 `status`를 visible로 바꾸고, 그 대상의 처리 전(pending) 신고를 dismissed로
@@ -53,7 +55,7 @@
 - 글 사진은 다섯 장까지다(V87 `community_post_images`). 포트폴리오 사진과 같은 길이다 — `POST /v2/community/images`
   (`mime_type`·`size_bytes`, JPEG·PNG·WebP·HEIC, 10MB)로 자리와 서명한 PUT 주소(30분)를 받고 `upload_headers`를 실어
   올린 뒤, 글 쓰기·고치기의 `image_ids`(순서 = 보여 줄 순서)에 넣는다. 확인 단계(`POST /v2/community/images/{id}/complete`)는
-  있지만 건너뛰어도 붙일 때 서버가 객체를 확인한다. 객체 키는 `community/<user_id>/` 아래다.
+  있지만 건너뛰어도 붙일 때 서버가 객체를 확인한다(없는·남의 사진의 확인은 404 `community_image_not_found`). 객체 키는 `community/<user_id>/` 아래다.
 - 붙일 수 있는 사진은 본인이 올렸고 올라왔고 다른 글에 붙지 않은 것뿐이다(아니면 400 `invalid_image`, 6장 이상은 400
   `too_many_images`). 고치기에서 `image_ids`를 보내면 그 목록으로 바꾸고 빠진 사진은 떼어 객체를 지운다. 빼면 그대로다.
   글을 지우면 붙은 사진도 지운다. 글에 붙지 않은 올리기는 한 사람이 20장까지 들고 있고(넘으면 429
