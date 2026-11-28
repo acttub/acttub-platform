@@ -18,12 +18,15 @@ export function SettingsCard({
   sub,
   onPress,
   right,
+  phLabel,
 }: {
   icon: FeatherName;
   title: string;
   sub?: string;
   onPress?: (e?: GestureResponderEvent) => void;
   right?: ReactNode;
+  /** 탭 기록 이름(lib/touch-capture) — 없으면 제목이 이름이 된다. */
+  phLabel?: string;
 }) {
   const body = (
     <>
@@ -42,7 +45,8 @@ export function SettingsCard({
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={title}>
+      accessibilityLabel={title}
+      ph-label={phLabel}>
       {body}
     </Pressable>
   );

@@ -9,6 +9,7 @@ import { AdSlot } from '@/components/ad-slot';
 import { AD_SIZES, AD_SLOTS } from '@/lib/ads';
 import { BandGradient } from '@/components/ui/band-gradient';
 import { PrimaryButton } from '@/components/ui/buttons';
+import { SettingsCard } from '@/components/ui/settings-card';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
 import { MASCOT } from '@/components/ui/mascot';
 import { MascotBubble } from '@/components/ui/mascot-bubble';
@@ -70,13 +71,12 @@ type FirstPick = PracticeMode;
 const EXIT_BACK_WINDOW_MS = 2000;
 
 /**
- * 첫 연습을 끝낸 뒤 홈에서 한 번 비추는 자리(pen 「첫 연습 끝 홈 · 안내 1/4~4/4」, SOMA-748) — 연습 탭(다음 연습을 이어 하는 곳),
- * 그다음 리딩 안내(같은 연습 탭)·챌린지·프로필 탭. 홈에서 오늘 할 것 카드를 뺐으므로(게시판 홈) 첫 단계도 연습 탭을 비춘다.
+ * 첫 연습을 끝낸 뒤 홈에서 한 번 비추는 자리(pen 「첫 연습 끝 홈 · 안내」, SOMA-748) — 연습 탭(다음 연습을 이어 하고 리딩·코칭을 고르는 곳)·
+ * 챌린지·프로필 탭 세 단계. 홈에서 오늘 할 것 카드를 뺀 뒤(게시판 홈) 첫 단계와 리딩 안내가 둘 다 연습 탭을 비춰 한 단계로 합쳤다.
  * 첫 사용자 홈(뭐부터 해 볼까요?)에서는 띄우지 않는다.
  */
 const HOME_STEPS: SpotlightStep[] = [
   { target: TARGET.tabReading, text: 'guide.spotFirstDone', round: true, mascot: 'home' },
-  { target: TARGET.tabReading, text: 'guide.spotReadingTab', round: true, mascot: 'reading' },
   { target: TARGET.tabChallenge, text: 'guide.spotChallengeTab', round: true, mascot: 'coach' },
   { target: TARGET.tabProfile, text: 'guide.spotProfileTab', round: true, mascot: 'home' },
 ];
@@ -105,7 +105,7 @@ function olderPracticedScripts(scripts: readonly ScriptCard[], now = Date.now())
 /**
  * A1. 홈(pen 일반 홈 BTT6at·SSeGm·gVzpd, 첫 사용자 홈 bHxn1I, SOMA-748).
  * 첫 연습 전이면 인사·소개 말풍선과 「뭐부터 해 볼까요?」 선택 카드(고르면 펼쳐지고 「계속하기」로 들어간다), 그 뒤로는 히어로(인사·액티·이번 주 연습) +
- * 광고 칸 + (올리는 중이면 올리는 카드) + 게시판·인기 글(components/home-board) + 마감 임박(app.audition) + 팀 연락처다.
+ * 광고 칸 + (올리는 중이면 올리는 카드) + 게시판·인기 글(components/home-board) + 마감 임박(app.audition) + 의견 보내기 + 팀 연락처다.
  * 리딩·코칭 이어 하기는 연습 탭 맨 위에 있어 홈에 두지 않는다.
  * 디자인의 「업데이트 소식」 띠와 일정 D-day 줄은 서버 기능이 없어 그리지 않는다.
  */
@@ -164,7 +164,7 @@ export default function HomeScreen() {
   // 안내는 앱 맨 바깥에 그려져 다른 화면 위에도 덮인다 — 홈이 보일 때만 연다.
   const guideFocused = useRef(false);
   // 홈 안내를 띄울지 확인을 마쳤는지, 그리고 이번 방문에 안내를 봤는지. 안내를 본 방문에는 공지 포스터(AI 목소리 홍보 등)·
-  // 연속일 축하를 미룬다 — 안내 4단계가 끝나자마자 다른 팝업이 연달아 뜨지 않게(SOMA-771).
+  // 연속일 축하를 미룬다 — 안내가 끝나자마자 다른 팝업이 연달아 뜨지 않게(SOMA-771).
   const [guideChecked, setGuideChecked] = useState(false);
   const [guideShownThisVisit, setGuideShownThisVisit] = useState(false);
   const [introChecked, setIntroChecked] = useState(false);
@@ -776,6 +776,14 @@ export default function HomeScreen() {
               </View>
             </View>
           ))}
+          {/* 의견 보내기(11/1 사용자: 프로필보다 자주 보는 홈에 둔다, SOMA-953) — 연락처 바로 위에 테두리 없는 한 줄로. */}
+          <SettingsCard
+            icon="message-circle"
+            title={t('feedback.row')}
+            sub={t('feedback.rowSub')}
+            phLabel="home_row_feedback"
+            onPress={() => router.push('/feedback')}
+          />
           {/* 팀 연락처(11/3 사용자: 인스타·메일은 홈 맨 아래에만) — 인스타 계정을 누르면 프로필이 열린다. 메일은 글자만. */}
           <Text style={styles.contactFooter}>
             <Text

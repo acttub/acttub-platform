@@ -290,7 +290,6 @@ describe('첫 사용자', () => {
     expect(screen.queryByText('이것도 해 볼까요?')).not.toBeOnTheScreen();
     expect(screen.queryByText('추천 연습')).not.toBeOnTheScreen();
     expect(screen.queryByText('리딩 · 새 대본')).not.toBeOnTheScreen();
-    expect(screen.queryByText('의견 보내기')).not.toBeOnTheScreen();
     // 오늘 카드용으로 받던 이번 주 챌린지·코칭 노트는 더 받지 않는다.
     expect(api.listChallenges).not.toHaveBeenCalled();
     expect(getPracticeNote).not.toHaveBeenCalled();
@@ -307,6 +306,19 @@ describe('첫 사용자', () => {
     expect(screen.getByText(/메일 acttub0527@gmail\.com/)).toBeOnTheScreen();
     await fireEvent.press(insta);
     expect(openURL).toHaveBeenCalledWith('https://www.instagram.com/acttub_com/');
+  });
+
+  test('기본 홈 연락처 바로 위에 「의견 보내기」 한 줄이 있고, 누르면 의견 보내기로 간다(SOMA-953)', async () => {
+    const { hasGraduatedFirstUse } = jest.requireMock('@/lib/practice/first-use-graduation');
+    hasGraduatedFirstUse.mockImplementation(async (id: string) => id === 'u1');
+    listReadingScripts.mockResolvedValue({ scripts: [script({ title: '갈매기 2막' })] });
+    await render(<HomeScreen />);
+
+    const row = await screen.findByRole('button', { name: '의견 보내기' });
+    expect(row.props['ph-label']).toBe('home_row_feedback');
+    expect(screen.getByText('불편한 점이나 바라는 기능을 알려 주세요')).toBeOnTheScreen();
+    await fireEvent.press(row);
+    expect(mockRouter.push).toHaveBeenLastCalledWith('/feedback');
   });
 
   test('기록으로 첫 사용자를 벗어나면 졸업 표시를 남긴다 — 다시 읽기 시작해 대본이 「연습 중」이 돼도 첫 홈으로 돌아가지 않게(11/2)', async () => {
@@ -782,8 +794,9 @@ describe('첫 안내', () => {
     await render(withHost);
 
     expect(hasSeenSpotlight).toHaveBeenCalledWith('home');
-    // 첫 단계는 홈 카드가 아니라 하단 바 연습 탭을 가리키는 문구다(게시판 홈).
-    expect(await screen.findByText('잘했어요. 다음 연습은 여기 연습 탭에서 이어 할 수 있어요.', {}, { timeout: 2000 })).toBeOnTheScreen();
+    // 첫 단계는 홈 카드가 아니라 하단 바 연습 탭을 가리키는 문구다(게시판 홈). 리딩 안내를 합쳐 모두 세 단계다.
+    expect(await screen.findByText('잘했어요. 다음 연습은 여기 연습 탭에서 해요. 코칭이랑 리딩 중에 골라서 할 수 있어요.', {}, { timeout: 2000 })).toBeOnTheScreen();
+    expect(screen.getByText('액티 · 1/3')).toBeOnTheScreen();
     await fireEvent.press(await screen.findByText('건너뛰기', {}, { timeout: 2000 }));
     await waitFor(() => expect(markSpotlightSeen).toHaveBeenCalledWith('home'));
     // 안내가 끝나자마자 다른 팝업(AI 목소리 홍보 등)이 이어 뜨지 않는다.
