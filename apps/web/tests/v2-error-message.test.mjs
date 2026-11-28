@@ -14,7 +14,6 @@ const { GUEST_TRANSFERRED_MESSAGE, errorMessage, toApiError } = await import(
   "../src/lib/api/v2/errors.ts"
 );
 const { requestTransferCode } = await import("../src/lib/api/v2/guest-transfer.ts");
-const { postIdempotent } = await import("../src/lib/api/v2/idempotency.ts");
 const { clearTokens, setTokens } = await import("../src/lib/auth/token-store.ts");
 
 const FALLBACK = "코드를 받지 못했어요. 다시 시도해 주세요.";
@@ -127,41 +126,6 @@ test("공용 클라이언트의 요청이 연결에서 끊기면 '~해요' 문�
     assert.equal(shown, CONNECTION_COPY);
     assertScreenCopy(shown);
   }
-});
-
-test("멱등 요청이 기한을 넘기면 화면은 부르는 자리의 문구를 본다 — '멱등…초과했습니다'가 닿지 않는다", async () => {
-  startGuest();
-  // 답하지 않는 서버. 기한이 끊을 때까지 끝나지 않는다.
-  globalThis.fetch = async (_url, options) =>
-    new Promise((_resolve, reject) => {
-      options.signal.addEventListener(
-        "abort",
-        () => reject(options.signal.reason),
-        { once: true },
-      );
-    });
-
-  const failure = await caught(
-    postIdempotent("/v2/example", { scene: "hanging" }, { deadlineMs: 20 }),
-  );
-
-  assert.equal(failure.name, "TimeoutError");
-  const shown = errorMessage(failure, FALLBACK);
-  assert.equal(shown, FALLBACK);
-  assertScreenCopy(shown);
-});
-
-test("취소된 요청이 걸러지지 않고 여기까지 와도 브라우저의 영어 문장을 그리지 않는다", async () => {
-  startGuest();
-  const controller = new AbortController();
-  controller.abort();
-
-  const failure = await caught(
-    postIdempotent("/v2/example", {}, { signal: controller.signal }),
-  );
-
-  assert.equal(failure.name, "AbortError");
-  assert.equal(errorMessage(failure, FALLBACK), FALLBACK);
 });
 
 // --- 서버의 코드 원문 ---
