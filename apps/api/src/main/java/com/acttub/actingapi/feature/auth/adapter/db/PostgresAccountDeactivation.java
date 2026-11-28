@@ -46,6 +46,20 @@ class PostgresAccountDeactivation implements AccountDeactivation, AccountRowLock
     }
 
     @Override
+    public boolean lockRow(UUID userId) {
+        return lock(userId) != null;
+    }
+
+    @Override
+    public boolean lockShared(UUID userId) {
+        return !entityManager.createQuery("select u.status from UserEntity u where u.id = :userId", UserStatus.class)
+                .setParameter("userId", userId)
+                .setLockMode(LockModeType.PESSIMISTIC_READ)
+                .getResultList()
+                .isEmpty();
+    }
+
+    @Override
     public void deactivate(UUID userId, Instant now) {
         entityManager.createQuery("""
                         update UserEntity u

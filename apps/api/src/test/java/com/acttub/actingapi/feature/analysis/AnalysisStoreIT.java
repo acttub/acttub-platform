@@ -223,7 +223,7 @@ class AnalysisStoreIT {
                 "model-a", now)))
                 .containsExactly(
                         "select ai_jobs for update of p",
-                        "select ai_jobs for update",
+                        "select ai_jobs for update of aje1_0",
                         "insert analyses on conflict",
                         "insert video_transcripts on conflict",
                         "update practices",
@@ -233,7 +233,7 @@ class AnalysisStoreIT {
         soft.assertThat(statementsOf(() -> store.complete(pending, lease, new AnalysisResult(pack(List.of()), false, 9_000),
                 "model-a", now)))
                 .as("작업이 이미 닫혔으면 기록을 넣지 않는다")
-                .containsExactly("select ai_jobs for update of p", "select ai_jobs for update");
+                .containsExactly("select ai_jobs for update of p", "select ai_jobs for update of aje1_0");
 
         UUID gone = user("active");
         UUID goneVideo = video(gone);
@@ -245,7 +245,8 @@ class AnalysisStoreIT {
         soft.assertThat(statementsOf(() -> store.complete(goneJob, goneLease, new AnalysisResult(pack(List.of()), false, 9_000),
                 "model-a", now)))
                 .as("탈퇴가 먼저면 작업만 닫는다")
-                .containsExactly("select ai_jobs for update of p", "select ai_jobs for update", "select ai_jobs", "update ai_jobs");
+                .containsExactly("select ai_jobs for update of p", "select ai_jobs for update of aje1_0", "select ai_jobs",
+                        "update ai_jobs");
 
         UUID failing = pendingJob(owner, practice(owner, video(owner)));
         UUID failingLease = UUID.randomUUID();

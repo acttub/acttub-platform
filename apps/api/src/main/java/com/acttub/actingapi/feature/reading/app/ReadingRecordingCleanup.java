@@ -12,8 +12,8 @@ import java.util.UUID;
  * 저장소가 실패해도 요청은 끝나고 장부가 다시 시도한다. 객체 삭제 작업은 성공할 때까지 대상 키를 지우지
  * 않는다(specs/reading 「리딩 자료의 이관·삭제·탈퇴」).
  *
- * <p>선언은 쓰는 쪽(여기)에 있고 구현은 장부의 주인인 {@code profile} 이 한다 (ADR-017,
- * {@code portfolio/app/PortfolioPhotoCleanup} 과 같은 형태). 간선은 {@code profile → reading.app} 한 방향이다.
+ * <p>선언은 쓰는 쪽(여기)에 있고 구현은 장부의 주인인 배관({@code platform/operation})이 한다 (ADR-017,
+ * {@code portfolio/app/PortfolioPhotoCleanup} 과 같은 형태). 간선은 {@code platform.operation → reading.app} 한 방향이다.
  */
 public interface ReadingRecordingCleanup {
 

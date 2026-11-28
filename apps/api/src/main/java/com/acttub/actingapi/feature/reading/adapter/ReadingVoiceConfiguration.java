@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.reading.adapter;
 
 import com.acttub.actingapi.feature.reading.adapter.pron.HttpRecordingSounds;
+import com.acttub.actingapi.feature.practice.app.PracticesFromReading;
 import com.acttub.actingapi.feature.reading.adapter.voice.ReadingVoiceCoaching;
 import com.acttub.actingapi.feature.reading.app.ReadingVoiceMaterials;
 import com.acttub.actingapi.feature.reading.app.RecordingSounds;
@@ -28,8 +29,9 @@ public class ReadingVoiceConfiguration {
 
     @Bean
     ReadingVoiceCoaching readingVoiceCoaching(
-            ReadingVoiceMaterials materials, ObjectProvider<ObjectStorage> storage, RecordingSounds sounds) {
-        return new ReadingVoiceCoaching(materials, storage::getObject, sounds, new AudioJoiner());
+            ReadingVoiceMaterials materials, PracticesFromReading practices, ObjectProvider<ObjectStorage> storage,
+            RecordingSounds sounds) {
+        return new ReadingVoiceCoaching(materials, practices, storage::getObject, sounds, new AudioJoiner());
     }
 
     /** 소리 재기는 발음 채점 서비스(apps/pron)의 {@code /measure} 를 쓴다. 주소가 없으면 재지 않고 코치는 대본으로만 묻는다. */

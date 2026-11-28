@@ -31,7 +31,6 @@ import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
-import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.junit.jupiter.api.BeforeEach;
@@ -92,12 +91,6 @@ class ProfileStoreIT {
 
     @Autowired
     PostgresProfileAccountErasure erasure;
-
-    @Autowired
-    PostgresObjectCleanupLedger cleanups;
-
-    @Autowired
-    AccountSecrets secrets;
 
     @Autowired
     PlatformTransactionManager transactionManager;
@@ -351,45 +344,6 @@ class ProfileStoreIT {
                 .isEqualTo(new PhotoUpload("users/u/profile/p.jpg", "image/jpeg", 3_000_000_000L, now.plusNanos(123_000)));
     }
 
-    // ---- 정리 장부 넣기(PostgresObjectCleanupLedger) ----
-
-    @Test
-    @DisplayName("정리 장부 넣기는 종류마다 모든 칸을 적는다 — 첫 시도는 지금과 미룰 시각 가운데 늦은 쪽, 기한은 그 7일 뒤, 시각은 마이크로초로 반올림한다")
-    void cleanupLedgerWritesEveryColumn() {
-        Instant at = now.plusNanos(1_500);
-        UUID later = inTransaction(() -> cleanups.schedule(user, List.of("users/a/photo.jpg"), at, at.plusSeconds(3600)));
-        UUID earlier = inTransaction(() -> cleanups.schedule(user, List.of("users/a/1.mp4", "users/a/1.jpg"), at,
-                at.minusSeconds(60)));
-        UUID recording = inTransaction(() -> cleanups.schedule(user, List.of("users/a/r.m4a"), at));
-        UUID video = inTransaction(() -> cleanups.scheduleObjectDelete(other, List.of("users/b/v.mp4"), at, at.plusSeconds(60)));
-        UUID provider = inTransaction(() -> cleanups.enqueue(user, "kakao_unlink", "d1:kakao", at));
-        UUID customer = inTransaction(() -> cleanups.enqueueCustomerDeletion(user, "d1:customer", at));
-
-        assertThat(cleanupRow(later)).isEqualTo(user + "|object_delete|0|04:00:00.000002|12-04 04:00:00.000002|03:00:00.000002|03:00:00.000002|-");
-        assertThat(secrets.decrypt(payload(later))).isEqualTo("[\"users/a/photo.jpg\"]");
-        assertThat(cleanupRow(earlier)).isEqualTo(user + "|object_delete|0|03:00:00.000002|12-04 03:00:00.000002|03:00:00.000002|03:00:00.000002|-");
-        assertThat(secrets.decrypt(payload(earlier))).isEqualTo("[\"users/a/1.mp4\",\"users/a/1.jpg\"]");
-        assertThat(cleanupRow(recording)).isEqualTo(user + "|reading_recording_delete|0|03:00:00.000002|12-04 03:00:00.000002|03:00:00.000002|03:00:00.000002|-");
-        assertThat(secrets.decrypt(payload(recording))).isEqualTo("[\"users/a/r.m4a\"]");
-        assertThat(cleanupRow(video)).isEqualTo(other + "|object_delete|0|03:01:00.000002|12-04 03:01:00.000002|03:00:00.000002|03:00:00.000002|-");
-        assertThat(cleanupRow(provider)).isEqualTo(user + "|kakao_unlink|0|03:00:00.000002|12-04 03:00:00.000002|03:00:00.000002|03:00:00.000002|-");
-        assertThat(payload(provider)).isEqualTo("d1:kakao");
-        assertThat(cleanupRow(customer)).isEqualTo(user + "|revenuecat_delete|0|03:00:00.000002|12-04 03:00:00.000002|03:00:00.000002|03:00:00.000002|-");
-        assertThat(payload(customer)).isEqualTo("d1:customer");
-    }
-
-    @Test
-    @DisplayName("정리 장부 넣기는 부르는 쪽의 트랜잭션에 얹힌다 — 트랜잭션 없이 부르면 거절하고, 부르는 쪽이 되돌리면 줄도 없다")
-    void cleanupLedgerJoinsTheCallersTransaction() {
-        assertThatThrownBy(() -> cleanups.schedule(user, List.of("users/a/photo.jpg"), now, now))
-                .isInstanceOf(InvalidDataAccessApiUsageException.class);
-        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
-            cleanups.schedule(user, List.of("users/a/photo.jpg"), now, now);
-            tx.setRollbackOnly();
-        });
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM account_cleanup_operations", Integer.class)).isZero();
-    }
-
     // ---- 문장 ----
 
     @Test
@@ -426,16 +380,14 @@ class ProfileStoreIT {
     }
 
     @Test
-    @DisplayName("포트 메서드마다 나가는 문장의 수와 종류(프로필 방향·알림 읽기·올리던 사진 읽기·정리 장부 넣기)")
-    void eachProfileAndLedgerMethodSendsTheseStatements() {
+    @DisplayName("포트 메서드마다 나가는 문장의 수와 종류(프로필 방향·알림 읽기·올리던 사진 읽기)")
+    void eachProfileMethodSendsTheseStatements() {
         assertThat(statementsOf(() -> profiles.saveProfile(user, profile(List.of("stage", "media")), null)))
                 .containsExactly("select users for update", "insert user_profiles users on conflict",
                         "delete user_profile_directions", "insert user_profile_directions", "insert user_profile_directions",
                         "select user_identities user_profile_directions user_profiles users");
         assertThat(statementsOf(() -> profiles.notificationSettings(user))).containsExactly("select user_profiles");
         assertThat(statementsOf(() -> profiles.pendingPhotoUpload(user))).containsExactly("select user_profiles");
-        assertThat(statementsOf(() -> inTransaction(() -> cleanups.schedule(user, List.of("users/a/photo.jpg"), now, now))))
-                .containsExactly("insert account_cleanup_operations");
     }
 
     // ---- 도움 ----
@@ -517,22 +469,6 @@ class ProfileStoreIT {
     private List<String> directions(UUID userId) {
         return jdbc.queryForList("SELECT direction FROM user_profile_directions WHERE user_id=? ORDER BY direction",
                 String.class, userId);
-    }
-
-    /** 정리 장부 한 줄의 값 칸 말고 전부. 시각은 UTC 마이크로초. */
-    private String cleanupRow(UUID id) {
-        return jdbc.queryForObject("""
-                SELECT user_id || '|' || kind || '|' || attempt_count || '|'
-                       || to_char(next_attempt_at AT TIME ZONE 'UTC', 'HH24:MI:SS.US') || '|'
-                       || to_char(expires_at AT TIME ZONE 'UTC', 'MM-DD HH24:MI:SS.US') || '|'
-                       || to_char(created_at AT TIME ZONE 'UTC', 'HH24:MI:SS.US') || '|'
-                       || to_char(updated_at AT TIME ZONE 'UTC', 'HH24:MI:SS.US') || '|' || coalesce(last_error, '-')
-                FROM account_cleanup_operations WHERE id=?
-                """, String.class, id);
-    }
-
-    private String payload(UUID id) {
-        return jdbc.queryForObject("SELECT payload_encrypted FROM account_cleanup_operations WHERE id=?", String.class, id);
     }
 
     /** 세 표의 줄을 "표:주인" 으로. */

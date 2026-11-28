@@ -6,8 +6,8 @@ import java.util.UUID;
 
 /**
  * 뗀 사진의 객체 삭제를 정리 장부({@code account_cleanup_operations})에 올린다. 포트폴리오 사진
- * ({@code PortfolioPhotoCleanup})과 같은 장부·같은 문장이고 구현은 장부의 주인인 {@code profile} 이 한다(ADR-017).
- * 간선은 {@code profile → community.app} 한 방향이다.
+ * ({@code PortfolioPhotoCleanup})과 같은 장부·같은 문장이고 구현은 장부의 주인인 배관({@code platform/operation})이 한다(ADR-017).
+ * 간선은 {@code platform.operation → community.app} 한 방향이다.
  */
 public interface CommunityImageCleanup {
 

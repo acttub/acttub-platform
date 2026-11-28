@@ -3,6 +3,7 @@ package com.acttub.actingapi.platform.ledger;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -56,6 +57,31 @@ public interface AiJobLedger {
      * 함께 센다 — 두 원장이 공존하는 동안 배우에게는 한 계정의 하루다.
      */
     int countRequestedSince(UUID userId, String kind, Instant since);
+
+    /**
+     * 그 사람이 {@code since} 뒤로 이 장부에 넣은 그 종류의 작업 수. 옛 원장은 세지 않는다 — 옛 원장에 없던 종류(챌린지 리포트·대본
+     * 나누기)의 하루 한도에 쓴다.
+     */
+    int countEnqueuedSince(UUID userId, String kind, Instant since);
+
+    /** 그 사람이 그 요청 id 로 넣은 작업. 같은 요청의 재전송을 알아볼 때 쓴다. 없으면 비어 있다. */
+    Optional<Requested> findRequest(UUID userId, UUID requestId);
+
+    /** @param fingerprint 저장된 요청 지문. 고정 길이 칸이라 뒤에 공백이 붙어 올 수 있다 */
+    record Requested(String kind, String fingerprint) {
+    }
+
+    /** 작업의 시도 수. 없는 작업이면 예외다. */
+    int attemptCount(UUID jobId);
+
+    /**
+     * 작업 행을 잠그고 상태를 낸다. <b>부르는 쪽의 트랜잭션에 참여한다</b> — 그 트랜잭션이 끝날 때까지 취소·탈퇴·연습 삭제가 이
+     * 작업을 닫지 못한다. 없는 작업이면 예외다.
+     */
+    String lockStatus(UUID jobId);
+
+    /** 시도를 다 쓴 그 종류의 대기 작업 id. {@link #sweepMaxAttempts} 가 닫을 작업이다. */
+    List<UUID> exhaustedPending(String kind);
 
     /**
      * 대기 중인 작업 하나를 선점한다. 집을 게 없으면 {@code null}.
