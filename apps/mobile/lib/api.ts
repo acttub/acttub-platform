@@ -1624,10 +1624,12 @@ export const api = {
   },
 
   /** 글 목록 — 최신순 커서. `category` 가 비면 전체다. 차단한 사람의 글은 서버가 뺀다. */
-  communityPosts(params: { category?: string; cursor?: string | null } = {}): Promise<PostListResponse> {
+  communityPosts(params: { category?: string; cursor?: string | null; limit?: number } = {}): Promise<PostListResponse> {
     const query = new URLSearchParams();
     if (params.category) query.set('category', params.category);
     if (params.cursor) query.set('cursor', params.cursor);
+    // 비우면 서버 기본 쪽 크기(20). 홈은 인기 글을 고르려고 조금 더 받는다(lib/home-board).
+    if (params.limit) query.set('limit', String(params.limit));
     const qs = query.toString();
     return request<PostListResponse>(`/v2/community/posts${qs ? `?${qs}` : ''}`, {}, { timeoutMs: 20_000 });
   },

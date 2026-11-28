@@ -1,5 +1,4 @@
 import Feather from '@expo/vector-icons/Feather';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode, type Ref } from 'react';
@@ -16,14 +15,15 @@ import { MascotBubble } from '@/components/ui/mascot-bubble';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
+import { logEvent } from '@/lib/analytics';
+import { boardFailure, type CommunityPost } from '@/lib/community';
+import { seedCommunityPost } from '@/lib/community-post-seed';
+import { HOME_BOARD_PAGE } from '@/lib/home-board';
 import { buildRecentActivity, withPracticeCounts } from '@/lib/practice-activity';
 import { practiceHref, type PracticeMode } from '@/lib/practice-mode';
-import { practiceDayTotal, practiceStreak, sceneTitle } from '@/lib/practice/groups';
+import { practiceDayTotal, practiceStreak } from '@/lib/practice/groups';
 import type { PracticeGroup } from '@/lib/practice/types';
-import { continueActionFor } from '@/lib/practice/resume';
-import { setContinueOrigin } from '@/lib/practice/session-state';
 import { rememberPracticeDays, serverPracticeDayRecords, sessionPracticeDays, subscribeSessionPracticeDays } from '@/lib/practice-days';
-import { dDayLabel } from '@/lib/challenge/browse';
 import { countedPractices, type CountedPractice } from '@/lib/practice/counted';
 import { skipsHomeGuide } from '@/lib/returning-account';
 import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
@@ -33,15 +33,11 @@ import { isKorean, translate as t, translateList } from '@/lib/i18n';
 import { firstTimeStateFrom, setFirstTimeState, shouldRememberGraduation, subscribeFirstTimeState } from '@/lib/practice/first-time';
 import { rememberSkeletonHints, useSkeletonHints } from '@/lib/skeleton-hint';
 import { currentFirstUseOwner, graduatedInMemory, hasGraduatedFirstUse, markFirstUseGraduated } from '@/lib/practice/first-use-graduation';
-import { challengeDaysLeft, pickToday, primaryFeature, type TodayItem } from '@/lib/home-today';
-import type { ScriptCard, SessionProgress } from '@/lib/reading/types';
-import type { ChallengeCard } from '@/lib/challenge/types';
-import { openResume } from '@/lib/reading/resume-open';
-import { resumeSessionOf } from '@/lib/reading/redesign-748';
-import { DEFAULT_SEC_PER_LINE, displayProgress, hasReachedEnd, remainingMinutes, secPerLine } from '@/lib/reading/progress-display';
+import type { ScriptCard } from '@/lib/reading/types';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
 import { AnnouncementPoster } from '@/components/announcement-poster';
+import { HomeBoard, HomeBoardSkeleton, type HomeBoardFrom, type HomeBoardState } from '@/components/home-board';
 import { HomeHeroActy } from '@/components/home-hero-acty';
 import { HomeUploadCard } from '@/components/home-upload-card';
 import { WeekPracticeCard } from '@/components/week-practice-card';
@@ -55,7 +51,6 @@ import { afterHomeReady, markHomeReady } from '@/lib/launch-splash';
 import { INSTAGRAM_HANDLE, INSTAGRAM_PROFILE_URL, SUPPORT_EMAIL } from '@/lib/contact-channels';
 import { readHomeSnapshot, writeHomeSnapshot } from '@/lib/home-snapshot';
 import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/components/ui/skeleton';
-import { useNextTakes } from '@/hooks/use-next-takes';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -75,11 +70,12 @@ type FirstPick = PracticeMode;
 const EXIT_BACK_WINDOW_MS = 2000;
 
 /**
- * 첫 연습을 끝낸 뒤 홈에서 한 번 비추는 자리(pen 「첫 연습 끝 홈 · 안내 1/4~4/4」, SOMA-748) — 오늘 할 것 카드,
- * 그리고 대본·챌린지·프로필 탭. 첫 사용자 홈(뭐부터 해 볼까요?)에서는 띄우지 않는다.
+ * 첫 연습을 끝낸 뒤 홈에서 한 번 비추는 자리(pen 「첫 연습 끝 홈 · 안내 1/4~4/4」, SOMA-748) — 연습 탭(다음 연습을 이어 하는 곳),
+ * 그다음 리딩 안내(같은 연습 탭)·챌린지·프로필 탭. 홈에서 오늘 할 것 카드를 뺐으므로(게시판 홈) 첫 단계도 연습 탭을 비춘다.
+ * 첫 사용자 홈(뭐부터 해 볼까요?)에서는 띄우지 않는다.
  */
 const HOME_STEPS: SpotlightStep[] = [
-  { target: TARGET.homeStart, text: 'guide.spotFirstDone', mascot: 'home' },
+  { target: TARGET.tabReading, text: 'guide.spotFirstDone', round: true, mascot: 'home' },
   { target: TARGET.tabReading, text: 'guide.spotReadingTab', round: true, mascot: 'reading' },
   { target: TARGET.tabChallenge, text: 'guide.spotChallengeTab', round: true, mascot: 'coach' },
   { target: TARGET.tabProfile, text: 'guide.spotProfileTab', round: true, mascot: 'home' },
@@ -108,8 +104,9 @@ function olderPracticedScripts(scripts: readonly ScriptCard[], now = Date.now())
 
 /**
  * A1. 홈(pen 일반 홈 BTT6at·SSeGm·gVzpd, 첫 사용자 홈 bHxn1I, SOMA-748).
- * 첫 연습 전이면 인사·소개 말풍선과 「뭐부터 해 볼까요?」 선택 카드(고르면 펼쳐지고 「계속하기」로 들어간다), 그 뒤로는 인사 + 오늘 할 것 카드 하나 + 하던 거 한 줄 +
- * 최근 연습·마감 임박(practice.library·app.audition)이다.
+ * 첫 연습 전이면 인사·소개 말풍선과 「뭐부터 해 볼까요?」 선택 카드(고르면 펼쳐지고 「계속하기」로 들어간다), 그 뒤로는 히어로(인사·액티·이번 주 연습) +
+ * 광고 칸 + (올리는 중이면 올리는 카드) + 게시판·인기 글(components/home-board) + 마감 임박(app.audition) + 팀 연락처다.
+ * 리딩·코칭 이어 하기는 연습 탭 맨 위에 있어 홈에 두지 않는다.
  * 디자인의 「업데이트 소식」 띠와 일정 D-day 줄은 서버 기능이 없어 그리지 않는다.
  */
 export default function HomeScreen() {
@@ -138,11 +135,18 @@ export default function HomeScreen() {
   // 대본 목록·리딩 회차·참여작 중 못 받은 것이 있다 — 그러면 첫 사용자로 보지 않는다(11/2).
   const [recordsFailed, setRecordsFailed] = useState(false);
   const [scripts, setScripts] = useState<ScriptCard[] | null>(null);
-  const [readingProgress, setReadingProgress] = useState<{ scriptId: string; sessionId: string; progress: SessionProgress; perLine: number } | null>(null);
-  // 홈에 올 때마다 이어 읽기 진행을 새로 받는다 — 리딩을 하고 돌아와도 예전 회차의 줄 수가 남아 있었다(11/2 QA).
-  const [readingTick, setReadingTick] = useState(0);
-  useFocusEffect(useCallback(() => setReadingTick((n) => n + 1), []));
-  const [featured, setFeatured] = useState<ChallengeCard | null>(null);
+  // 게시판 첫 쪽 — 「게시판」·「인기 글」 두 구역이 같이 쓴다(components/home-board). 홈이 보일 때와 당길 때 다시 받는다.
+  const [board, setBoard] = useState<HomeBoardState>(null);
+  const boardRequest = useRef(0);
+  const loadBoard = useCallback(async () => {
+    const id = ++boardRequest.current;
+    try {
+      const r = await api.communityPosts({ limit: HOME_BOARD_PAGE });
+      if (id === boardRequest.current) setBoard({ posts: r.posts });
+    } catch (e) {
+      if (id === boardRequest.current) setBoard({ failure: boardFailure(e) });
+    }
+  }, []);
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
   // null 이면 기록을 아직 한 번도 못 받은 것이다 — 그때의 연속일(0)로 축하를 판단하면 안 된다.
   const [activityDays, setActivityDays] = useState<{ created_at: string }[] | null>(null);
@@ -150,8 +154,6 @@ export default function HomeScreen() {
   const [graduated, setGraduated] = useState<boolean | null>(null);
   // 주 기능 판단용 — 센 연습(코칭·리딩·챌린지) 목록.
   const [practices, setPractices] = useState<CountedPractice[]>([]);
-  // 내가 참여작을 올린 챌린지 — 홈 챌린지 카드가 이미 찍은 챌린지에 「찍으러 가기」를 띄우지 않게 한다(SOMA-829).
-  const [enteredChallengeIds, setEnteredChallengeIds] = useState<ReadonlySet<string>>(() => new Set());
   const [auditions, setAuditions] = useState<AuditionPostingList | null>(null);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
@@ -284,7 +286,6 @@ export default function HomeScreen() {
       if (isCancelled()) return;
       // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
       const counted = countedPractices({ groups: groupList, readingSessions, entries });
-      setEnteredChallengeIds(new Set(entries.flatMap((entry) => (entry.challenge?.id ? [entry.challenge.id] : []))));
       setPractices(counted);
       // 최근 연습이 하나도 안 보이면 14일보다 전에 읽은 대본도 본다 — 오래전에 끝까지 읽은 사람을 첫 사용자로 보지 않게(11/2).
       // 찾으면 졸업 표시를 남겨 다음부터는 다시 따지지 않는다. 불꽃·주간 원은 그대로 최근 기록만 쓴다.
@@ -333,11 +334,11 @@ export default function HomeScreen() {
     setRefreshing(true);
     setGraduationCheck((n) => n + 1);
     try {
-      await loadRecords(() => !homeFocused.current);
+      await Promise.all([loadRecords(() => !homeFocused.current), loadBoard()]);
     } finally {
       setRefreshing(false);
     }
-  }, [loadRecords]);
+  }, [loadRecords, loadBoard]);
 
   useFocusEffect(
     useCallback(() => {
@@ -357,6 +358,7 @@ export default function HomeScreen() {
       let cancelled = false;
       homeFocused.current = true;
       void loadRecords(() => cancelled);
+      void loadBoard();
       return () => {
         cancelled = true;
         homeFocused.current = false;
@@ -364,7 +366,7 @@ export default function HomeScreen() {
         guideFocused.current = false;
         setGuideOpen(false);
       };
-    }, [openHomeGuideIfNew, loadRecords]),
+    }, [openHomeGuideIfNew, loadRecords, loadBoard]),
   );
 
   // 오프라인으로 켜면 홈이 동의 팝업 뒤에서 기록을 먼저 읽고 실패한 채 남는다. 동의·프로필을 다시 읽어 게이트가
@@ -404,7 +406,6 @@ export default function HomeScreen() {
       setGroupsLoaded(true);
       setScripts(snap.scripts);
       setPractices(snap.practices);
-      setEnteredChallengeIds(new Set(snap.enteredChallengeIds));
       setActivityDays(snap.activityDays);
     });
     return () => {
@@ -546,16 +547,6 @@ export default function HomeScreen() {
   }, [meId, firstTime, graduated]);
 
   const waitingUpload = useWaitingUpload();
-  const today = useMemo(
-    () => pickToday({ groups, scripts: scripts ?? [], challenge: featured, now: new Date(), primary: primaryFeature(practices, new Date()) }),
-    [groups, scripts, featured, practices],
-  );
-
-  // 「다음에 해 볼 것」(노트의 다음 테이크 문장) — 코칭 숙제와 최근 연습 줄에 쓴다. 목록에 없어 노트를 따로 읽는다.
-  const nextTakes = useNextTakes([
-    today.main.kind === 'coaching' ? today.main.notePracticeId : null,
-    today.also?.kind === 'coaching' ? today.also.notePracticeId : null,
-  ]);
 
   // 안드로이드 뒤로가기 — 홈에서는 바로 나가지 않는다. 안내 토스트를 띄우고, 2초 안에 한 번 더 누르면 앱을 닫는다(SOMA-771).
   const lastBackAt = useRef(0);
@@ -577,163 +568,20 @@ export default function HomeScreen() {
     }, []),
   );
 
-  // 이번 주 챌린지 — 메인 카드(주 기능이 챌린지일 때)와 「이것도 해 볼래요?」 줄에 쓴다.
-  const needsChallenge = loaded && !firstUser && featured === null;
-  useEffect(() => {
-    if (!needsChallenge) return;
-    let cancelled = false;
-    api
-      .listChallenges({ tab: 'popular' })
-      .then((r) => {
-        if (!cancelled && r.featured) setFeatured(r.featured);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [needsChallenge]);
-
-  // 리딩 카드면 그 대본의 진행 중 회차에서 몇 줄까지 읽었는지 받아 온다.
-  const readingItem = [today.main, today.also].find((i) => i?.kind === 'reading') as Extract<TodayItem, { kind: 'reading' }> | undefined;
-  const coachingItem = [today.main, today.also].find((i) => i?.kind === 'coaching') as Extract<TodayItem, { kind: 'coaching' }> | undefined;
-  const readingScriptId = readingItem?.script.id ?? null;
-  useEffect(() => {
-    if (!readingScriptId) return;
-    let cancelled = false;
-    api
-      .listReadingSessions(readingScriptId)
-      .then(async ({ sessions }) => {
-        // 「이어 읽기」가 여는 회차와 같은 규칙으로 고른다(resumeSessionOf) — 보이는 줄 수와 열리는 회차가 같게.
-        const open = resumeSessionOf(sessions);
-        const reached = open?.id ? await hasReachedEnd(open.id) : false;
-        if (cancelled) return;
-        setReadingProgress(
-          open?.progress
-            ? { scriptId: readingScriptId, sessionId: open.id, progress: displayProgress(open.progress, reached), perLine: secPerLine(sessions) }
-            : null,
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setReadingProgress(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [readingScriptId, readingTick]);
-
-  const openCoaching = (group: PracticeGroup) => {
-    const action = continueActionFor(group);
-    if (action.kind === 'resume') {
-      router.push({ pathname: '/coach', params: { practiceId: action.practiceId } });
-      return;
-    }
-    const last = group.practices[group.practices.length - 1];
-    setContinueOrigin({ kind: 'group', rootId: group.root_id, practiceId: last?.id ?? group.root_id });
-    router.push('/upload');
+  // 게시판 글 열기 — 커뮤니티 목록과 같이 받은 글을 먼저 넘겨 상세가 바로 그려지게 한다.
+  const openBoardPost = (post: CommunityPost, from: Exclude<HomeBoardFrom, 'more'>) => {
+    logEvent('home_board_open', { from });
+    seedCommunityPost(post);
+    router.push({ pathname: '/community-post', params: { id: post.id } });
   };
-
-  // 홈 「이어 읽기」는 리딩 탭 「이어서 읽기」와 같은 길로 멈춘 회차를 잇는다(SOMA-994). 이을 회차가 없을 때만 대본 상세다.
-  const openingReading = useRef(false);
-  const openReading = async (script: ScriptCard) => {
-    if (openingReading.current) return;
-    openingReading.current = true;
-    try {
-      // 카드에 보인 그 회차를 연다.
-      const where = await openResume(script.id, readingProgress?.scriptId === script.id ? readingProgress.sessionId : undefined);
-      router.push(where === 'play' ? '/reading/play' : where === 'detail' ? '/reading/detail' : practiceHref('reading'));
-    } finally {
-      openingReading.current = false;
-    }
+  const openBoardMore = () => {
+    logEvent('home_board_open', { from: 'more' });
+    router.push('/community');
   };
-
-  const openItem = (item: TodayItem) => {
-    if (item.kind === 'coaching') openCoaching(item.group);
-    else if (item.kind === 'reading') void openReading(item.script);
-    else if (item.kind === 'challenge') router.push({ pathname: '/challenge-detail', params: { id: item.challenge.id } });
-    else router.push(practiceHref('coaching'));
+  const writeFirstPost = () => {
+    logEvent('home_board_empty_write');
+    router.push('/community-new');
   };
-
-  // 메인 카드 아래 「이것도 해 볼래요?」 세 줄(pen P1.1·P1.15·P1.16) — 메인이 아닌 기능 둘과 입시·오디션 공고.
-  // 영상을 올리는 중이면 메인은 코칭이다. 챌린지가 메인이면 첫 줄은 다른 배우 영상 보기다.
-  const mainKind: TodayItem['kind'] = waitingUpload.card ? 'coaching' : today.main.kind;
-  const ddayOf = (c: ChallengeCard) => challengeDaysLeft(c.ends_at, new Date());
-  const rowCoaching: HomeRowData = coachingItem
-    ? {
-        key: 'coaching',
-        icon: 'video',
-        title: t('home.rowCoachingHomework'),
-        sub: nextTakes[coachingItem.notePracticeId] || sceneTitle(coachingItem.group),
-        phLabel: 'home_row_coaching',
-        onPress: () => openCoaching(coachingItem.group),
-      }
-    : {
-        key: 'coaching',
-        icon: 'video',
-        title: mainKind === 'reading' ? t('home.rowCoachingFromReading') : t('home.rowCoaching'),
-        sub: mainKind === 'reading' ? t('home.rowCoachingFromReadingSub') : t('home.rowCoachingSub'),
-        phLabel: 'home_row_coaching',
-        onPress: () => router.push(practiceHref('coaching')),
-      };
-  const rowReading: HomeRowData = readingItem
-    ? {
-        key: 'reading',
-        icon: 'book-open',
-        // pen P1.1 — 제목은 「대사 이어 읽기」, 아래 줄은 멈춘 줄(없으면 대본 제목).
-        title: t('home.rowReadingContinue'),
-        sub:
-          readingProgress?.scriptId === readingItem.script.id && readingProgress.progress.total > 0
-            ? t('home.rowReadingProgress', { done: readingProgress.progress.done, total: readingProgress.progress.total })
-            : readingItem.script.title,
-        phLabel: 'home_row_reading',
-        onPress: () => void openReading(readingItem.script),
-      }
-    : {
-        key: 'reading',
-        icon: 'book-open',
-        title: t('home.rowReading'),
-        sub: t('home.rowReadingSub'),
-        phLabel: 'home_row_reading',
-        onPress: () => router.push(practiceHref('reading')),
-      };
-  const featuredDays = featured ? ddayOf(featured) : null;
-  const rowChallenge: HomeRowData = {
-    key: 'challenge',
-    icon: 'award',
-    ionicon: 'trophy-outline',
-    title: t('home.rowChallenge'),
-    sub: featured
-      ? [`‘${featured.line}’`, featuredDays !== null && featuredDays >= 0 ? dDayLabel(featured) : null].filter(Boolean).join(' · ')
-      : t('home.rowChallengeSub'),
-    phLabel: 'home_row_challenge',
-    onPress: () => (featured ? router.push({ pathname: '/challenge-detail', params: { id: featured.id } }) : router.push('/challenges')),
-  };
-  const rowWatch: HomeRowData = {
-    key: 'watch',
-    icon: 'play',
-    ionicon: 'play-outline',
-    title: t('home.rowWatch'),
-    // pen P1.16 「이번 주 참여작 12개」 — 참여작이 없으면 정렬 안내.
-    sub: featured && featured.entry_count > 0 ? t('home.rowWatchSubCount', { n: featured.entry_count }) : t('home.rowWatchSub'),
-    phLabel: 'home_row_watch',
-    onPress: () => router.push('/challenges'),
-  };
-  const rowFeedback: HomeRowData = {
-    key: 'feedback',
-    icon: 'message-circle',
-    title: t('feedback.row'),
-    sub: t('feedback.rowSub'),
-    phLabel: 'home_row_feedback',
-    onPress: () => router.push('/feedback'),
-  };
-  const homeRows: HomeRowData[] = [
-    ...(mainKind === 'coaching' ? [rowReading, rowChallenge] : []),
-    ...(mainKind === 'reading' ? [rowCoaching, rowChallenge] : []),
-    ...(mainKind === 'challenge' ? [rowWatch, rowReading] : []),
-    ...(mainKind === 'start' ? [rowReading, rowChallenge] : []),
-    // 의견 보내기(SOMA-953) — 목록 맨 끝에 같은 모양으로. 프로필보다 자주 보는 홈에 둔다(11/1 사용자 결정).
-    rowFeedback,
-  ];
-  // 올리는 중에는 코칭 줄을 빼는데(위 coaching 메인 줄 목록에 코칭이 없다) 업로드 카드 아래에서도 같은 세 줄이다.
 
   // 마감 임박 두 구역(pen P1.1·P1.3) — 입시 일정(입시생만)과 오디션 공고. 가까운 순 둘, 없으면 구역을 그리지 않는다.
   const todayKst = kstDate();
@@ -821,7 +669,6 @@ export default function HomeScreen() {
         // 앱을 켤 때는 로고가 이 자리를 덮고 있다(lib/launch-splash.ts). 서버가 느려 로고가 먼저 닫히면 뼈대 화면이 보인다(SOMA-828).
         <HomeSkeleton
           variant={skeletonHints.home === 'returning' ? 'returning' : 'first'}
-          cardHeight={skeletonHints.homeCardHeight}
           adSpace={skeletonHints.homeAd !== false ? AD_SIZES[AD_SLOTS.home_top.size].height : 0}
           heroBand={heroBand(true)}
           footerSpace={tabBarSpace}
@@ -893,57 +740,11 @@ export default function HomeScreen() {
             reserve={skeletonHints.homeAd !== false}
             onShownChange={(shown) => rememberSkeletonHints({ homeAd: shown })}
           />
-          {/* 주 기능 카드 하나 — 첫 가이드가 비추는 자리다. 올리는 중이면 올리는 카드가 대신한다. */}
+          {/* 영상을 올리는 중이면 광고 칸 아래에 올리는 카드를 둔다. 리딩·코칭 이어 하기는 연습 탭 맨 위에 있다. */}
           {waitingUpload.card && <HomeUploadCard upload={waitingUpload} />}
-          {!waitingUpload.card && (
-            // 높이를 적어 두면 다음 뼈대의 오늘 카드가 같은 높이로 그려진다(lib/skeleton-hint).
-            <View onLayout={(e) => rememberSkeletonHints({ homeCardHeight: Math.round(e.nativeEvent.layout.height) })}>
-                <TodayCardBody
-                  // 첫 가이드가 비추는 자리 — 카드(TodayCardBody 안 Pressable)에 준다.
-                  cardRef={startTarget.ref}
-                  onCardLayout={startTarget.onLayout}
-                  onPress={() => openItem(today.main)}
-                  item={today.main}
-                  challengeEntered={today.main.kind === 'challenge' && enteredChallengeIds.has(today.main.challenge.id)}
-                  progress={
-                    today.main.kind === 'reading' && readingProgress?.scriptId === today.main.script.id
-                      ? readingProgress.progress
-                      : null
-                  }
-                  perLine={today.main.kind === 'reading' && readingProgress ? readingProgress.perLine : undefined}
-                  nextTake={today.main.kind === 'coaching' ? nextTakes[today.main.notePracticeId] ?? null : null}
-                />
-            </View>
-          )}
 
-          {/* 이것도 해 볼까요? — 카드 줄(pen P1.1). */}
-          <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle} accessibilityRole="header">{t('home.moreTitle')}</Text>
-          </View>
-          <View style={styles.rowList}>
-            {homeRows.map((row) => (
-              <Pressable
-                key={row.key}
-                onPress={row.onPress}
-                accessibilityRole="button"
-                ph-label={row.phLabel}
-                style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}>
-                <View style={styles.rowIcon}>
-                  {row.ionicon ? (
-                    <Ionicons name={row.ionicon} size={20} color={palette.blue} />
-                  ) : (
-                    <Feather name={row.icon} size={20} color={palette.blue} />
-                  )}
-                </View>
-                <View style={styles.flex}>
-                  <Text style={styles.listTitle} numberOfLines={1}>{row.title}</Text>
-                  <Text style={styles.listMeta} numberOfLines={1}>{row.sub}</Text>
-                </View>
-                <Feather name="chevron-right" size={18} color={palette.iconFaint} />
-              </Pressable>
-            ))}
-          </View>
-
+          {/* 게시판(칸마다 최신 글 한 줄)·인기 글 — 게시판 첫 쪽 한 번으로 둘 다 그린다(components/home-board). */}
+          <HomeBoard board={board} onOpen={openBoardPost} onMore={openBoardMore} onWrite={writeFirstPost} onRetry={() => void loadBoard()} />
 
           {/* 연기 입시(입시생만)·오디션 마감 임박 — 가까운 마감 두 줄씩(pen P1.1). 없으면 구역째 그리지 않는다(P1.3). */}
           {deadlineBlocks.map((block) => (
@@ -1029,125 +830,6 @@ function monthDay(date: string): string {
   return m ? t('home.monthDay', { m: Number(m[1]), d: Number(m[2]) }) : date;
 }
 
-type HomeRowData = {
-  key: string;
-  icon: ComponentProps<typeof Feather>['name'];
-  title: string;
-  sub: string;
-  phLabel: string;
-  /** 챌린지·영상 보기는 pen 의 lucide 모양에 맞는 Ionicons 로 그린다. */
-  ionicon?: 'trophy-outline' | 'play-outline';
-  onPress: () => void;
-};
-
-/** 주 기능 카드 속 — 종류마다 머리 한 줄(주황 아이콘·글자)·제목·보조·진행 막대·주 버튼. */
-function TodayCardBody({
-  item,
-  challengeEntered = false,
-  nextTake = null,
-  progress,
-  perLine,
-  onPress,
-  cardRef,
-  onCardLayout,
-}: {
-  item: TodayItem;
-  /** 이 챌린지에 이미 참여작을 올렸는가 — 그러면 다시 찍으라고 하지 않고 다른 연기를 보러 가게 한다. */
-  challengeEntered?: boolean;
-  nextTake?: string | null;
-  progress: SessionProgress | null;
-  perLine?: number;
-  onPress: () => void;
-  cardRef?: Ref<View>;
-  onCardLayout?: ComponentProps<typeof View>['onLayout'];
-}) {
-  let eyebrow: string;
-  let icon: ComponentProps<typeof Feather>['name'] | 'trophy' = 'video';
-  let title: string;
-  let sub: string | null = null;
-  let cta: string;
-
-  if (item.kind === 'coaching') {
-    const action = continueActionFor(item.group);
-    eyebrow = t('home.todayCoachingEyebrow');
-    // 제목은 지난 노트의 「다음에 해 볼 것」이다. 그 문장이 없으면(아직 못 받았거나 노트에 없음) 장면 제목만 둔다.
-    const n = item.group.ordinal_count + 1;
-    title = nextTake ? `‘${nextTake}’` : sceneTitle(item.group);
-    sub = nextTake ? t('home.todayCoachingSub', { title: sceneTitle(item.group), n }) : t('home.todayCoachingSubTake', { n });
-    cta = action.kind === 'resume' ? t('history.resumeConversation') : t('home.todayCoachingCta');
-  } else if (item.kind === 'reading') {
-    icon = 'book-open';
-    // 한 번도 안 읽은 대본은 「이어 읽기」가 아니다(10/22 피드백).
-    eyebrow = progress || item.script.last_practiced_at ? t('home.todayReadingEyebrow') : t('home.todayReadingEyebrowNew');
-    // pen P1.15 「옥상, 밤 · 태오」 — 대본 제목 · 내 배역.
-    const role = item.script.my_character_names[0]?.trim();
-    title = role ? `${item.script.title} · ${role}` : item.script.title;
-    if (progress && progress.total > 0) {
-      // pen P1.15 — 「3/10줄 · 남은 시간 약 1분」 한 줄, 진행 막대는 없다.
-      const minutes = remainingMinutes(progress, perLine ?? DEFAULT_SEC_PER_LINE);
-      sub = [
-        t('home.todayReadingProgress', { total: progress.total, done: progress.done }),
-        minutes !== null ? t('home.todayReadingRemaining', { minutes }) : null,
-      ]
-        .filter(Boolean)
-        .join(' · ');
-      cta = progress.done < progress.total ? t('home.todayReadingCta', { line: progress.done + 1 }) : t('home.todayReadingCtaPlain');
-    } else {
-      // 만들어 두고 아직 안 읽은 대본은 「리딩 시작하기」(pen P1.15 「새로 넣은 대본이에요 · 대사 N줄」).
-      if (!item.script.last_practiced_at && item.script.dialogue_count > 0) sub = t('home.todayReadingNewSub', { n: item.script.dialogue_count });
-      cta = item.script.last_practiced_at ? t('home.todayReadingCtaPlain') : t('home.todayReadingCtaStart');
-    }
-  } else if (item.kind === 'challenge') {
-    icon = 'trophy';
-    eyebrow = item.daysLeft === 0 ? t('home.todayChallengeEyebrowToday') : t('home.todayChallengeEyebrow', { days: item.daysLeft });
-    title = `“${item.challenge.line}”`;
-    const n = item.challenge.entry_count ?? 0;
-    if (challengeEntered) {
-      sub = n > 0 ? t('home.todayChallengeSubEntered', { n }) : t('home.todayChallengeSubEnteredPlain');
-      cta = t('home.todayChallengeCtaEntered');
-    } else {
-      sub = n > 0 ? t('home.todayChallengeSub', { n }) : t('home.rowChallengeSub');
-      cta = t('home.todayChallengeCta');
-    }
-  } else {
-    eyebrow = t('home.todayStartEyebrow');
-    title = t('home.todayStartTitle');
-    sub = t('home.todayStartSub');
-    cta = t('home.todayStartCta');
-  }
-
-  // 카드 전체를 누른다 — 카드 안에 따로 버튼을 두지 않는다(UX 가이드 5절, 10/23). 읽어 주는 이름은 갈 곳(cta), 설명은 제목.
-  return (
-    <Pressable
-      ref={cardRef}
-      onLayout={onCardLayout}
-      collapsable={false}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={cta}
-      accessibilityHint={title}
-      ph-label="home_today_card"
-      style={({ pressed }) => [styles.todayCard, pressed && styles.pressed]}>
-      <View style={styles.eyebrowRow}>
-        {icon === 'trophy' ? (
-          <Ionicons name="trophy-outline" size={16} color={palette.blueDeep} />
-        ) : (
-          <Feather name={icon} size={16} color={palette.blueDeep} />
-        )}
-        <Text style={styles.eyebrow}>{eyebrow}</Text>
-      </View>
-      <Text style={styles.todayTitle} numberOfLines={3}>{title}</Text>
-      {sub ? <Text style={styles.todaySub} numberOfLines={2}>{sub}</Text> : null}
-      <View style={styles.todaySpacer} />
-      {/* 버튼 모양이 아니라 카드가 어디로 가는지 알려 주는 글자 줄이다 — 누르는 곳은 카드 전체. */}
-      <View style={styles.todayCta}>
-        <Text style={styles.todayCtaText}>{cta}</Text>
-        <Feather name="arrow-right" size={16} color={palette.blueDeep} />
-      </View>
-    </Pressable>
-  );
-}
-
 /**
  * 첫 사용자 홈의 선택 카드(pen P1.12~P1.14) — 안 골랐을 땐 회색 카드(모서리 16)에 흰 아이콘 칸·제목 18/700·설명 14·오른쪽 빈 라디오.
  * 고르면 옅은 파랑 바탕·파란 테두리·파란 제목에 라디오가 파랗게 차고, 카드 안에 「이렇게 진행돼요」 세 단계가 펼쳐진다(`steps`가 있을 때).
@@ -1217,17 +899,15 @@ function FirstChoice({
 /**
  * 홈 뼈대(SOMA-828). 실제 홈과 같은 틀을 그리고 서버에서 받는 칸만 회색으로 둔다.
  * - first: 첫 사용자 홈 「뭐부터 해 볼까요?」 — 액티 말풍선·질문은 고정 글이라 그대로, 고르는 카드 둘과 아래 버튼만 회색.
- * - returning: 기존 사용자 홈 — 위 띠(인사·액티·이번 주 연습 칸 회색)는 실제와 같고, 오늘 카드와 아래 줄만 회색.
+ * - returning: 기존 사용자 홈 — 위 띠(인사·액티·이번 주 연습 칸 회색)는 실제와 같고, 게시판 줄만 회색.
  */
 function HomeSkeleton({
   variant,
-  cardHeight = TODAY_CARD_SKELETON_HEIGHT,
   adSpace = 0,
   heroBand,
   footerSpace,
 }: {
   variant: 'first' | 'returning';
-  cardHeight?: number;
   /** 실제 홈 맨 위 광고 칸 높이(dp). 0 이면 두지 않는다. */
   adSpace?: number;
   heroBand: ReactNode;
@@ -1259,21 +939,7 @@ function HomeSkeleton({
         {heroBand}
         <View style={styles.body}>
           {adSpace > 0 && <View style={{ height: adSpace }} />}
-          <SkeletonBlock height={cardHeight} radius={radius.lg} />
-          <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>{t('home.moreTitle')}</Text>
-          </View>
-          <View style={styles.rowList}>
-            {[0, 1, 2].map((i) => (
-              <View key={i} style={styles.listRow}>
-                <SkeletonBlock width={40} height={40} radius={radius.full} />
-                <View style={styles.flex}>
-                  <SkeletonLine size={type.body1Bold} width={i % 2 === 0 ? '52%' : '44%'} />
-                  <SkeletonLine size={type.caption} width={i % 2 === 0 ? '38%' : '46%'} style={{ marginTop: space[1] / 2 }} />
-                </View>
-              </View>
-            ))}
-          </View>
+          <HomeBoardSkeleton />
         </View>
       </ScrollView>
     </SkeletonGroup>
@@ -1309,9 +975,6 @@ function SkeletonChoice({ steps = 0 }: { steps?: number }) {
     </View>
   );
 }
-
-/** 오늘 카드(TodayCardBody) 높이를 아직 모를 때 — 제목 한 줄짜리 카드(이어 읽기) 높이. */
-const TODAY_CARD_SKELETON_HEIGHT = 140;
 
 /** 홈 위 배경 — 위에서 아래로 흰색까지 옅어지는 파랑(디자인 시스템 「그라데이션 예외」). */
 const HERO_STOPS = [
@@ -1403,39 +1066,11 @@ const styles = StyleSheet.create({
 
   weekWrap: { marginTop: space[3] },
 
-  todayCard: {
-    backgroundColor: palette.bg,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: radius.lg,
-    padding: space[5],
-    gap: space[2],
-  },
-  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  eyebrow: { ...type.captionBold, color: palette.blueDeep },
-  todayTitle: { ...type.title2, color: palette.text },
-  todaySub: { ...type.caption, color: palette.textMeta },
-  todaySpacer: { height: space[2] },
-  todayCta: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  todayCtaText: { ...type.body2Bold, color: palette.blueDeep },
-
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space[2] },
   sectionTitle: { ...type.headline, color: palette.text },
   sectionAll: { ...type.body2Bold, color: palette.blueDeep },
-  rowList: { gap: space[3] },
   deadlineList: { gap: space[2] },
   deadlineBlock: { gap: space[3] },
-  listRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[3],
-    padding: space[4],
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bg,
-  },
-  rowIcon: { width: 40, height: 40, borderRadius: radius.full, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   listTitle: { ...type.body1Bold, color: palette.text },
   listMeta: { marginTop: space[1] / 2, ...type.caption, color: palette.textMeta },
   deadlineRow: {

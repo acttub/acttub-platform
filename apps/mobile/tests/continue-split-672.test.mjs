@@ -23,10 +23,8 @@ test('SOMA-672: 묶음 줄은 대화 중이면 그 대화로, 아니면 묶음 �
 });
 
 test('SOMA-672: 홈 「최근 연습」과 연습 기록 줄에 「대화 중」 배지가 붙고 누르면 대화로 바로 간다', () => {
-  // 홈은 새 디자인(pen P1.1)에서 최근 연습 줄을 두지 않는다 — 대화 중인 묶음은 메인 카드가 「대화 이어 가기」로 돌아간다.
-  const home = read('app/(tabs)/index.tsx');
-  assert.match(home, /continueActionFor\(item\.group\)/);
-  assert.match(home, /t\('history\.resumeConversation'\)/);
+  // 홈은 게시판 홈이 되며 오늘 할 것 카드(「대화 이어 가기」)를 뺐다 — 이어 하기는 연습 탭 맨 위에 있다.
+  assert.doesNotMatch(read('app/(tabs)/index.tsx'), /continueActionFor\(/);
 
   const history = read('app/(tabs)/history.tsx');
   assert.match(history, /router\.push\(groupRowTarget\(group\)\)/);

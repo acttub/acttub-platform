@@ -86,7 +86,7 @@ test('홈 광고 칸이 지난번에 보였는지 적고 읽는다 — 참·거�
 test('홈 뼈대는 실제 홈과 같은 자리에 광고 칸 높이를 두고, 지난번에 비었으면 받기 전 자리도 잡지 않는다', () => {
   const home = read('app/(tabs)/index.tsx');
   assert.match(home, /adSpace=\{skeletonHints\.homeAd !== false \? AD_SIZES\[AD_SLOTS\.home_top\.size\]\.height : 0\}/);
-  assert.match(home, /\{adSpace > 0 && <View style=\{\{ height: adSpace \}\} \/>\}\n\s+<SkeletonBlock height=\{cardHeight\}/);
+  assert.match(home, /\{adSpace > 0 && <View style=\{\{ height: adSpace \}\} \/>\}\n\s+<HomeBoardSkeleton \/>/);
   assert.match(home, /reserve=\{skeletonHints\.homeAd !== false\}/);
   assert.match(home, /onShownChange=\{\(shown\) => rememberSkeletonHints\(\{ homeAd: shown \}\)\}/);
 });

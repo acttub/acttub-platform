@@ -117,16 +117,15 @@ test('챌린지 마감 D-day는 한국 날짜로 센다', () => {
   assert.equal(challengeDaysLeft('nope', NOW), null);
 });
 
-test('홈 화면: 첫 사용자 질문 3개·오늘 할 것 카드·알림 종을 그리고 일정 D-day는 없다', () => {
+test('홈 화면: 첫 사용자 질문·알림 종을 그리고, 오늘 할 것 카드 대신 게시판을 둔다', () => {
   const home = src('app/(tabs)/index.tsx');
   // 첫 사용자 판단은 lib/practice/first-time(안에서 isFirstUser)이 탭바 숨김과 함께 한 번 한다.
   assert.match(home, /firstTimeStateFrom\(/);
-  assert.match(home, /pickToday\(/);
   assert.match(home, /t\('home\.firstQuestion'\)/);
   assert.match(home, /router\.push\('\/notifications'\)/);
-  // 오늘 할 것 카드가 첫 가이드가 비추는 자리다.
-  // 카드 전체가 누르는 곳이라 첫 가이드 자리(ref)를 카드에 넘긴다(10/28).
-  assert.match(home, /cardRef=\{startTarget\.ref\}/);
+  // 게시판 홈 — 오늘 할 것 카드와 「이것도 해 볼까요?」 줄은 뺐다(리딩·코칭 이어 하기는 연습 탭 맨 위).
+  assert.doesNotMatch(home, /pickToday\(|TodayCardBody|home\.moreTitle/);
+  assert.match(home, /<HomeBoard\b/);
 });
 
 test('primaryFeature: 최근 2주에 센 연습이 가장 많은 기능, 같으면 더 최근, 없으면 null', async () => {
