@@ -25,4 +25,12 @@ public interface AccountErasure {
      * @return 정리 장부에 올린 일의 id(없으면 빈 목록). 부르는 쪽이 커밋 뒤에 한 번 시도한다
      */
     List<UUID> erase(AccountErasureStep step, ClosingAccount account);
+
+    /**
+     * 만 14세 미만 계정 닫기가 계정 행을 지우기 바로 앞에 부른다({@link AccountErasureSequence#closeUnderage}). 이 계정을
+     * 가리키지만 외래 키가 없어 계정 행과 함께 지워지지 않는 자기 행을 지운다. 외래 키가 있는 행은 계정 행을 지울 때
+     * {@code ON DELETE CASCADE} 로 따라 지워지므로(V104) 할 일이 없다.
+     */
+    default void eraseWithAccountRow(UUID userId) {
+    }
 }

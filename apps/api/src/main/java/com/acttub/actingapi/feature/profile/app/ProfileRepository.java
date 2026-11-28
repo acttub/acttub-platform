@@ -44,11 +44,9 @@ public interface ProfileRepository {
      *
      * <p>이미 탈퇴한 계정이면 <b>최초 탈퇴 시각을 유지</b>하고 파기만 다시 돈다.
      *
-     * @param destroyMediaRegardless 보관 동의와 무관하게 영상을 파기한다(가입 중에 만 14세 미만으로 드러난 계정.
-     *        아동의 동의는 법정대리인 없이 효력이 없다)
      * @param today 한국 시간의 오늘 — 생년월일을 5세 단위 연령대로 뭉갤 때의 기준
      */
-    Withdrawn withdraw(UUID userId, boolean destroyMediaRegardless, Instant now, LocalDate today);
+    Withdrawn withdraw(UUID userId, Instant now, LocalDate today);
 
     /**
      * @param deactivatedAt 최초 탈퇴 시각
@@ -56,6 +54,15 @@ public interface ProfileRepository {
      */
     record Withdrawn(Instant deactivatedAt, List<UUID> cleanupOperationIds) {
     }
+
+    /**
+     * 가입 중에 만 14세 미만으로 드러난 계정을 닫고 계정 행까지 지운다(account.profile). 탈퇴와 같은 순서로 닫되 보관 동의와
+     * 무관하게 영상·녹음을 파기하고(아동의 동의는 법정대리인 없이 효력이 없다), 끝에 계정 행을 지워 신원 해시도 남기지 않는다.
+     * 한 트랜잭션이다. 바깥 호출은 {@link #withdraw} 와 같이 돌려준 식별자로 서비스가 트랜잭션 밖에서 시도한다.
+     *
+     * @return 정리 장부에 올린 바깥 정리들. 없는 사용자면 {@code null}
+     */
+    List<UUID> closeUnderage(UUID userId, Instant now, LocalDate today);
 
     // ---- 매일 도는 일 (AccountHousekeeping) ----
 

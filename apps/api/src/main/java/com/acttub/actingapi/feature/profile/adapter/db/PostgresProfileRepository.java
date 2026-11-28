@@ -601,11 +601,17 @@ class PostgresProfileRepository
      * <p>이미 탈퇴한 계정이면 <b>최초 탈퇴 시각을 유지</b>한다. 파기는 멱등하게 다시 돈다.
      */
     @Override
-    public Withdrawn withdraw(UUID userId, boolean destroyMediaRegardless, Instant now, LocalDate today) {
+    public Withdrawn withdraw(UUID userId, Instant now, LocalDate today) {
         return transaction.execute(status -> {
-            AccountErasureSequence.Closed closed = closing.close(userId, destroyMediaRegardless, now, today);
+            AccountErasureSequence.Closed closed = closing.close(userId, now, today);
             return closed == null ? null : new Withdrawn(closed.deactivatedAt(), closed.cleanupOperationIds());
         });
+    }
+
+    /** 만 14세 미만 계정 닫기. 여기서 트랜잭션을 열고, 순서는 {@link AccountErasureSequence#closeUnderage} 가 정한다. */
+    @Override
+    public List<UUID> closeUnderage(UUID userId, Instant now, LocalDate today) {
+        return transaction.execute(status -> closing.closeUnderage(userId, now, today));
     }
 
     private static Account account(Tuple row) {

@@ -123,6 +123,9 @@ class AccountErasureRollbackIT {
     @MockitoSpyBean(name = "postgresFeedbackPracticeGroupPart")
     PracticeGroupErasurePart feedbackPart;
 
+    @MockitoSpyBean(name = "postgresSupportAccountErasure")
+    AccountErasure supportErasure;
+
     @MockitoSpyBean(name = "postgresMemoryPracticeGroupPart")
     PracticeGroupErasurePart memoryPart;
 
@@ -188,12 +191,15 @@ class AccountErasureRollbackIT {
     }
 
     @Test
-    @DisplayName("만 14세 미만 계정을 닫다 구현 하나가 예외를 던지면 전체가 되돌아간다: 자료가 없는 계정도 탈퇴와 같은 한 트랜잭션이다")
+    @DisplayName("만 14세 미만 계정을 닫다 계정 행을 지우기 직전에 예외가 나면 전체가 되돌아간다: 닫기와 계정 행 삭제가 한 트랜잭션이다")
     void aFailingOwnerRollsTheWholeUnderageClosureBack() throws Exception {
-        UUID self = seed.light("본인", Identity.MEMBER, "granted");
+        UUID self = seed.full("본인", Identity.MEMBER, "granted");
+        seed.full("남", Identity.MEMBER, "granted");
+        seed.cross("본인", "남");
+        seed.cross("남", "본인");
         jdbc.update("UPDATE user_profiles SET goal=NULL WHERE user_id=?", self);
-        // 푸시는 신원 해시·토큰 폐기(auth)보다 뒤 자리다. 여기서 던지면 계정은 이미 닫히고 신원은 해시로 바뀐 뒤다.
-        doThrow(new IllegalStateException("erasure failed")).when(pushErasure).erase(eq(AccountErasureStep.PUSH), any());
+        // 탈퇴 순서의 자리가 모두 돈 뒤다. 계정은 이미 닫히고 신원은 해시로 바뀌고 장부에 해제가 올라 있다.
+        doThrow(new IllegalStateException("erasure failed")).when(supportErasure).eraseWithAccountRow(self);
         DatabaseChanges changes = new DatabaseChanges(jdbc);
         DatabaseChanges.Snapshot before = changes.read();
 
@@ -208,7 +214,7 @@ class AccountErasureRollbackIT {
 
         assertThat(response.getStatus()).isEqualTo(500);
         verify(authErasure).erase(eq(AccountErasureStep.IDENTITIES), any());
-        verify(pushErasure).erase(eq(AccountErasureStep.PUSH), any());
+        verify(supportErasure).eraseWithAccountRow(self);
         assertThat(changes.read()).isEqualTo(before);
     }
 

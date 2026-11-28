@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * 계정 행({@code users})을 닫는 일. 계정을 닫는 트랜잭션 안에서만 부른다({@link AccountErasureSequence#close}).
+ * 계정 행({@code users})을 닫는 일. 계정을 닫는 트랜잭션 안에서만 부른다({@link AccountErasureSequence}).
  */
 public interface AccountDeactivation {
 
@@ -20,6 +20,12 @@ public interface AccountDeactivation {
 
     /** 상태를 {@code deactivated} 로 바꾸고 닫은 시각을 적는다. */
     void deactivate(UUID userId, Instant now);
+
+    /**
+     * 계정 행을 지운다. 만 14세 미만 계정 닫기에만 쓴다. 이 행에서 외래 키로 닿는 행은 함께 지워지고, 정리 장부의 행은
+     * 남되 {@code user_id} 가 비워진다(V104).
+     */
+    void eraseRow(UUID userId);
 
     /** 닫은 시각. 다시 온 탈퇴에서는 처음 닫은 시각이다. */
     Instant deactivatedAt(UUID userId);

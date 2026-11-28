@@ -1,155 +1,168 @@
 == 표 ==
 account_cleanup_operations: 2행 → 14행
-  user_id=본인: 1 → 13
+  user_id=본인: 1 → 0
   user_id=남: 1 → 1
-  + attempt_count=0, created_at=<now>, expires_at=<now+PT169H>, id=<새 id>, kind='object_delete', next_attempt_at=<now+PT1H>, payload_encrypted=<암호문: ["users/본인/scripts/source.pdf"]>, updated_at=<now>, user_id=<본인>
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='apple_revoke', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: apple-grant:본인>, updated_at=<now>, user_id=<본인>
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='kakao_unlink', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: kakao-본인>, updated_at=<now>, user_id=<본인>
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='naver_revoke', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: naver-refresh:본인>, updated_at=<now>, user_id=<본인>
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/community/1.jpg","users/본인/community/pending.jpg"]>, updated_at=<now>, user_id=<본인>
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/mosaic/1.mp4","users/본인/share-frames/1.jpg","users/본인/share-frames/1.mp4"]>, updated_at=<now>, user_id=<본인>
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/portfolio/1.jpg","users/본인/portfolio/pending.jpg"]>, updated_at=<now>, user_id=<본인>
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/profile/pending.jpg","users/본인/profile/photo.jpg"]>, updated_at=<now>, user_id=<본인>
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/uploads/legacy.mp4","users/본인/uploads/pending.mp4","users/본인/videos/1.jpg","users/본인/videos/1.mp4","users/본인/videos/3.jpg","users/본인/videos/3.mp4"]>, updated_at=<now>, user_id=<본인>
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/videos/deleted.jpg","users/본인/videos/deleted.mp4"]>, updated_at=<now>, user_id=<본인>
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='reading_recording_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/readings/1.m4a"]>, updated_at=<now>, user_id=<본인>
-  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='revenuecat_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: <본인>>, updated_at=<now>, user_id=<본인>
+  + attempt_count=0, created_at=<now>, expires_at=<now+PT169H>, id=<새 id>, kind='object_delete', next_attempt_at=<now+PT1H>, payload_encrypted=<암호문: ["users/본인/scripts/source.pdf"]>, updated_at=<now>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='apple_revoke', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: apple-grant:본인>, updated_at=<now>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='kakao_unlink', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: kakao-본인>, updated_at=<now>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='naver_revoke', last_error='ProviderUnavailable', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: naver-refresh:본인>, updated_at=<now>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/community/1.jpg","users/본인/community/pending.jpg"]>, updated_at=<now>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/mosaic/1.mp4","users/본인/share-frames/1.jpg","users/본인/share-frames/1.mp4"]>, updated_at=<now>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/portfolio/1.jpg","users/본인/portfolio/pending.jpg"]>, updated_at=<now>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/profile/pending.jpg","users/본인/profile/photo.jpg"]>, updated_at=<now>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/uploads/legacy.mp4","users/본인/uploads/pending.mp4","users/본인/videos/1.jpg","users/본인/videos/1.mp4","users/본인/videos/3.jpg","users/본인/videos/3.mp4"]>, updated_at=<now>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='object_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/videos/deleted.jpg","users/본인/videos/deleted.mp4"]>, updated_at=<now>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='reading_recording_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: ["users/본인/readings/1.m4a"]>, updated_at=<now>
+  + attempt_count=1, created_at=<now>, expires_at=<now+PT168H>, id=<새 id>, kind='revenuecat_delete', last_error='IllegalStateException', next_attempt_at=<now+PT5M>, payload_encrypted=<암호문: <본인>>, updated_at=<now>
+  ~ <본인/기다리는 정리>
+      user_id: <본인> → NULL
 actor_journals: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인/배우 일지>
-actor_memories: 4행 → 4행
-  user_id=본인: 2 → 2
+actor_memories: 4행 → 2행
+  user_id=본인: 2 → 0
   user_id=남: 2 → 2
-actor_memory_entries: 2행 → 2행
-  user_id=본인: 1 → 1
+  - <본인/기억/목표>
+  - <본인/기억/장면>
+actor_memory_entries: 2행 → 1행
+  user_id=본인: 1 → 0
   user_id=남: 1 → 1
-ad_events: 2행 → 2행
-  user_id=본인: 1 → 1
+  - <본인/옛 기억>
+ad_events: 2행 → 1행
+  user_id=본인: 1 → 0
   user_id=남: 1 → 1
-ad_serves: 2행 → 2행
-  user_id=본인: 1 → 1
+  - <본인/광고 노출>
+ad_serves: 2행 → 1행
+  user_id=본인: 1 → 0
   user_id=남: 1 → 1
-ai_jobs: 10행 → 10행
-  user_id=본인: 5 → 5
+  - <본인/광고 내보냄>
+ai_jobs: 10행 → 5행
+  user_id=본인: 5 → 0
   user_id=남: 5 → 5
-  ~ <본인/작업/기억 갱신>
-      failure_reason: NULL → 'account_deactivated'
-      status: 'pending' → 'failed'
-      updated_at: <DB 시각> → <now>
-  ~ <본인/작업/대본 나누기>
-      failure_reason: NULL → 'account_deactivated'
-      status: 'pending' → 'failed'
-      updated_at: <DB 시각> → <now>
-  ~ <본인/작업/분석>
-      failure_reason: NULL → 'account_deactivated'
-      lease_expires_at: <now+PT5M> → NULL
-      lease_token: <본인/작업/분석/lease> → NULL
-      status: 'running' → 'failed'
-      updated_at: <DB 시각> → <now>
-analyses: 2행 → 2행
-anomalies: 2행 → 2행
-billing_checkouts: 4행 → 4행
-  user_id=본인: 2 → 2
+  - <본인/작업/기억 갱신>
+  - <본인/작업/끝난 분석>
+  - <본인/작업/대본 나누기>
+  - <본인/작업/분석>
+  - <본인/작업/참여작 리포트>
+analyses: 2행 → 1행
+  - <본인/분석>
+anomalies: 2행 → 1행
+  - 1
+billing_checkouts: 4행 → 2행
+  user_id=본인: 2 → 0
   user_id=남: 2 → 2
-  ~ <본인/결제창/open>
-      status: 'open' → 'failed'
-billing_payments: 2행 → 2행
-  user_id=본인: 1 → 1
+  - <본인/결제창/done>
+  - <본인/결제창/open>
+billing_payments: 2행 → 1행
+  user_id=본인: 1 → 0
   user_id=남: 1 → 1
+  - <본인/결제>
 billing_pro_grants: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인/Pro 지급>
-billing_subscriptions: 2행 → 2행
-  user_id=본인: 1 → 1
+billing_subscriptions: 2행 → 1행
+  user_id=본인: 1 → 0
   user_id=남: 1 → 1
-  ~ <본인/구독>
-      billing_key: 'billing-key-본인' → NULL
-      next_retry_at: <now+PT24H> → NULL
-      status: 'active' → 'expired'
-      updated_at: <DB 시각> → <DB 시각>
-challenge_entries: 2행 → 2행
-  user_id=본인: 1 → 1
+  - <본인/구독>
+challenge_entries: 2행 → 1행
+  user_id=본인: 1 → 0
   user_id=남: 1 → 1
-  ~ <본인/참여작>
-      updated_at: <DB 시각> → <now>
-      visibility: 'public' → 'private'
+  - <본인/참여작>
 challenges: 3행 → 3행
   host_user_id=본인: 1 → 0
   host_user_id=남: 1 → 1
   ~ <본인/연 챌린지>
       host_user_id: <본인> → NULL
-coach_conversations: 2행 → 2행
-coach_messages: 2행 → 2행
-coach_notes: 2행 → 2행
-coach_sessions: 2행 → 2행
-coach_turns: 2행 → 2행
-coaching_handoffs: 2행 → 2행
-community_anonymous_aliases: 2행 → 2행
-  user_id=본인: 1 → 1
-  user_id=남: 1 → 1
-community_blocks: 2행 → 2행
-  blocked_id=본인: 1 → 1
-  blocked_id=남: 1 → 1
-  blocker_id=본인: 1 → 1
-  blocker_id=남: 1 → 1
-community_comments: 2행 → 2행
-  author_id=본인: 1 → 1
-  author_id=남: 1 → 1
+coach_conversations: 2행 → 1행
+  - <본인/코치 대화>
+coach_messages: 2행 → 1행
+  - <본인/코치 대화/말>
+coach_notes: 2행 → 1행
+  - <본인/코치 노트>
+coach_sessions: 2행 → 1행
+  - <본인/옛 연습/코치 대화>
+coach_turns: 2행 → 1행
+  - 1
+coaching_handoffs: 2행 → 1행
+  - <본인/옛 연습/넘김>
+community_anonymous_aliases: 2행 → 0행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 0
+  - <남→본인/게시글 익명 번호>
+  - <본인→남/게시글 익명 번호>
+community_blocks: 2행 → 0행
+  blocked_id=본인: 1 → 0
+  blocked_id=남: 1 → 0
+  blocker_id=본인: 1 → 0
+  blocker_id=남: 1 → 0
+  - <남→본인/게시판 차단>
+  - <본인→남/게시판 차단>
+community_comments: 2행 → 0행
+  author_id=본인: 1 → 0
+  author_id=남: 1 → 0
+  - <남→본인/게시글 댓글>
+  - <본인→남/게시글 댓글>
 community_post_images: 4행 → 2행
   uploader_id=본인: 2 → 0
   uploader_id=남: 2 → 2
   - <본인/게시글 사진/붙음>
   - <본인/게시글 사진/안 붙음>
-community_post_likes: 2행 → 2행
-  user_id=본인: 1 → 1
-  user_id=남: 1 → 1
-community_posts: 2행 → 2행
-  author_id=본인: 1 → 1
+community_post_likes: 2행 → 0행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 0
+  - <남→본인/게시글 좋아요>
+  - <본인→남/게시글 좋아요>
+community_posts: 2행 → 1행
+  author_id=본인: 1 → 0
   author_id=남: 1 → 1
-community_reports: 2행 → 2행
-  reporter_id=본인: 1 → 1
+  - <본인/게시글>
+community_reports: 2행 → 1행
+  reporter_id=본인: 1 → 0
   reporter_id=남: 1 → 1
+  - <본인→남/게시글 신고>
 deleted_practice_videos: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인/지운 연습의 영상>
-entry_ai_reports: 2행 → 2행
-  user_id=본인: 1 → 1
-  user_id=남: 1 → 1
-  ~ <본인/참여작 리포트>
-      purged_at: NULL → <now>
-      result: '{"report": "본문"}' → NULL
-entry_comments: 2행 → 2행
-  user_id=본인: 1 → 1
-  user_id=남: 1 → 1
-entry_likes: 2행 → 2행
-  user_id=본인: 1 → 1
-  user_id=남: 1 → 1
-entry_ranking_snapshots: 2행 → 2행
-  viewer_id=본인: 1 → 1
-  viewer_id=남: 1 → 1
-entry_reports: 2행 → 2행
-  reporter_id=본인: 1 → 1
-  reporter_id=남: 1 → 1
-entry_saves: 2행 → 1행
+entry_ai_reports: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
+  - <본인/참여작 리포트>
+entry_comments: 2행 → 0행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 0
+  - <남→본인/참여작 댓글>
+  - <본인→남/참여작 댓글>
+entry_likes: 2행 → 0행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 0
+  - <남→본인/참여작 좋아요>
+  - <본인→남/참여작 좋아요>
+entry_ranking_snapshots: 2행 → 1행
+  viewer_id=본인: 1 → 0
+  viewer_id=남: 1 → 1
+  - <본인/순위 표본>
+entry_reports: 2행 → 1행
+  reporter_id=본인: 1 → 0
+  reporter_id=남: 1 → 1
+  - <본인→남/참여작 신고>
+entry_saves: 2행 → 0행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 0
+  - <남→본인/참여작 저장>
   - <본인→남/참여작 저장>
-entry_view_events: 2행 → 2행
-  user_id=본인: 1 → 1
-  user_id=남: 1 → 1
-external_operations: 4행 → 4행
-  user_id=본인: 2 → 2
+entry_view_events: 2행 → 0행
+  user_id=본인: 1 → 0
+  user_id=남: 1 → 0
+  - <남→본인/참여작 조회>
+  - <본인→남/참여작 조회>
+external_operations: 4행 → 2행
+  user_id=본인: 2 → 0
   user_id=남: 2 → 2
-  ~ <본인/옛 작업/도는 중>
-      error_code: NULL → 'account_deactivated'
-      lease_expires_at: <now+PT5M> → NULL
-      lease_token: <본인/옛 작업/도는 중/lease> → NULL
-      monitoring_lease_token: <본인/옛 작업/도는 중/감시 lease> → NULL
-      status: 'running' → 'failed'
-      updated_at: <DB 시각> → <now>
+  - <본인/옛 작업/끝남>
+  - <본인/옛 작업/도는 중>
 guest_transfer_codes: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
@@ -158,22 +171,22 @@ line_memorization: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인/암기 상태>
-note_ratings: 2행 → 2행
-  user_id=본인: 1 → 1
+note_ratings: 2행 → 1행
+  user_id=본인: 1 → 0
   user_id=남: 1 → 1
-  ~ <본인/노트 평가>
-      comment: '도움이 됐어요' → NULL
-      updated_at: <DB 시각> → <now>
-notification_pushes: 2행 → 2행
-  user_id=본인: 1 → 1
+  - <본인/노트 평가>
+notification_pushes: 2행 → 1행
+  user_id=본인: 1 → 0
   user_id=남: 1 → 1
-notifications: 4행 → 2행
-  actor_user_id=본인: 1 → 1
+  - <본인/알림 푸시>
+notifications: 4행 → 1행
+  actor_user_id=본인: 1 → 0
   actor_user_id=남: 1 → 0
   user_id=본인: 2 → 0
-  user_id=남: 2 → 2
+  user_id=남: 2 → 1
   - <남→본인/좋아요 알림>
   - <본인/받은 알림>
+  - <본인→남/좋아요 알림>
 portfolio_credits: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
@@ -191,30 +204,26 @@ practice_deletion_marks: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인/지운 연습 표시>
-practice_feedback: 2행 → 2행
-  user_id=본인: 1 → 1
+practice_feedback: 2행 → 1행
+  user_id=본인: 1 → 0
   user_id=남: 1 → 1
-  ~ <본인/의견>
-      contact_email: '본인@example.test' → NULL
-      contact_phone: '010-0000-0000' → NULL
-      sheet_seq: 1 → 2
-      updated_at: <DB 시각> → <now>
+  - <본인/의견>
 practice_reminder_sends: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인>, 1998-11-19, 'practice'
-practice_reports: 2행 → 2행
-practice_sessions: 2행 → 2행
-  user_id=본인: 1 → 1
+practice_reports: 2행 → 1행
+  - <본인/옛 연습/리포트>
+practice_sessions: 2행 → 1행
+  user_id=본인: 1 → 0
   user_id=남: 1 → 1
-  ~ <본인/옛 연습>
-      status: 'analyzing' → 'failed'
-      updated_at: <DB 시각> → <now>
-practices: 6행 → 6행
-  user_id=본인: 3 → 3
+  - <본인/옛 연습>
+practices: 6행 → 3행
+  user_id=본인: 3 → 0
   user_id=남: 3 → 3
-  ~ <본인/연습/리딩에서 온 연습>
-      reading_session_id: <본인/리딩 회차> → NULL
+  - <본인/연습/리딩에서 온 연습>
+  - <본인/연습/묶음/1회차>
+  - <본인/연습/묶음/2회차>
 push_opens: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
@@ -245,11 +254,11 @@ reading_voice_usage: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인>, 1998-11-19
-refresh_tokens: 4행 → 4행
-  user_id=본인: 2 → 2
+refresh_tokens: 4행 → 2행
+  user_id=본인: 2 → 0
   user_id=남: 2 → 2
-  ~ <본인/리프레시 토큰/살아 있음>
-      revoked_at: NULL → <now>
+  - <본인/리프레시 토큰/살아 있음>
+  - <본인/리프레시 토큰/폐기됨>
 script_characters: 2행 → 1행
   - <본인/대본/배역>
 script_cocreations: 2행 → 1행
@@ -271,14 +280,19 @@ scripts: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인/대본>
-summaries: 2행 → 2행
-support_inquiries: 2행 → 2행
-  user_id=본인: 1 → 1
+summaries: 2행 → 1행
+  - <본인/옛 연습/요약>
+support_inquiries: 2행 → 1행
+  user_id=본인: 1 → 0
   user_id=남: 1 → 1
-transcripts: 2행 → 2행
-upload_intents: 4행 → 4행
-  user_id=본인: 2 → 2
+  - <본인/문의>
+transcripts: 2행 → 1행
+  - <본인/옛 연습/받아쓰기>
+upload_intents: 4행 → 2행
+  user_id=본인: 2 → 0
   user_id=남: 2 → 2
+  - <본인/옛 올리기/미확정>
+  - <본인/옛 올리기/확정>
 user_active_days: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
@@ -294,73 +308,49 @@ user_blocks: 2행 → 0행
   blocker_id=남: 1 → 0
   - <남→본인/챌린지 차단>
   - <본인→남/챌린지 차단>
-user_consents: 8행 → 8행
-  user_id=본인: 4 → 4
+user_consents: 8행 → 4행
+  user_id=본인: 4 → 0
   user_id=남: 4 → 4
+  - <본인/동의/ai_analysis>
+  - <본인/동의/privacy>
+  - <본인/동의/retention>
+  - <본인/동의/terms>
 user_discovery_answers: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인>
-user_identities: 8행 → 8행
-  user_id=본인: 4 → 4
+user_identities: 8행 → 4행
+  user_id=본인: 4 → 0
   user_id=남: 4 → 4
-  ~ <본인/신원/apple>
-      apple_token_encrypted: <암호문: apple-grant:본인> → NULL
-      provider_uid: 'apple-본인' → NULL
-      uid_hash: NULL → '<해시 apple:apple-본인>'
-  ~ <본인/신원/google>
-      provider_uid: 'google-본인' → NULL
-      uid_hash: NULL → '<해시 google:google-본인>'
-  ~ <본인/신원/kakao>
-      provider_uid: 'kakao-본인' → NULL
-      uid_hash: NULL → '<해시 kakao:kakao-본인>'
-  ~ <본인/신원/naver>
-      naver_token_encrypted: <암호문: naver-refresh:본인> → NULL
-      provider_uid: 'naver-본인' → NULL
-      uid_hash: NULL → '<해시 naver:naver-본인>'
-user_profile_directions: 4행 → 4행
-  user_id=본인: 2 → 2
+  - <본인/신원/apple>
+  - <본인/신원/google>
+  - <본인/신원/kakao>
+  - <본인/신원/naver>
+user_profile_directions: 4행 → 2행
+  user_id=본인: 2 → 0
   user_id=남: 2 → 2
-user_profiles: 2행 → 2행
-  user_id=본인: 1 → 1
+  - <본인/방향/media>
+  - <본인/방향/stage>
+user_profiles: 2행 → 1행
+  user_id=본인: 1 → 0
   user_id=남: 1 → 1
-  ~ <본인>
-      age_band: NULL → 25
-      bio: '입시 준비 중입니다' → NULL
-      birth_date: 1971-03-02 → NULL
-      name: '본인 배우' → NULL
-      notify_analysis_done: true → false
-      notify_challenge: true → false
-      notify_evening_reminder: true → false
-      photo_key: 'users/본인/profile/photo.jpg' → NULL
-      photo_upload_expires_at: <now+PT1H> → NULL
-      photo_upload_key: 'users/본인/profile/pending.jpg' → NULL
-      photo_upload_mime_type: 'image/jpeg' → NULL
-      photo_upload_size_bytes: 10 → NULL
-      updated_at: <now-PT1440H> → <DB 시각>
+  - <본인>
 user_signup_attributions: 2행 → 1행
   user_id=본인: 1 → 0
   user_id=남: 1 → 1
   - <본인>
-users: 3행 → 3행
-  ~ <본인>
-      deactivated_at: NULL → <now>
-      email: '본인@example.test' → NULL
-      nickname: '옛닉네임' → NULL
-      status: 'active' → 'deactivated'
-      updated_at: <now-PT1440H> → <now>
-video_transcripts: 4행 → 3행
+users: 3행 → 2행
+  - <본인>
+video_transcripts: 4행 → 2행
+  - <본인/영상/1/받아쓰기>
   - <본인/지운 연습의 영상/받아쓰기>
-videos: 8행 → 8행
+videos: 8행 → 5행
   user_id=지운 연습 보관 계정: 2 → 2
-  user_id=본인: 3 → 3
+  user_id=본인: 3 → 0
   user_id=남: 3 → 3
-  ~ <본인/영상/1>
-      purged_at: NULL → <now>
-      updated_at: <DB 시각> → <now>
-  ~ <본인/영상/3>
-      purged_at: NULL → <now>
-      updated_at: <DB 시각> → <now>
+  - <본인/영상/1>
+  - <본인/영상/2>
+  - <본인/영상/3>
   ~ <본인/지운 연습의 영상>
       purged_at: NULL → <now>
       updated_at: <DB 시각> → <now>
@@ -444,6 +434,8 @@ BEGIN
   update practice_sessions
   update external_operations
   select users
+  delete support_inquiries
+  delete users
 COMMIT
 BEGIN
   update account_cleanup_operations returning for update skip locked

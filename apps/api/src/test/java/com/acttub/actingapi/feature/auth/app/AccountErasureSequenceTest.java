@@ -37,7 +37,7 @@ class AccountErasureSequenceTest {
         AccountErasure late = owner("뒤", EnumSet.copyOf(Arrays.asList(steps).subList(steps.length / 2, steps.length)));
         AccountErasure early = owner("앞", EnumSet.copyOf(Arrays.asList(steps).subList(0, steps.length / 2)));
 
-        AccountErasureSequence.Closed closed = sequence(List.of(late, early)).close(USER, false, NOW, TODAY);
+        AccountErasureSequence.Closed closed = sequence(List.of(late, early)).close(USER, NOW, TODAY);
 
         List<String> expected = new ArrayList<>(List.of("lock", "settle", "deactivate", "retention"));
         for (AccountErasureStep step : steps) {
@@ -56,7 +56,7 @@ class AccountErasureSequenceTest {
     void repeatedCloseSkipsSettlementAndDeactivation() {
         state = AccountDeactivation.State.DEACTIVATED;
 
-        sequence(List.of(owner("모두", EnumSet.allOf(AccountErasureStep.class)))).close(USER, false, NOW, TODAY);
+        sequence(List.of(owner("모두", EnumSet.allOf(AccountErasureStep.class)))).close(USER, NOW, TODAY);
 
         assertThat(calls).startsWith("lock", "retention").doesNotContain("settle", "deactivate").endsWith("deactivatedAt");
         assertThat(calls).hasSize(3 + AccountErasureStep.values().length);
@@ -67,7 +67,7 @@ class AccountErasureSequenceTest {
     void missingAccountStopsAfterTheLock() {
         state = null;
 
-        assertThat(sequence(List.of(owner("모두", EnumSet.allOf(AccountErasureStep.class)))).close(USER, false, NOW, TODAY))
+        assertThat(sequence(List.of(owner("모두", EnumSet.allOf(AccountErasureStep.class)))).close(USER, NOW, TODAY))
                 .isNull();
         assertThat(calls).containsExactly("lock");
     }
@@ -78,13 +78,41 @@ class AccountErasureSequenceTest {
         AccountErasureSequence sequence = sequence(List.of(owner("모두", EnumSet.allOf(AccountErasureStep.class))));
 
         retentionGranted = false;
-        sequence.close(USER, false, NOW, TODAY);
+        sequence.close(USER, NOW, TODAY);
         assertThat(calls).contains("retention").anyMatch(call -> call.endsWith("retain=false")).noneMatch(call -> call.endsWith("retain=true"));
 
         calls.clear();
         retentionGranted = true;
-        sequence.close(USER, true, NOW, TODAY);
+        sequence.closeUnderage(USER, NOW, TODAY);
         assertThat(calls).doesNotContain("retention").noneMatch(call -> call.endsWith("retain=true"));
+    }
+
+    @Test
+    @DisplayName("만 14세 미만 닫기: 탈퇴와 같은 순서로 닫은 뒤 모든 구현의 계정 행 앞 지우기, 끝에 계정 행 삭제. 장부 id 는 닫을 때 모은 것이다")
+    void underageClosureErasesTheAccountRowLast() {
+        AccountErasure all = owner("모두", EnumSet.allOf(AccountErasureStep.class));
+        AccountErasure none = owner("자리 없음", Set.of());
+
+        List<UUID> cleanups = sequence(List.of(all, none)).closeUnderage(USER, NOW, TODAY);
+
+        List<String> expected = new ArrayList<>(List.of("lock", "settle", "deactivate"));
+        for (AccountErasureStep step : AccountErasureStep.values()) {
+            expected.add("모두:" + step + ":retain=false");
+        }
+        expected.addAll(List.of("deactivatedAt", "모두:eraseWithAccountRow", "자리 없음:eraseWithAccountRow", "eraseRow"));
+        assertThat(calls).containsExactlyElementsOf(expected);
+        assertThat(cleanups).containsExactlyElementsOf(
+                Arrays.stream(AccountErasureStep.values()).map(AccountErasureSequenceTest::cleanupOf).toList());
+    }
+
+    @Test
+    @DisplayName("만 14세 미만 닫기(없는 계정): null 이고 잠금 뒤로 아무것도 부르지 않는다")
+    void underageClosureOfAMissingAccountStopsAfterTheLock() {
+        state = null;
+
+        assertThat(sequence(List.of(owner("모두", EnumSet.allOf(AccountErasureStep.class)))).closeUnderage(USER, NOW, TODAY))
+                .isNull();
+        assertThat(calls).containsExactly("lock");
     }
 
     @Test
@@ -134,6 +162,11 @@ class AccountErasureSequenceTest {
             }
 
             @Override
+            public void eraseRow(UUID userId) {
+                calls.add("eraseRow");
+            }
+
+            @Override
             public Instant deactivatedAt(UUID userId) {
                 calls.add("deactivatedAt");
                 return NOW;
@@ -163,6 +196,11 @@ class AccountErasureSequenceTest {
         public List<UUID> erase(AccountErasureStep step, ClosingAccount account) {
             calls.add(name + ":" + step + ":retain=" + account.retainMedia());
             return List.of(cleanupOf(step));
+        }
+
+        @Override
+        public void eraseWithAccountRow(UUID userId) {
+            calls.add(name + ":eraseWithAccountRow");
         }
     }
 }

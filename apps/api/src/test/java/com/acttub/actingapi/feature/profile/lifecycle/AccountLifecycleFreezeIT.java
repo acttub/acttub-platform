@@ -271,7 +271,7 @@ class AccountLifecycleFreezeIT {
     // ---- 만 14세 미만 계정 닫기 ----
 
     @Test
-    @DisplayName("만 14세 미만(자료 있음): 탈퇴와 같은 절차로 닫고, 보관 동의가 있어도 영상을 파기한다")
+    @DisplayName("만 14세 미만(자료 있음): 탈퇴와 같은 순서로 닫고(보관 동의가 있어도 영상 파기) 계정 행을 지운다. 정리 장부 밖에 남는 행이 없다")
     void underageWithHistory() throws Exception {
         UUID self = member("본인", "granted");
         bystander();
@@ -280,10 +280,11 @@ class AccountLifecycleFreezeIT {
 
         assertFrozen("underage-with-history", observe(() -> assertThat(expect(422, underageProfile(), self))
                 .contains("under_14_account_closed")));
+        assertNothingLeftOf(self);
     }
 
     @Test
-    @DisplayName("만 14세 미만(자료 없음): 자료가 있을 때와 같이 탈퇴 절차로 닫고 제공자 해제와 사진 객체 삭제를 장부에 올린다")
+    @DisplayName("만 14세 미만(자료 없음): 자료가 있을 때와 같이 닫아 제공자 해제와 사진 객체 삭제를 장부에 올리고 계정 행을 지운다")
     void underageWithoutHistory() throws Exception {
         UUID self = seed.light("본인", Identity.MEMBER, "granted");
         people.put("본인", self);
@@ -293,6 +294,44 @@ class AccountLifecycleFreezeIT {
 
         assertFrozen("underage-without-history", observe(() -> assertThat(expect(422, underageProfile(), self))
                 .contains("under_14_account_closed")));
+        assertNothingLeftOf(self);
+    }
+
+    @Test
+    @DisplayName("만 14세 미만: users 행을 지우면 그 행에서 외래 키로 닿는 행은 모두 따라 지워지거나 비워진다(막는 외래 키가 없다)")
+    void nothingBlocksDeletingTheAccountRow() {
+        List<String> deleted = jdbc.queryForList("""
+                WITH RECURSIVE gone(oid) AS (
+                    SELECT 'users'::regclass::oid
+                    UNION
+                    SELECT con.conrelid FROM pg_constraint con JOIN gone ON con.confrelid=gone.oid
+                    WHERE con.contype='f' AND con.confdeltype='c'
+                )
+                SELECT c.relname FROM pg_class c JOIN gone ON gone.oid=c.oid ORDER BY 1
+                """, String.class);
+        assertThat(deleted).as("질의가 비면 아래 비교가 조용히 통과한다").hasSizeGreaterThan(75);
+        List<String> blocking = jdbc.queryForList("""
+                WITH RECURSIVE gone(oid) AS (
+                    SELECT 'users'::regclass::oid
+                    UNION
+                    SELECT con.conrelid FROM pg_constraint con JOIN gone ON con.confrelid=gone.oid
+                    WHERE con.contype='f' AND con.confdeltype='c'
+                )
+                SELECT child.relname || '.' || con.conname || ' -> ' || parent.relname
+                FROM pg_constraint con
+                JOIN gone ON con.confrelid=gone.oid
+                JOIN pg_class child ON child.oid=con.conrelid
+                JOIN pg_class parent ON parent.oid=con.confrelid
+                WHERE con.contype='f' AND (con.confdeltype IN ('a','r')
+                    OR (con.confdeltype='n' AND EXISTS (
+                        SELECT 1 FROM pg_attribute att
+                        WHERE att.attrelid=con.conrelid AND att.attnum=ANY(con.conkey) AND att.attnotnull)))
+                ORDER BY 1
+                """, String.class);
+        assertThat(blocking)
+                .as("이 외래 키가 만 14세 미만 닫기의 계정 행 삭제를 막는다. ON DELETE CASCADE 로 만든다(정리 장부처럼 계정 행보다 "
+                        + "오래 남아야 하는 행은 NULL 을 받는 칸에 ON DELETE SET NULL)")
+                .isEmpty();
     }
 
     // ---- 탈퇴 3년 뒤 파기 ----
@@ -459,6 +498,17 @@ class AccountLifecycleFreezeIT {
         assertThat(actual)
                 .as("계정 수명 일의 동작이 기준과 다르다(frozen/account-lifecycle/%s.txt). 이번 결과는 %s 에 있다", scenario, written)
                 .containsExactlyElementsOf(FrozenValue.linesOf("account-lifecycle/" + scenario + ".txt"));
+    }
+
+    /** 만 14세 미만 닫기 뒤: 계정 행이 없고 그 사람을 가리키는 행이 하나도 없다. 정리 장부의 행은 남되 {@code user_id} 가 비어 있다. */
+    private void assertNothingLeftOf(UUID self) {
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE id=?", Integer.class, self)).isZero();
+        for (UserColumn reference : userColumns()) {
+            assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM " + reference.table() + " WHERE " + reference.column() + "=?", Integer.class, self))
+                    .as("%s.%s 에 닫은 계정을 가리키는 행이 남았다", reference.table(), reference.column())
+                    .isZero();
+        }
     }
 
     private List<UserColumn> userColumns() {

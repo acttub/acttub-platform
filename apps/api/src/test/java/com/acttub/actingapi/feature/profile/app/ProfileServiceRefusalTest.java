@@ -102,6 +102,8 @@ class ProfileServiceRefusalTest {
 
     @Test void anUnderageSignupWhoseAccountIsAlreadyGoneStillGetsTheClosedAnswer() {
         when(profiles.find(user)).thenReturn(new Account(user, null, "active", "member", null));
+        // 닫으려는 사이에 계정이 없어졌다.
+        when(profiles.closeUnderage(eq(user), any(), any())).thenReturn(null);
         Profile child = new Profile("어린이", "선택 안 함", LocalDate.of(2020, 1, 1), List.of("매체(TV·영화)"), "1년 미만", "취미", null, null);
         rejects(() -> service.saveProfile(user, child, null), 422, "under_14_account_closed");
         verify(cleanup, never()).attempt(any());

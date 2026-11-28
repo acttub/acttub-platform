@@ -187,7 +187,7 @@ class AccountProfileIT {
     }
 
     @Test
-    void accountProfile_underFourteenAtTheSignupGateClosesTheAccountLikeAWithdrawalAndTheNextLoginStartsOver()
+    void accountProfile_underFourteenAtTheSignupGateClosesAndErasesTheAccountAndTheNextLoginStartsOver()
             throws Exception {
         jdbc.update("""
                 INSERT INTO consent_documents(id,type,version,title,body,required)
@@ -209,22 +209,13 @@ class AccountProfileIT {
         assertThat(mapper.readTree(closed.getContentAsString()))
                 .as("규칙에 걸린 422 의 본문은 사유 코드 하나다")
                 .isEqualTo(mapper.readTree("{\"detail\":\"under_14_account_closed\"}"));
-        assertThat(jdbc.queryForMap("SELECT status,email FROM users WHERE id=?", userId))
-                .as("자료가 없는 계정도 행을 지우지 않고 탈퇴와 같은 절차로 닫는다")
-                .containsEntry("status", "deactivated")
-                .containsEntry("email", null);
-        assertThat(jdbc.queryForMap("""
-                SELECT count(*) AS total,count(provider_uid) AS uid,count(uid_hash) AS hashed FROM user_identities
-                """))
-                .as("신원 행은 제공자 ID 를 비우고 해시만 남긴다 — 다시 로그인하면 처음 온 신원이라 동의 화면부터 시작한다")
-                .containsEntry("total", 1L).containsEntry("uid", 0L).containsEntry("hashed", 1L);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM refresh_tokens WHERE revoked_at IS NULL", Integer.class))
-                .as("리프레시 토큰은 전부 폐기한다").isZero();
-        assertThat(count("push_tokens")).isZero();
-        assertThat(count("user_consents")).as("동의 기록은 탈퇴와 같이 남긴다").isPositive();
-        assertThat(count("user_profiles")).as("넣은 생년월일과 이름은 저장하지 않는다").isZero();
+        for (String table : List.of("users", "user_identities", "user_consents", "refresh_tokens",
+                "push_tokens", "user_profiles")) {
+            assertThat(count(table)).as("탈퇴와 같은 순서로 닫은 뒤 계정 행을 지운다. %s 에 그 계정의 행이 없다", table).isZero();
+        }
+        // 토큰은 죽었다. 신원 해시도 남지 않아 다시 로그인하면 처음 온 신원이라 동의 화면부터 시작한다.
         assertThat(mvc.perform(get("/v2/me").header("Authorization", bearer()))
-                .andReturn().getResponse().getStatus()).as("토큰은 죽었다").isEqualTo(403);
+                .andReturn().getResponse().getStatus()).isEqualTo(401);
     }
 
     @Test
@@ -246,7 +237,7 @@ class AccountProfileIT {
     }
 
     @Test
-    void accountProfile_memberFromBefore1_0_0WithPracticesWhoIsUnderFourteenIsClosedLikeAWithdrawal()
+    void accountProfile_memberFromBefore1_0_0WithPracticesWhoIsUnderFourteenIsErasedAfterSchedulingTheVideoDelete()
             throws Exception {
         jdbc.update("INSERT INTO user_profiles(user_id,name) VALUES (?,'옛 닉네임')", userId);
         jdbc.update("UPDATE users SET nickname='옛 닉네임' WHERE id=?", userId);
@@ -254,6 +245,7 @@ class AccountProfileIT {
                 INSERT INTO upload_intents(id,user_id,status,storage_provider,object_key,mime_type,size_bytes,expires_at)
                 VALUES (?,?,'finalized','s3','users/old/practice.mp4','video/mp4',12,now())
                 """, UUID.randomUUID(), userId);
+        storage.put("users/old/practice.mp4", 12);
         Map<String, Object> body = profile();
         body.put("birth_date", "2013-01-01");
 
@@ -262,19 +254,15 @@ class AccountProfileIT {
         assertThat(closed.getStatus()).isEqualTo(422);
         assertThat(mapper.readTree(closed.getContentAsString()))
                 .isEqualTo(mapper.readTree("{\"detail\":\"under_14_account_closed\"}"));
-        assertThat(jdbc.queryForMap("SELECT status,email,nickname FROM users WHERE id=?", userId))
-                .as("행을 지우지 않고 탈퇴와 같은 절차로 닫는다")
-                .containsEntry("status", "deactivated")
-                .containsEntry("email", null)
-                .containsEntry("nickname", null);
-        // 탈퇴와 같은 절차다 — 신원 행은 제공자 ID 를 비우고 해시만 남긴다 (ADR-029).
-        assertThat(jdbc.queryForObject(
-                "SELECT count(*) FROM user_identities WHERE provider_uid IS NOT NULL", Integer.class)).isZero();
-        assertThat(jdbc.queryForObject(
-                "SELECT count(*) FROM user_identities WHERE uid_hash IS NULL", Integer.class)).isZero();
-        assertThat(count("upload_intents")).isEqualTo(1);
+        for (String table : List.of("users", "user_identities", "user_profiles", "upload_intents")) {
+            assertThat(count(table)).as("자료가 있어도 계정 행까지 지운다. %s 에 그 계정의 행이 없다", table).isZero();
+        }
+        assertThat(storage.objects)
+                .as("영상 객체 삭제는 지우기 전에 장부에 올라가고, 계정 행이 지워진 뒤 커밋 바깥의 첫 시도에서 지워진다")
+                .doesNotContainKey("users/old/practice.mp4");
+        assertThat(count("account_cleanup_operations")).as("성공한 정리는 장부에 남지 않는다").isZero();
         assertThat(mvc.perform(get("/v2/me").header("Authorization", bearer()))
-                .andReturn().getResponse().getStatus()).isEqualTo(403);
+                .andReturn().getResponse().getStatus()).isEqualTo(401);
     }
 
     @Test
