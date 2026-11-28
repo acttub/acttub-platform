@@ -58,7 +58,7 @@ final class CoachResponsePolicy {
         if (mustClose(session, actorText) && !"complete".equals(reply.status())) {
             failures.add("종료 요청 또는 마지막 응답이다. 새 질문 없이 complete와 handoff를 작성한다.");
         }
-        if (OpeningQuestion.legacyOpening(session) && OpeningQuestion.legacyMaterial(session)
+        if (legacyOpening(session) && OpeningQuestion.legacyMaterial(session)
                 && !mustClose(session, actorText)) {
             failures.addAll(OpeningQuestion.failures(reply.message()));
             if (!"continue".equals(reply.status())) failures.add("첫 질문에 대한 답을 받기 전에 대화를 완료하지 않는다.");
@@ -71,6 +71,10 @@ final class CoachResponsePolicy {
             }
         }
         return failures;
+    }
+
+    private static boolean legacyOpening(CoachSessionSnapshot session) {
+        return CoachBranch.isBlockageUnspecified(session.blockageKind()) && CoachPrompt.turnNumber(session) == 1;
     }
 
     static boolean mustClose(CoachSessionSnapshot session, String actorText) {
@@ -93,7 +97,7 @@ final class CoachResponsePolicy {
                     : "대화는 여기서 마칠게요. 정확한 정리를 만들지 못해 결론이나 연습 효과를 기록하지 않았어요.",
                     "complete", handoff);
         }
-        if (OpeningQuestion.legacyOpening(session) && OpeningQuestion.legacyMaterial(session)) {
+        if (legacyOpening(session) && OpeningQuestion.legacyMaterial(session)) {
             return new CoachReply(OpeningQuestion.fallback(english), "continue", null);
         }
         if (CoachHelpIntent.needsExplanation(actorText)) {

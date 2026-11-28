@@ -78,7 +78,7 @@ class DirectVideoCoachTalkTest {
         assertThat(history.getValue()).as("모델은 빈 대화를 받지 않는다 — 시작 한 줄이 맨 앞에 있다").hasSize(1);
         assertThat(history.getValue().getFirst().role()).isEqualTo("user");
         assertThat(history.getValue().getFirst().text()).contains("영상 없이", "고민 상담");
-        var view = PurposeView.from(PurposeLoop.TALK_PREFIX + "concern", result.session().coachingState());
+        var view = PurposeLoop.view(PurposeLoop.TALK_PREFIX + "concern", result.session().coachingState());
         assertThat(view.purpose()).isEqualTo("concern");
         assertThat(view.step()).isEqualTo("concern");
         assertThat(view.choices()).extracting(PurposeView.Choice::label)
@@ -110,7 +110,7 @@ class DirectVideoCoachTalkTest {
         verify(model, org.mockito.Mockito.times(2)).reply(isNull(), anyList(), prompts.capture());
         assertThat(prompts.getValue()).contains("[영상 없이 말로 하는 코칭]", "[고민 상담의 길 · 영상 없이]",
                 "할 일: 무엇이 필요한지 묻기", "배우가 「어떤 고민인지」 질문에 한 답: 오디션만 가면 너무 긴장해요");
-        assertThat(PurposeView.from(PurposeLoop.TALK_PREFIX + "concern", result.session().coachingState()).step()).isEqualTo("need");
+        assertThat(PurposeLoop.view(PurposeLoop.TALK_PREFIX + "concern", result.session().coachingState()).step()).isEqualTo("need");
         verifyNoInteractions(videos, storage);
     }
 

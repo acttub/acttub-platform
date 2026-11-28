@@ -332,10 +332,10 @@ public final class DirectVideoCoach {
         boolean evidence = EVIDENCE_ON.equals(evidenceArm);
         DirectVideoModel speaker = coachModel(arm);
         boolean actorFinished = DialogueProgress.actorFinished(actorText);
-        // ConversationService.THREE_LAYERS_REPLY_LIMIT 을 따른다 — 이번 응답이 그 상한을 채우면 강제 종료한다.
+        // 이번 응답이 응답 상한을 채우면 강제 종료한다.
         // 무료 상한(SOMA-1131)이 걸리면 그 상한을 채우는 응답에서 닫는다(배우 답 7번 = 코치 응답 8번째).
         int freeCap = session.turns().isEmpty() || actorText == null ? 0 : CoachFreeReplies.coachReplyCap(freeReplies, session.userId());
-        int lastReply = CoachFreeReplies.within(ConversationService.THREE_LAYERS_REPLY_LIMIT, freeCap);
+        int lastReply = CoachFreeReplies.within(PracticeLoopRouter.LAST_REPLY, freeCap);
         boolean turnBudget = session.turns().stream().filter(t -> "ai".equals(t.role())).count() >= lastReply - 1;
         // 둘째 응답부터: 배우의 말을 따로 분류하고 할 일·횟수·피할 것을 코드가 정한다(PracticeLoopRouter).
         Branch branch = loop && purpose == null && !session.turns().isEmpty() && actorText != null
@@ -998,10 +998,10 @@ public final class DirectVideoCoach {
         Branch branch = plan.branch();
         PurposeLoop.Purpose purpose = plan.purpose();
         int replyLimit = plan.loop() ? DirectVideoPrompts.personaReplyLimit(plan.persona(), plan.language(), plan.profile())
-                : DirectVideoPracticeLoop.LONG_REPLY;
+                : DirectVideoPrompts.LONG_REPLY;
         // 자문위원 프롬프트의 사람별 상한(SOMA-622)과 함께 쓸 때는 둘 중 큰 쪽을 쓴다.
-        int limit = branch != null && branch.explains() ? Math.max(DirectVideoPracticeLoop.EXPLAIN_REPLY, replyLimit) : replyLimit;
-        if (purpose != null && PurposeLoop.explains(purpose, plan.purposeTurn())) limit = Math.max(limit, DirectVideoPracticeLoop.EXPLAIN_REPLY);
+        int limit = branch != null && branch.explains() ? Math.max(DirectVideoPrompts.EXPLAIN_REPLY, replyLimit) : replyLimit;
+        if (purpose != null && PurposeLoop.explains(purpose, plan.purposeTurn())) limit = Math.max(limit, DirectVideoPrompts.EXPLAIN_REPLY);
         // 다르게 정리(SOMA-855)는 배우가 한 것 인정 + 덜 들린 대사 + 새 행동까지 말한다.
         if (branch != null && PracticeLoopRouter.WRAP_DONE.equals(branch.doing())) limit = Math.max(limit, TELL_REPLY);
         // SOMA-955: 정리는 행동 + 그 행동이 어떻게 드러날지 예 하나 + 확인할 대사까지 말한다.
@@ -1465,10 +1465,10 @@ public final class DirectVideoCoach {
                 doing, stayed, session);
         if (alreadyOn) materials = PracticeLoopRouter.withDone(materials, PracticeLoopRouter.doneProposals(loopState, coachTurns), done);
         boolean closeNext = PracticeLoopRouter.closesNext(classified, before) && !PracticeLoopRouter.ASK_DONE.equals(doing);
-        return new Branch(classified, before, doing, goal, avoid, DirectVideoPracticeLoop.statusField(design, "관찰 근거"),
-                DirectVideoPracticeLoop.statusField(design, "대사 확인"), closeNext,
+        return new Branch(classified, before, doing, goal, avoid, PracticeLoopRouter.statusField(design, "관찰 근거"),
+                PracticeLoopRouter.statusField(design, "대사 확인"), closeNext,
                 actorText, materials,
-                DirectVideoPracticeLoop.statusField(design, "근본 문제"), done, evidence);
+                PracticeLoopRouter.statusField(design, "근본 문제"), done, evidence);
     }
 
     /** 바로 앞 코치 말. 없으면 빈 문자열. */
@@ -1617,7 +1617,7 @@ public final class DirectVideoCoach {
 
     /** 같은 장면을 이어 찍은 회차면 바로 앞 회차의 다음 테이크 제안. 이어 찍은 회차가 아니거나 제안이 없으면 null. */
     static String continuedSuggestion(CoachSessionSnapshot session, String design) {
-        String shape = DirectVideoPracticeLoop.statusField(design, "첫 질문 모양");
+        String shape = PracticeLoopRouter.statusField(design, "첫 질문 모양");
         if (shape == null || !shape.strip().startsWith("이어서")) return null;
         PriorContext prior = session.prior();
         if (prior == null || prior.sceneHistory().isEmpty()) return null;
@@ -1656,15 +1656,15 @@ public final class DirectVideoCoach {
         if (lineFixed) {
             lines.add("배우가 코치가 짚은 대사를 다른 장면이라고 바로잡았다. 처음 고른 확인할 대사는 쓰지 않는다. 정리에서는 이 영상에서 들린 다른 대사를 쓰거나, 마땅한 대사가 없으면 대사 없이 행동만 말한다");
         } else {
-            add.accept("정리에서 확인할 대사", DirectVideoPracticeLoop.statusField(design, "확인할 대사"));
+            add.accept("정리에서 확인할 대사", PracticeLoopRouter.statusField(design, "확인할 대사"));
         }
-        add.accept("이 배우의 문제", DirectVideoPracticeLoop.statusField(design, "버릇"));
-        add.accept("왜 이 배우의 문제인가", DirectVideoPracticeLoop.statusField(design, "왜 이 배우의 문제인가"));
-        add.accept("버릇이 가리는 것", DirectVideoPracticeLoop.statusField(design, "버릇이 가리는 것"));
-        add.accept("다른 쪽 살아 있는 곳", DirectVideoPracticeLoop.statusField(design, "다른 쪽 살아 있는 곳"));
-        add.accept("인물", DirectVideoPracticeLoop.statusField(design, "인물"));
+        add.accept("이 배우의 문제", PracticeLoopRouter.statusField(design, "버릇"));
+        add.accept("왜 이 배우의 문제인가", PracticeLoopRouter.statusField(design, "왜 이 배우의 문제인가"));
+        add.accept("버릇이 가리는 것", PracticeLoopRouter.statusField(design, "버릇이 가리는 것"));
+        add.accept("다른 쪽 살아 있는 곳", PracticeLoopRouter.statusField(design, "다른 쪽 살아 있는 곳"));
+        add.accept("인물", PracticeLoopRouter.statusField(design, "인물"));
         // 독백(자기 자신·그 자리에 없는 사람에게 하는 말)이면 둘째 응답부터도 "상대"를 전제로 묻지 않게 한다.
-        add.accept("말 거는 대상", DirectVideoPracticeLoop.statusField(design, "말 거는 대상"));
+        add.accept("말 거는 대상", PracticeLoopRouter.statusField(design, "말 거는 대상"));
         var known = new java.util.LinkedHashMap<>(answers);
         String field = PracticeLoopRouter.answerField(classified, before);
         if (field != null && actorText != null) known.put(field, actorText.strip()); // 방금 답한 단계 답도 재료로

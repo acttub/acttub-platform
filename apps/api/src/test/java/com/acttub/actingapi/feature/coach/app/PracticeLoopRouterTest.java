@@ -96,7 +96,7 @@ class PracticeLoopRouterTest {
         assertThat(route(Kind.EVALUATION, at(2, 3, "짚어주기", Kind.EVALUATION))).isEqualTo("짚어주기");
         assertThat(DirectVideoPrompts.practiceLoopTask("짚어주기", null)).contains("피드백 틀", "110자");
         assertThat(DirectVideoPrompts.practiceLoopTask("답하기", null)).contains("100자");
-        assertThat(DirectVideoPracticeLoop.EXPLAIN_REPLY).isGreaterThan(DirectVideoPracticeLoop.LONG_REPLY);
+        assertThat(DirectVideoPrompts.EXPLAIN_REPLY).isGreaterThan(DirectVideoPrompts.LONG_REPLY);
     }
 
     @Test void aQuestionAfterTheLastAnswerIsAnsweredBeforeClosing() {
@@ -318,8 +318,8 @@ class PracticeLoopRouterTest {
                 .doesNotContain("할 일:", "배우의 말:", "지금까지:", "쓰는 법:", "- 짚어주기:");
         var classified = new Classified(Kind.SELF_LINE, false, "model");
         String status = PracticeLoopRouter.status("화면·음성", "확인됨", classified, before(6, "이어보기", Kind.ANSWER, 3, 0, 0), PracticeLoopRouter.END, null, List.of(), "", false, null);
-        assertThat(DirectVideoPracticeLoop.statusField(status, "할 일")).isEqualTo("끝");
-        assertThat(DirectVideoPracticeLoop.statusField(status, "배우의 말")).isEqualTo("자기 한 줄");
+        assertThat(PracticeLoopRouter.statusField(status, "할 일")).isEqualTo("끝");
+        assertThat(PracticeLoopRouter.statusField(status, "배우의 말")).isEqualTo("자기 한 줄");
         assertThat(DirectVideoPracticeLoop.finished(new DirectVideoPracticeLoop.Parsed("", status, "x"))).isTrue();
     }
 
@@ -337,8 +337,8 @@ class PracticeLoopRouterTest {
         assertThat(PracticeLoopRouter.route(torn, find, 1)).as("두 번째는 보기 둘 없이 정리").isEqualTo(PracticeLoopRouter.WRAP_UP);
 
         String status = PracticeLoopRouter.status("", "", want, find, PracticeLoopRouter.REASK, null, List.of(), "", false, "설득도 있지만  위로받고 싶어해");
-        assertThat(DirectVideoPracticeLoop.statusField(status, PracticeLoopRouter.WANT_FIELD)).isEqualTo("설득도 있지만 위로받고 싶어해");
-        assertThat(DirectVideoPracticeLoop.statusField(status, PracticeLoopRouter.LINE_FIX_FIELD)).isEmpty();
+        assertThat(PracticeLoopRouter.statusField(status, PracticeLoopRouter.WANT_FIELD)).isEqualTo("설득도 있지만 위로받고 싶어해");
+        assertThat(PracticeLoopRouter.statusField(status, PracticeLoopRouter.LINE_FIX_FIELD)).isEmpty();
 
         var loop = StructuredJson.MAPPER.createObjectNode();
         var statuses = loop.putArray("statuses");

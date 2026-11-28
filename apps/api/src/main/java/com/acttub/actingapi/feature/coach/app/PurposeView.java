@@ -1,9 +1,6 @@
 package com.acttub.actingapi.feature.coach.app;
 
-import tools.jackson.databind.JsonNode;
-import java.util.ArrayList;
 import java.util.List;
-import com.acttub.actingapi.platform.json.LenientJson;
 
 /**
  * 목적별 코칭(SOMA-719)에서 화면이 그대로 그리는 값. 목적 없이 시작한 대화는 {@code null} 이다.
@@ -45,53 +42,4 @@ public record PurposeView(
      * @param source 내 말·같이 찾음·영상·대본
      */
     public record Cell(String key, String label, String value, String source) { }
-
-    /** 저장된 목적과 대화 상태에서 만든다. 목적이 없으면 {@code null}. */
-    public static PurposeView from(String sessionPurpose, JsonNode state) {
-        PurposeLoop.Purpose purpose = PurposeLoop.Purpose.of(sessionPurpose);
-        if (purpose == null) return null;
-        JsonNode loop = state == null ? null : state.path(PurposeLoop.STATE_KEY);
-        if (loop == null || !loop.isObject()) {
-            return new PurposeView(purpose.id, purpose.steps.getFirst(), List.of(), null, List.of(), null, null);
-        }
-        int index = Math.max(0, Math.min(purpose.steps.size() - 1, LenientJson.asInt(loop.path("step"), 0)));
-        var choices = new ArrayList<Choice>();
-        for (JsonNode choice : loop.path("choices")) {
-            choices.add(new Choice(LenientJson.asText(choice.path("label"), ""), at(choice.path("at"))));
-        }
-        Scene scene = null;
-        if (loop.path("scene").isObject()) {
-            JsonNode s = loop.path("scene");
-            scene = new Scene(LenientJson.asText(s.path("situation"), ""), LenientJson.asText(s.path("character"), ""), LenientJson.asText(s.path("partner"), ""));
-        }
-        var lines = new ArrayList<Line>();
-        for (JsonNode line : loop.path("lines")) {
-            lines.add(new Line(LenientJson.asInt(line.path("at"), 0), LenientJson.asText(line.path("text"), "")));
-        }
-        Card card = null;
-        if (loop.path("card").isObject()) {
-            JsonNode c = loop.path("card");
-            card = new Card(item(c.path("good")), item(c.path("issue")), item(c.path("next")));
-        }
-        CharacterCard characterCard = null;
-        if (loop.path("character_card").path("cells").isArray()) {
-            var cells = new ArrayList<Cell>();
-            for (JsonNode cell : loop.path("character_card").path("cells")) {
-                cells.add(new Cell(LenientJson.asText(cell.path("key"), ""), LenientJson.asText(cell.path("label"), ""),
-                        LenientJson.asText(cell.path("value"), ""), LenientJson.asText(cell.path("source"), "")));
-            }
-            characterCard = new CharacterCard(List.copyOf(cells));
-        }
-        return new PurposeView(purpose.id, purpose.steps.get(index), List.copyOf(choices), scene, List.copyOf(lines),
-                card, characterCard);
-    }
-
-    private static CardItem item(JsonNode node) {
-        if (node == null || !node.isObject()) return null;
-        return new CardItem(at(node.path("at")), LenientJson.asText(node.path("text"), ""));
-    }
-
-    private static Integer at(JsonNode node) {
-        return node != null && node.isNumber() ? LenientJson.asInt(node) : null;
-    }
 }
