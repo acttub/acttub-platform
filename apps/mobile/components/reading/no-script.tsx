@@ -18,7 +18,7 @@ export function ReadingNoScript({ header, onBack }: { header?: string; onBack?: 
       safeArea={!!onBack}
       title={t('reading.noScript')}
       body={t('reading.noScriptBody')}
-      primary={{ label: t('reading.toMyScripts'), onPress: () => router.dismissTo('/reading') }}
+      primary={{ label: t('reading.toMyScripts'), onPress: () => router.dismissTo('/practice?mode=reading') }}
     />
   );
 }

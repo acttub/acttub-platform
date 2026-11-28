@@ -72,7 +72,7 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
   await render(<ReadingRange />);
 
   await fireEvent.press(screen.getByText('내 대본으로'));
-  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=reading');
 });
 
 test('처음 연습하는 대본은 대본 전체가 기본 구간이고, 배역을 안 고르면 「전체 듣기」로 시작한다(1.1.1)', async () => {

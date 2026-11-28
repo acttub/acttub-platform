@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { AppState, StyleSheet } from 'react-native';
 
-import ReadingList from '@/app/(tabs)/reading';
+import ReadingList from '@/components/practice/reading-pane';
 import { api } from '@/lib/api';
 import { ApiError } from '@/lib/api-request';
 import { addSplitJob, readSplitJobs } from '@/lib/reading/split-jobs';

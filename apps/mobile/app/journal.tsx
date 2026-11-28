@@ -148,7 +148,7 @@ export default function JournalScreen() {
 
   // 일지를 만드는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다(10-27 정함). 일지는 서버가 마저 만들고 연습 기록에서 다시 연다.
   // iOS 밀어서 나가기는 막지 않고 아래 화면으로 내려간다(SOMA-966). 화면 안 뒤로 버튼은 그대로 코칭 탭으로 간다.
-  const leaveMaking = useWaitExit(phase === 'making' && Platform.OS !== 'ios', '/coaching');
+  const leaveMaking = useWaitExit(phase === 'making' && Platform.OS !== 'ios', '/practice?mode=coaching');
 
   const back = () => {
     if (phase === 'making') return leaveMaking();

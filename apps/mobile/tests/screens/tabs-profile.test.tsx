@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import ProfileScreen from '@/app/(tabs)/profile';
 import { setFirstTimeState } from '@/lib/practice/first-time';
 import { api } from '@/lib/api';
+import { translate as t } from '@/lib/i18n';
 import { resetLastReads } from '@/lib/last-reads';
 
 type Me = {
@@ -44,17 +45,6 @@ jest.mock('@/components/invite-card', () => ({
   },
 }));
 jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: mockUser, profile: { me: mockMe } }) }));
-// 머리 알림 종(SOMA-1120)이 읽는 안 읽은 알림 수.
-jest.mock('@/hooks/use-unread-notifications', () => ({ useUnreadNotifications: () => ({ count: 0, badge: null }) }));
-// 이번 주 연습 기록은 탭 레이아웃의 공급자가 받는다(tests/screens/tab-launch). 여기서는 받은 값을 그대로 그리는지만 본다.
-const mockRecords = {
-  activityLoaded: false,
-  weekDays: [] as { key: string; label: string; isToday: boolean; count: number }[],
-  weekPracticedDays: 0,
-  totalDays: 0,
-  refresh: jest.fn(async () => undefined),
-};
-jest.mock('@/hooks/use-practice-records', () => ({ usePracticeRecords: () => mockRecords }));
 jest.mock('@/lib/api', () => ({
   api: {
     listPracticeGroups: jest.fn(),
@@ -304,20 +294,21 @@ test('설정·편집으로 보내고, 탭을 바꾸면 그 카드와 전체 보�
   ]);
 });
 
-test('순서는 내 카드 → 이번 주 연습 → 이번 달 숫자 → 연습 기록 → 참여작·저장됨 → 친구 초대 → 설정이다(SOMA-1123)', async () => {
+test('순서는 내 카드 → 이번 달 숫자 → 연습 기록 → 참여작·저장됨 → 메시지 → 친구 초대 → 설정이고, 이번 주 연습 카드는 홈에 있어 두지 않는다', async () => {
   mockMe = { profile: { name: '하늘' } };
   await render(<ProfileScreen />);
   await act(async () => undefined);
 
+  expect(screen.queryByTestId('home-week')).not.toBeOnTheScreen();
   const hosts = screen.container.queryAll((node) => typeof node.type === 'string');
   const at = (el: unknown) => hosts.indexOf(el as (typeof hosts)[number]);
   const order = [
     at(screen.getByText('하늘')),
-    at(screen.getByTestId('home-week')),
     at(screen.getByTestId('profile-month')),
     at(screen.getByRole('tab', { name: '연습 기록' })),
     at(screen.getByRole('tab', { name: '참여작' })),
     at(screen.getByRole('tab', { name: '저장됨' })),
+    at(screen.getByText(t('profileTab.messages'))),
     at(screen.getByTestId('profile-invite')),
     at(screen.getByTestId('profile-settings-row')),
   ];
@@ -328,48 +319,14 @@ test('순서는 내 카드 → 이번 주 연습 → 이번 달 숫자 → 연�
   expect(mockRouter.push).toHaveBeenLastCalledWith('/settings');
 });
 
-describe('예전 홈에서 옮겨 온 것(SOMA-1120)', () => {
-  afterEach(() => {
-    setFirstTimeState('unknown');
-    mockRecords.activityLoaded = false;
-    mockRecords.weekDays = [];
-  });
+test('머리 오른쪽은 설정뿐이다 — 알림 종은 홈에 있고, 첫 사용자여도 홈으로 가는 꺾쇠는 두지 않는다', async () => {
+  setFirstTimeState('first');
+  await render(<ProfileScreen />);
+  await act(async () => undefined);
 
-  test('머리 오른쪽에 알림 종과 설정을 두고, 첫 사용자여도 홈으로 가는 꺾쇠는 두지 않는다', async () => {
-    setFirstTimeState('first');
-    await render(<ProfileScreen />);
-    await act(async () => undefined);
-
-    expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
-    const bell = screen.getByRole('button', { name: '알림함' });
-    expect(bell.props['ph-label']).toBe('profile_bell');
-    await fireEvent.press(bell);
-    expect(mockRouter.push).toHaveBeenCalledWith('/notifications');
-  });
-
-  test('이번 주 연습 카드는 받기 전엔 원 자리만 뼈대이고, 받으면 이번 주·누적 일수와 그날 횟수를 보인다', async () => {
-    const view = await render(<ProfileScreen />);
-    await act(async () => undefined);
-    expect(screen.getByTestId('home-week')).toBeOnTheScreen();
-    expect(screen.queryByTestId('home-days-summary')).not.toBeOnTheScreen();
-
-    mockRecords.activityLoaded = true;
-    mockRecords.weekPracticedDays = 1;
-    mockRecords.totalDays = 4;
-    mockRecords.weekDays = ['월', '화', '수', '목', '금', '토', '일'].map((label, i) => ({ key: `d${i}`, label, isToday: i === 6, count: i === 6 ? 2 : 0 }));
-    await view.rerender(<ProfileScreen />);
-    expect(screen.getByText('이번 주 1일 · 누적 4일')).toBeOnTheScreen();
-    expect(screen.getByLabelText('오늘 연습 2번')).toBeOnTheScreen();
-    expect(screen.getAllByTestId('home-week-empty')).toHaveLength(6);
-  });
-
-  test('맨 위에서 당기면 이번 주 연습 기록과 아래 목록을 같이 다시 받는다', async () => {
-    await render(<ProfileScreen />);
-    await act(async () => undefined);
-    const calls = listGroups.mock.calls.length;
-    const control = screen.container.queryAll((node) => node.props.refreshControl !== undefined)[0].props.refreshControl;
-    await act(async () => control.props.onRefresh());
-    expect(mockRecords.refresh).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(listGroups.mock.calls.length).toBeGreaterThan(calls));
-  });
+  expect(screen.queryByRole('button', { name: '뒤로' })).not.toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '알림함' })).not.toBeOnTheScreen();
+  const gear = screen.getAllByRole('button', { name: '설정' }).find((b) => b.props['ph-label'] === 'profile_settings');
+  expect(gear).toBeTruthy();
+  setFirstTimeState('unknown');
 });

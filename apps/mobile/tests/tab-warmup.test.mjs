@@ -67,7 +67,7 @@ test('홈이 뜬 뒤에만, 정해진 순서로 하나씩 만든다', async () =
   await h.clock.advance(WARM_START_DELAY_MS - 1);
   assert.deepEqual(h.warmed, [], '홈이 뜬 직후에는 잠깐 기다린다');
   await h.clock.advance(1);
-  assert.deepEqual(h.warmed, ['coaching']);
+  assert.deepEqual(h.warmed, ['practice']);
   await h.clock.advance(5000);
   assert.deepEqual(h.warmed, [...WARM_ORDER]);
 });
@@ -77,7 +77,7 @@ test('커뮤니티는 목록을 받아 둔 뒤에 만들고, 받기가 늦으면
   const h = harness({ prefetch: () => new Promise((r) => (resolve = r)) });
   h.homeReady();
   await h.clock.advance(WARM_START_DELAY_MS + 2000);
-  assert.deepEqual(h.warmed, ['coaching', 'reading'], '받는 중에는 커뮤니티를 만들지 않는다');
+  assert.deepEqual(h.warmed, ['practice'], '받는 중에는 챌린지 탭을 만들지 않는다');
   await h.clock.advance(WARM_PREFETCH_WAIT_MS);
   assert.ok(h.warmed.includes('challenges'), '상한이 지나면 만든다');
   resolve();
@@ -96,7 +96,7 @@ test('받기가 실패해도 커뮤니티를 만든다', async () => {
 test('홈을 거치지 않고 들어와도 상한 뒤에는 만든다', async () => {
   const h = harness();
   await h.clock.advance(WARM_FALLBACK_MS + WARM_START_DELAY_MS);
-  assert.deepEqual(h.warmed, ['coaching']);
+  assert.deepEqual(h.warmed, ['practice']);
   h.homeReady();
   await h.clock.advance(5000);
   assert.deepEqual(h.warmed, [...WARM_ORDER], '홈이 늦게 떠도 처음부터 다시 하지 않는다');
@@ -109,7 +109,7 @@ test('홈이 첫 데이터를 받는 중이면 상한이 지나도 만들지 않
   assert.deepEqual(h.warmed, []);
   h.homeReady();
   await h.clock.advance(WARM_START_DELAY_MS);
-  assert.deepEqual(h.warmed, ['coaching']);
+  assert.deepEqual(h.warmed, ['practice']);
 });
 
 test('홈에서 기다리다 다른 화면으로 가면 다음 확인 때 만든다', async () => {
@@ -119,7 +119,7 @@ test('홈에서 기다리다 다른 화면으로 가면 다음 확인 때 만든
   assert.deepEqual(h.warmed, []);
   showing = false;
   await h.clock.advance(WARM_FALLBACK_MS + WARM_START_DELAY_MS);
-  assert.deepEqual(h.warmed, ['coaching']);
+  assert.deepEqual(h.warmed, ['practice']);
 });
 
 test('멈추면 남은 탭은 만들지 않는다', async () => {
@@ -128,7 +128,7 @@ test('멈추면 남은 탭은 만들지 않는다', async () => {
   await h.clock.advance(WARM_START_DELAY_MS);
   h.stop();
   await h.clock.advance(10_000);
-  assert.deepEqual(h.warmed, ['coaching']);
+  assert.deepEqual(h.warmed, ['practice']);
 });
 
 test('마지막 답: 로그아웃 뒤에 늦게 온 옛 계정 답은 남기지 않는다', () => {

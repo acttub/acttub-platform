@@ -212,7 +212,7 @@ test('일지를 만드는 중에 뒤로 가면 코칭 탭 첫 화면으로 간�
   const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
   expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
-  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=coaching');
   expect(mockRouter.back).not.toHaveBeenCalled();
   os.restore();
 });

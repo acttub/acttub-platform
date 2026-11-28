@@ -226,7 +226,7 @@ test('저장한 화면에 대본이 그대로 보이고, 리딩에서 읽어 보
   expect(screen.getByText('잠긴 서랍')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '리딩에서 읽어 보기' }));
   expect(loadIntoCurrent).toHaveBeenCalledWith('script-1');
-  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=reading');
     expect(mockRouter.push).toHaveBeenCalledWith('/reading/detail');
 });
 
@@ -298,7 +298,7 @@ test('서버 수정 성공 후 응답 유실은 GET 최신 결과로 복구하�
   expect(createSampleScript).toHaveBeenCalledWith(expect.objectContaining({ character_count: 2 }));
   await fireEvent.press(await screen.findByRole('button', { name: '이 대본으로 확정' }));
   expect(loadIntoCurrent).toHaveBeenCalledWith('reading-1');
-  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=reading');
     expect(mockRouter.push).toHaveBeenCalledWith('/reading/detail');
   expect(setContinueOrigin).not.toHaveBeenCalled();
 });
@@ -400,7 +400,7 @@ test('만드는 중 — 화면을 닫지 말라고 안내하고, 뒤로 가면 �
   expect(mockRouter.dismissTo).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   await fireEvent.press(await screen.findByRole('button', { name: '나가기' }));
-  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching'));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=coaching'));
   expect(mockRouter.back).not.toHaveBeenCalled();
 });
 
@@ -416,5 +416,5 @@ test('만드는 중 — 대본 올리기(리딩)에서 열었으면 안드로이
   expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
   await act(async () => preventRemove.mock.calls.at(-1)[1]({ data: { action: { type: 'GO_BACK' } } }));
   await fireEvent.press(await screen.findByRole('button', { name: '나가기' }));
-  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading'));
+  await waitFor(() => expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=reading'));
 });

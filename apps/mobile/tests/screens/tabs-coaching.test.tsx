@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
-import CoachingTab from '@/app/(tabs)/coaching';
+import CoachingTab from '@/components/practice/coaching-pane';
 import { api } from '@/lib/api';
 import { setFirstTimeState } from '@/lib/practice/first-time';
 import type { PracticeGroup, PracticeRound } from '@/lib/practice/types';

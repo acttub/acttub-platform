@@ -1790,7 +1790,7 @@ export default function ReadingPlay() {
 
   // 목소리를 내려받는(준비하는) 중에 뒤로 가면 안드로이드는 리딩 탭 첫 화면으로 간다(10-27 정함). 내려받기는 화면을 떠나도 이어진다.
   // iOS 는 막지 않고 아래 화면으로 내려간다 — 막으면 밀어서 나가기가 움직이다 취소된 뒤 다시 이동해 부자연스럽다(SOMA-966).
-  useWaitExit(phase.kind === 'preparing' && Platform.OS !== 'ios', '/reading');
+  useWaitExit(phase.kind === 'preparing' && Platform.OS !== 'ios', '/practice?mode=reading');
   // 안드로이드 뒤로 가기도 확인 없이 같은 「저장하고 나가기」로 간다. 나가는 중(exiting)에는 풀어 준다. iOS 는 위 beforeRemove 가 저장한다.
   usePreventRemove(Platform.OS !== 'ios' && phase.kind === 'running' && !exiting && run?.status !== 'done', () => leaveReading());
 
@@ -1901,7 +1901,7 @@ export default function ReadingPlay() {
 
   // ── 화면 ────────────────────────────────────────────────────────────────────
   if (!script || !session || !config || !run) {
-    return <ReadingNoScript header={t('reading.tabTitle')} onBack={() => router.dismissTo('/reading')} />;
+    return <ReadingNoScript header={t('reading.tabTitle')} onBack={() => router.dismissTo('/practice?mode=reading')} />;
   }
 
   if (phase.kind === 'need_mic') {
@@ -2011,7 +2011,7 @@ export default function ReadingPlay() {
     const goHome = () => router.dismissTo('/(tabs)');
     // 다음 행동 순서(SOMA-1048 D안): 요약 바로 아래 「다른 대본으로」(Button/Text), 아래 고정 바에 「↻ 다시 읽기」(Button/Text-link)와
     // 맨 아래 주 버튼 「홈으로 가기」. 다시 읽기가 있는 끝 상태는 모두 이 규칙을 쓴다.
-    const otherScript = <TextButton label={t('reading.otherScript')} onPress={() => router.dismissTo('/reading')} />;
+    const otherScript = <TextButton label={t('reading.otherScript')} onPress={() => router.dismissTo('/practice?mode=reading')} />;
     const readAgainButton = (
       <TextButton
         tone="accent"

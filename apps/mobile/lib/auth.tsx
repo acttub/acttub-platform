@@ -463,8 +463,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
       await finishLogin(pair, signup.provider, signup.displayName);
-      // 방금 만든 계정은 기록이 없다 — 서버 답을 기다리지 않고 리딩·코칭을 첫 사용자 모양으로 바로 그린다(11/2 폰 QA).
-      rememberSkeletonHints({ reading: 'empty', coaching: 'first' });
+      // 방금 만든 계정은 기록이 없다 — 서버 답을 기다리지 않고 홈·리딩·코칭을 첫 사용자 모양으로 바로 그린다.
+      // 전에는 기억이 비어 있으면 기록을 다 받은 뒤에야 「뭐부터 해 볼까요?」가 떠 늦게 보였다(11/2 폰 QA).
+      rememberSkeletonHints({ home: 'first', reading: 'empty', coaching: 'first' });
       return true;
     },
     [cancelSignup, finishLogin, signup],

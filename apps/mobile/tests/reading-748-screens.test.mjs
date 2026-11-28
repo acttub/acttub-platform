@@ -57,7 +57,7 @@ test('첫 리딩 안내: 상대 차례 → 내 차례 → 말한 뒤 다음 → 
 });
 
 test('대본 탭: 대본이 없으면 리딩 입구(올리기 줄), 있으면 이어 읽기 카드 — 같이 만들기(서버 없음)는 숨긴다', () => {
-  const tab = src('app/(tabs)/reading.tsx');
+  const tab = src('components/practice/reading-pane.tsx');
   // 「새 대본」은 고르기 창 없이 바로 내 대본 올리기로 간다(10/25).
   assert.match(tab, /onPress=\{\(\) => router\.push\('\/reading\/new'\)\}/);
   assert.match(tab, /resumeCandidate\(/);

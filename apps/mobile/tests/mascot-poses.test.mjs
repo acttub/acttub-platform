@@ -11,6 +11,14 @@ test('액티 20종: 모든 자세 그림 파일이 있고 MASCOT 에 이름이 �
   for (const f of files) assert.ok(existsSync(new URL(`../assets/images/acty/${f}`, import.meta.url)), f);
 });
 
+test('홈 머리는 pen 히어로(책 위에서 읽는 액티)다', () => {
+  // 홈은 pen 히어로로 바뀌었다(SOMA-821) — 날마다 바뀌는 포즈는 쓰지 않는다.
+  // 원래 한 장을 액티·책 두 겹으로 나눠 액티만 움직인다.
+  assert.match(read('app/(tabs)/index.tsx'), /<HomeHeroActy\b/);
+  const hero = read('components/home-hero-acty.tsx');
+  assert.match(hero, /hero-acty\.png/);
+  assert.match(hero, /hero-book\.png/);
+});
 
 test('액티 그림은 메모리 캐시를 쓴다 — 기본(disk)이면 뜰 때마다 PNG 를 다시 읽고 풀어 늦게 뜬다(SOMA-847)', async () => {
   const { readdirSync } = await import('node:fs');

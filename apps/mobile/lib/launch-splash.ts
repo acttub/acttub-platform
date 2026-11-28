@@ -27,12 +27,9 @@ export function subscribeHomeReady(listener: () => void): () => void {
   };
 }
 
-/** 앱을 열면 보이는 탭 주소 — '/'는 마지막에 쓴 탭으로 넘기는 길이다(lib/last-tab, SOMA-1120). */
-const LAUNCH_PATHS = new Set(['/', '/reading', '/coaching', '/community', '/challenges', '/profile']);
-
 /**
- * 로고를 닫아도 되는 조건(readyToShow)이 됐을 때, 홈 기록(탭 레이아웃이 받는다)을 기다리느라 조금 더 붙잡아야 하는지.
- * 로그인을 마치고 탭으로 들어가는 길에서만 기다린다. 로그인·동의·프로필 화면이나
+ * 로고를 닫아도 되는 조건(readyToShow)이 됐을 때, 홈을 기다리느라 조금 더 붙잡아야 하는지.
+ * 로그인을 마치고 홈으로 들어가는 길에서만 기다린다. 로그인·동의·프로필 화면이나
  * 분석 화면처럼 다른 곳으로 가면 기다리지 않는다.
  */
 export function shouldHoldSplashForHome(input: {
@@ -41,7 +38,7 @@ export function shouldHoldSplashForHome(input: {
   homeReady: boolean;
   holdExpired: boolean;
 }): boolean {
-  return input.signedInHome && LAUNCH_PATHS.has(input.pathname) && !input.homeReady && !input.holdExpired;
+  return input.signedInHome && input.pathname === '/' && !input.homeReady && !input.holdExpired;
 }
 
 /** 홈에 꼭 필요하지 않은 호출을 미루는 최대 시간(ms). 홈을 거치지 않고(알림 등으로) 들어와도 이 뒤에는 부른다. */

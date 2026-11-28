@@ -7,7 +7,7 @@ import test from 'node:test';
 const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 
 test('대본 탭 — 목록을 받기 전에는 「내 대본」 머리·고품질 목소리 띠·목록 대신 뼈대만 보인다', () => {
-  const src = read('app/(tabs)/reading.tsx');
+  const src = read('components/practice/reading-pane.tsx');
   assert.match(src, /const listPending = list === null && !error;/);
   // 제목·「새 대본」 버튼·목소리 띠는 대본이 있을 때만. 받기 전에는 지난번에 대본 목록을 그린 사람(뼈대 기억 'list')만
   // 목록 모양 뼈대와 함께 미리 보이고, 그 밖에는(첫 사용자·기억 없음) 입구 모양 뼈대라 「내 대본」이 번쩍이지 않는다.

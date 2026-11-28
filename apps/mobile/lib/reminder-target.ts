@@ -27,12 +27,12 @@ export function reminderTarget(data: unknown): string | null {
   // 대본 나누기 완료(SOMA-960) — 나누는 중 화면을 떠났어도 그 대본의 목소리 정하기로 이어 간다.
   if (d.kind === 'script_split_complete') {
     const scriptId = uuid(d.script_id);
-    return scriptId ? openPath('script_ready', scriptId) : '/reading';
+    return scriptId ? openPath('script_ready', scriptId) : '/practice?mode=reading';
   }
   // 발음 보고서 완료(SOMA-1169) — 긴 리딩은 채점이 몇 분 걸려 화면을 떠난 사람에게 그 회차의 보고서를 연다.
   if (d.kind === 'pronunciation_report_ready') {
     const sessionId = uuid(d.session_id);
-    return sessionId ? '/reading/pronunciation?sessionId=' + encodeURIComponent(sessionId) : '/reading';
+    return sessionId ? '/reading/pronunciation?sessionId=' + encodeURIComponent(sessionId) : '/practice?mode=reading';
   }
   // 새 1:1 메시지(SOMA-1039) — 그 대화를 연다. 대화 id 를 못 읽으면 메시지 목록이다.
   if (d.kind === 'direct_message') {

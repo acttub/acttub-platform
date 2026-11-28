@@ -124,6 +124,7 @@ const en: DeepStringShape<typeof ko> = {
   tabs: {
     coaching: 'Coaching',
     home: 'Home',
+    practice: 'Practice',
     reading: 'Reading',
     shoot: 'Record',
     shootA11y: 'Start recording',

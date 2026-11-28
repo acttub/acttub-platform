@@ -70,6 +70,12 @@ export function onTargetsChanged(fn: () => void): () => void {
 
 /** 가이드가 비출 자리들의 이름표. 적는 쪽과 꺼내는 쪽이 어긋나지 않게 한곳에 둔다. */
 export const TARGET = {
+  /** 홈의 "지금 바로 연습하기" 배너. */
+  homeStart: 'home.start',
+  /** 탭바의 연습(리딩·코칭)·챌린지·프로필 아이콘 — 첫 연습 끝 홈 안내(SOMA-748). 연습 탭은 예전 리딩 탭 이름표를 그대로 쓴다. */
+  tabReading: 'tabs.reading',
+  tabChallenge: 'tabs.challenge',
+  tabProfile: 'tabs.profile',
   /** 대본 탭의 "새 대본" 버튼. */
   readingNew: 'reading.new',
   /** 연습 묶음 화면의 "이어서 연습하기" 버튼. */

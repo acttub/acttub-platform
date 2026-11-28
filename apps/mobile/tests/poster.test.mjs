@@ -135,8 +135,8 @@ test('이미지·소리는 앱이 아는 번들 자산 또는 원격 주소만, 
   assert.equal(ctaOf(poster({ cta_label: '닫기', cta_action: 'none' })), null);
 });
 
-test('소스 계약: 탭 묶음 덮개(예전 홈)는 AnnouncementPoster 를 쓰고 옛 홍보 컴포넌트·로직은 없다', () => {
-  const home = read('../components/tab-launch-overlays.tsx');
+test('소스 계약: 홈은 AnnouncementPoster 를 쓰고 옛 홍보 컴포넌트·로직은 없다', () => {
+  const home = read('../app/(tabs)/index.tsx');
   assert.match(home, /import \{ AnnouncementPoster \} from '@\/components\/announcement-poster'/);
   assert.match(home, /<AnnouncementPoster/);
   assert.doesNotMatch(home, /CloudVoicePromo/);

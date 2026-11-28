@@ -3,13 +3,12 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react-n
 import TabLayout from '@/app/(tabs)/_layout';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
-import { rememberLastTab } from '@/lib/last-tab';
 import { setFirstTimeState } from '@/lib/practice/first-time';
 
 const mockRouter = { push: jest.fn() };
 
 // 탭 내비게이터 대신, 받은 화면 설정대로 탭을 그리고 누르면 그 탭이 활성이 되는 최소 탭바.
-// 누르면 screenListeners 의 tabPress, 활성이 바뀌면 focus 를 부른다(react-navigation 과 같은 순서).
+// 누르면 screenListeners 의 tabPress 를 부른다(react-navigation 과 같은 순서). 첫 탭(앱을 열면 보이는 탭)이 처음 활성이다.
 // React·react-native 는 그릴 때 읽는다 — 안드로이드 시험이 따로 읽은 모듈 묶음에서도 같은 React 를 쓰게 한다.
 jest.mock('expo-router', () => {
   function Tabs({
@@ -31,6 +30,7 @@ jest.mock('expo-router', () => {
     return (
       <View>
         <Text>{`탭바 ${barStyle?.display === 'none' ? '숨김' : '보임'}`}</Text>
+        <Text>{`처음 탭 ${screens[0].name}`}</Text>
         {screens.map(({ name, options }) => {
           const on = focused === name;
           const Icon = options.tabBarIcon;
@@ -45,7 +45,6 @@ jest.mock('expo-router', () => {
               onPress={() => {
                 listeners.tabPress?.();
                 setFocused(name);
-                listeners.focus?.();
               }}>
               <Icon focused={on} color={on ? screenOptions.tabBarActiveTintColor : screenOptions.tabBarInactiveTintColor} />
             </Button>
@@ -74,69 +73,71 @@ jest.mock('@expo/vector-icons/Feather', () => ({ name }: { name: string }) => {
 });
 jest.mock('@/lib/api', () => ({ api: { unreadNotificationCount: jest.fn() } }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
-jest.mock('@/lib/last-tab', () => ({
-  ...jest.requireActual('@/lib/last-tab'),
-  rememberLastTab: jest.fn(async () => undefined),
-}));
-// 기록 읽기·탭 위 덮개는 따로 시험한다(tests/screens/tab-launch.test.tsx).
-jest.mock('@/hooks/use-practice-records', () => ({ PracticeRecordsProvider: ({ children }: { children: unknown }) => children }));
-jest.mock('@/components/tab-launch-overlays', () => ({ TabLaunchOverlays: () => null }));
 
 const unreadCount = api.unreadNotificationCount as jest.Mock;
-const TAB_NAMES = ['리딩', '코칭', '커뮤니티', '챌린지', '프로필'];
+const TAB_NAMES = ['홈', '연습', '챌린지', '커뮤니티', '프로필'];
 
 beforeEach(() => {
   jest.clearAllMocks();
   unreadCount.mockResolvedValue({ count: 0 });
 });
 
-test('하단 바는 리딩·코칭·커뮤니티·챌린지·프로필이고 홈(index)·기록·예전 촬영 자리는 탭바에서 뺀다(SOMA-1120)', async () => {
+test('하단 바는 홈·연습·챌린지·커뮤니티·프로필 순서이고, 예전 리딩·코칭 주소와 기록·촬영 자리는 탭바에서 뺀다', async () => {
   await render(<TabLayout />);
 
   expect(screen.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel)).toEqual(TAB_NAMES);
-  expect(screen.queryByRole('tab', { name: '홈' })).not.toBeOnTheScreen();
+  expect(screen.queryByRole('tab', { name: '리딩' })).not.toBeOnTheScreen();
+  expect(screen.queryByRole('tab', { name: '코칭' })).not.toBeOnTheScreen();
+});
+
+test('앱을 열면 홈(index)이 첫 탭으로 열린다 — 마지막 탭 되살리기는 없다', async () => {
+  await render(<TabLayout />);
+
+  expect(screen.getByText('처음 탭 index')).toBeOnTheScreen();
+  expect(screen.getByRole('tab', { name: '홈', selected: true })).toBeOnTheScreen();
+  expect(logEvent).not.toHaveBeenCalledWith('app_open_tab', expect.anything());
 });
 
 test('아이콘만 있는 탭마다 읽어 줄 이름과 누름 기록 이름을 단다 — 챌린지는 예전 이름(tab_challenge) 그대로', async () => {
   await render(<TabLayout />);
 
   expect(screen.getAllByRole('tab').map((tab) => tab.props['ph-label'])).toEqual([
-    'tab_reading',
-    'tab_coaching',
-    'tab_community',
+    'tab_home',
+    'tab_practice',
     'tab_challenge',
+    'tab_community',
     'tab_profile',
   ]);
 });
 
-test('탭을 누르면 tab_select { tab } 을 남기고, 보이는 탭을 마지막 탭으로 기억한다', async () => {
+test('탭을 누르면 tab_select { tab } 을 새 탭 이름(home|practice|challenges|community|profile)으로 남긴다', async () => {
   await render(<TabLayout />);
 
-  await fireEvent.press(screen.getByRole('tab', { name: '커뮤니티' }));
-  expect(logEvent).toHaveBeenCalledWith('tab_select', { tab: 'community' });
-  expect(rememberLastTab).toHaveBeenLastCalledWith('community');
-
-  await fireEvent.press(screen.getByRole('tab', { name: '챌린지' }));
-  expect(logEvent).toHaveBeenLastCalledWith('tab_select', { tab: 'challenges' });
-  expect(rememberLastTab).toHaveBeenLastCalledWith('challenges');
+  const pressed: string[] = [];
+  for (const name of ['연습', '챌린지', '커뮤니티', '프로필', '홈']) {
+    await fireEvent.press(screen.getByRole('tab', { name }));
+    pressed.push((logEvent as jest.Mock).mock.lastCall[1].tab);
+  }
+  expect(pressed).toEqual(['practice', 'challenges', 'community', 'profile', 'home']);
+  expect(logEvent).toHaveBeenCalledTimes(5);
+  for (const call of (logEvent as jest.Mock).mock.calls) expect(call[0]).toBe('tab_select');
 });
 
 test('iOS 는 활성·비활성 모두 윤곽 아이콘이고 탭 이름 글자는 어느 탭에도 쓰지 않는다(SOMA-838)', async () => {
   await render(<TabLayout />);
 
-  expect(screen.getByText('아이콘 chatbubble-outline')).toBeOnTheScreen();
   expect(screen.getByText('아이콘 book-outline')).toBeOnTheScreen();
   expect(screen.getByText('아이콘 users')).toBeOnTheScreen();
   expect(screen.getByText('아이콘 trophy-outline')).toBeOnTheScreen();
   for (const name of TAB_NAMES) expect(screen.queryByText(name)).not.toBeOnTheScreen();
 
-  await fireEvent.press(screen.getByRole('tab', { name: '코칭' }));
+  await fireEvent.press(screen.getByRole('tab', { name: '연습' }));
   for (const name of TAB_NAMES) expect(screen.queryByText(name)).not.toBeOnTheScreen();
-  expect(screen.getByRole('tab', { name: '코칭', selected: true })).toBeOnTheScreen();
-  expect(screen.getByRole('tab', { name: '리딩', selected: false })).toBeOnTheScreen();
+  expect(screen.getByRole('tab', { name: '연습', selected: true })).toBeOnTheScreen();
+  expect(screen.getByRole('tab', { name: '홈', selected: false })).toBeOnTheScreen();
 });
 
-test('첫 사용자여도 탭바를 숨기지 않는다 — 홈이 없어 숨기면 다른 탭으로 갈 길이 없다(SOMA-1120)', async () => {
+test('첫 사용자여도 탭바를 숨기지 않는다', async () => {
   await render(<TabLayout />);
   await act(async () => setFirstTimeState('first'));
   expect(screen.getByText('탭바 보임')).toBeOnTheScreen();
@@ -180,9 +181,9 @@ test('안드로이드는 아이콘 아래에 탭 이름을 두고, 고른 탭 �
       const colorOf = (name: string) => StyleSheet.flatten(view.getByText(name).props.style).color;
       for (const name of TAB_NAMES) expect(view.getByText(name)).toBeTruthy();
 
-      await rtl.fireEvent.press(view.getByRole('tab', { name: '코칭' }));
+      await rtl.fireEvent.press(view.getByRole('tab', { name: '연습' }));
 
-      expect([colorOf('코칭'), colorOf('리딩')]).toEqual(['#3268D8', '#6B7684']);
+      expect([colorOf('연습'), colorOf('홈')]).toEqual(['#3268D8', '#6B7684']);
       expect(view.getAllByRole('tab').map((tab) => tab.props.accessibilityLabel)).toEqual(TAB_NAMES);
       await view.unmount();
     });

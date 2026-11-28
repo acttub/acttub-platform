@@ -11,15 +11,18 @@ type FeatherName = React.ComponentProps<typeof Feather>['name'];
 /**
  * 화면 머리 — 디자인 시스템 pen 「NavHeader」. 높이 44, 안쪽 좌우 4, 왼쪽·오른쪽 44 칸, 가운데 제목 headline.
  * 오른쪽에 할 일이 없어도 44 칸을 비워 두어 제목이 화면 가운데에 머문다. 제목 없이 꺾쇠만 있는 머리는 `title`을 비운다.
- * `large`는 탭 첫 화면 머리(NavHeader/Large) — 높이 72, 안쪽 좌우 20, 왼쪽 제목 display.
+ * `large`는 탭 첫 화면 머리(NavHeader/Large) — 높이 72, 안쪽 좌우 20, 왼쪽 제목 display. `titleSlot`을 주면 제목 대신 그것을
+ * 둔다(연습 탭의 「리딩 | 코칭」 밑줄 탭).
  */
 export function NavHeader({
   title,
+  titleSlot,
   left,
   right,
   large,
 }: {
   title?: string;
+  titleSlot?: ReactNode;
   left?: ReactNode;
   right?: ReactNode;
   large?: boolean;
@@ -28,9 +31,13 @@ export function NavHeader({
     return (
       <View style={styles.large}>
         {left}
-        <Text style={styles.largeTitle} numberOfLines={1} accessibilityRole="header">
-          {title}
-        </Text>
+        {titleSlot ? (
+          <View style={styles.largeSlot}>{titleSlot}</View>
+        ) : (
+          <Text style={styles.largeTitle} numberOfLines={1} accessibilityRole="header">
+            {title}
+          </Text>
+        )}
         {right}
       </View>
     );
@@ -114,4 +121,5 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.6 },
   large: { height: 72, flexDirection: 'row', alignItems: 'center', paddingHorizontal: space[5] },
   largeTitle: { ...type.display, flex: 1, color: palette.text },
+  largeSlot: { flex: 1, minWidth: 0 },
 });

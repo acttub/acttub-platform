@@ -74,7 +74,7 @@ export default function ScriptCocreateScreen() {
   // 만든 대본 상세는 대본 탭 바로 위에 하나만 둔다. 「내 대본 올리기」에서 열었을 때 replace 하면 그 화면이 상세 밑에 남아
   // 뒤로가기가 대본 올리기로 갔다.
   const toReadingDetail = () => {
-    router.dismissTo('/reading');
+    router.dismissTo('/practice?mode=reading');
     router.push('/reading/detail');
   };
   const { mode, start } = useLocalSearchParams<{ mode?: string; start?: string }>();
@@ -224,7 +224,7 @@ export default function ScriptCocreateScreen() {
         if (!loaded) throw new Error('saved_script_not_found');
         if (firstReadingRef.current) {
           // 첫 리딩이면 만든 대본의 상세·구간을 건너뛰고 배역 고르기로(10/29). 뒤로 가면 리딩 탭이다.
-          router.dismissTo('/reading');
+          router.dismissTo('/practice?mode=reading');
           router.push(FIRST_READING_HREF);
           return;
         }
@@ -266,7 +266,7 @@ export default function ScriptCocreateScreen() {
 
   // 만드는 중에 뒤로 가면 시작한 탭(대본 올리기에서 왔으면 리딩, 코칭 입구면 코칭)의 첫 화면으로 간다(10-27 정함).
   // 나간 뒤에는 만든 대본을 다시 찾을 길이 없어 나가기 전에 묻는다.
-  const leaveWaiting = useWaitExit(step === 'generating', readingMode ? '/reading' : '/coaching', () =>
+  const leaveWaiting = useWaitExit(step === 'generating', readingMode ? '/practice?mode=reading' : '/practice?mode=coaching', () =>
     ask({
       title: t('scriptCocreate.leaveTitle'),
       message: t('scriptCocreate.leaveBody'),

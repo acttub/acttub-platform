@@ -49,7 +49,7 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
 
   expect(screen.getByText('대본이 없어요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대본으로'));
-  expect(mockDismissTo).toHaveBeenCalledWith('/reading');
+  expect(mockDismissTo).toHaveBeenCalledWith('/practice?mode=reading');
 });
 
 test('대본의 장면·지문·대사를 순서대로 보여 준다', async () => {

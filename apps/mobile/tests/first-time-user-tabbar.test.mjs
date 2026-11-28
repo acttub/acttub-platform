@@ -52,8 +52,8 @@ test('첫 사용자 상태는 한 곳에 두고 바뀌면 구독자에게 알린
   assert.equal(calls, 2);
 });
 
-test('탭 레이아웃의 연습 기록 공급자가 첫 사용자를 한 판단으로 정해 적는다(SOMA-1120 — 예전 홈)', () => {
-  const records = read('hooks/use-practice-records.tsx');
+test('홈이 첫 사용자를 한 판단으로 정해 적는다', () => {
+  const records = read('app/(tabs)/index.tsx');
   assert.match(records, /const firstTime = firstTimeStateFrom\(/);
   assert.match(records, /setFirstTimeState\(firstTime\)/);
 });
@@ -62,17 +62,17 @@ test('첫 사용자 판단은 isFirstUser 를 그대로 쓴다', () => {
   assert.match(read('lib/practice/first-time.ts'), /isFirstUser\(/);
 });
 
-test('첫 사용자도 탭바를 숨기지 않는다 — 홈이 없어져 숨기면 다른 탭으로 갈 길이 없다(SOMA-1120)', () => {
+test('첫 사용자도 탭바를 숨기지 않는다(SOMA-1120부터)', () => {
   const layout = read('app/(tabs)/_layout.tsx');
   assert.doesNotMatch(layout, /TAB_BAR_HIDDEN|tabBarHidden/);
   assert.match(layout, /tabBarStyle,\n/);
 });
 
-test('탭바가 숨는 동안 코칭·대본 첫 화면에서 설정으로 갈 수 있다 — 로그아웃·탈퇴가 막히면 안 된다', () => {
-  const coaching = read('app/(tabs)/coaching.tsx');
+test('첫 사용자는 코칭·대본 첫 화면에서도 설정으로 갈 수 있다 — 로그아웃·탈퇴가 막히면 안 된다', () => {
+  const coaching = read('components/practice/coaching-pane.tsx');
   assert.match(coaching, /phLabel="coaching_first_settings"/);
   assert.match(coaching, /router\.push\('\/settings'\)/);
-  const reading = read('app/(tabs)/reading.tsx');
+  const reading = read('components/practice/reading-pane.tsx');
   assert.match(reading, /phLabel="reading_first_settings"/);
   assert.match(reading, /router\.push\('\/settings'\)/);
 });
@@ -94,8 +94,8 @@ test('기록으로 첫 사용자를 벗어나면 졸업 표시를 남긴다 — 
   assert.equal(firstTimeStateFrom({ ...base, scripts: [{ id: 's1', status: 'reading' }], graduated: true }), 'practiced');
 });
 
-test('연습 기록 공급자는 첫 사용자 판정을 기기에 남기고, 오래전에 읽은 대본과 못 받은 목록도 따진다(11/2)', () => {
-  const src = read('hooks/use-practice-records.tsx');
+test('홈은 첫 사용자 판정을 기기에 남기고, 오래전에 읽은 대본과 못 받은 목록도 따진다(11/2)', () => {
+  const src = read('app/(tabs)/index.tsx');
   assert.match(src, /shouldRememberGraduation\(firstTime, graduated\)/);
   assert.match(src, /olderPracticedScripts\(scriptList\)/);
   assert.match(src, /setRecordsFailed\(readFailed\)/);

@@ -1,6 +1,6 @@
 import { StackActions, useNavigation, usePreventRemoveContext, useRoute } from '@react-navigation/native';
 import { act, fireEvent, screen } from '@testing-library/react-native';
-import { router, Stack, Tabs } from 'expo-router';
+import { router, Stack, Tabs, useLocalSearchParams } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import React from 'react';
 import { Pressable, Text } from 'react-native';
@@ -20,7 +20,7 @@ function PreventProbe() {
 let confirm: (() => Promise<boolean>) | undefined;
 
 function Waiting() {
-  const leave = useWaitExit(true, '/reading', confirm);
+  const leave = useWaitExit(true, '/practice?mode=reading', confirm);
   const navigation = useNavigation();
   return (
     <>
@@ -36,11 +36,17 @@ function Waiting() {
   );
 }
 
+// 연습 탭 — 주소의 mode 로 리딩·코칭 중 어느 쪽이 열렸는지 보인다.
+function PracticeTabLike() {
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  return <Text>{`연습 탭 ${mode ?? ''}`}</Text>;
+}
+
 const routes = {
   _layout: () => <Stack />,
   '(tabs)/_layout': () => <Tabs backBehavior="history" />,
   '(tabs)/index': () => <Text>홈</Text>,
-  '(tabs)/reading': () => <Text>리딩 탭</Text>,
+  '(tabs)/practice': PracticeTabLike,
   'reading/new': Waiting,
   'reading/roles': () => <Text>배역 고르기</Text>,
 };
@@ -73,21 +79,21 @@ describe.each([
   ['머리 뒤로 버튼(POP)', () => fireEvent.press(screen.getByText('머리 뒤로'))],
   ['화면 안 뒤로 버튼', () => fireEvent.press(screen.getByText('화면 안 뒤로'))],
 ])('%s', (_name, goBack) => {
-  test.each(['/reading', '/'])('%s 에서 들어와도 막기를 풀지 않고 리딩 탭 첫 화면으로 간다', async (start) => {
+  test.each(['/practice?mode=coaching', '/'])('%s 에서 들어와도 막기를 풀지 않고 연습 탭 리딩 첫 화면으로 간다', async (start) => {
     const view = await openWaiting(start);
 
     await act(async () => goBack());
     await settle();
 
-    expect(view.getPathname()).toBe('/reading');
-    expect(screen.getByText('리딩 탭')).toBeTruthy();
+    expect(view.getPathname()).toBe('/practice');
+    expect(screen.getByText('연습 탭 reading')).toBeTruthy();
     expect(prevented).toEqual([false, true]);
   });
 });
 
 test('나가기 전에 묻고 남기로 하면 기다림 화면에 남는다', async () => {
   confirm = async () => false;
-  const view = await openWaiting('/reading');
+  const view = await openWaiting('/practice');
 
   await act(async () => router.back());
   await settle();
@@ -97,7 +103,7 @@ test('나가기 전에 묻고 남기로 하면 기다림 화면에 남는다', a
 });
 
 test('뒤로 가기가 아닌 이동(다 끝나서 넘어가는 replace)은 막기를 풀지 않고 그대로 보낸다', async () => {
-  const view = await openWaiting('/reading');
+  const view = await openWaiting('/practice');
 
   await act(async () => router.replace('/reading/roles'));
   await settle();
@@ -108,7 +114,7 @@ test('뒤로 가기가 아닌 이동(다 끝나서 넘어가는 replace)은 막�
 
 // 11/2 QA: 프로필·홈에서 하던 코칭을 바로 열었다가 뒤로 가면 코칭 탭이 아니라 들어온 탭으로 돌아간다(backToTabBelow).
 function CoachWaitingLike() {
-  useWaitExit(true, '/coaching', undefined, { backToTabBelow: true });
+  useWaitExit(true, '/practice?mode=coaching', undefined, { backToTabBelow: true });
   return <Text>코치 기다리는 중</Text>;
 }
 
@@ -119,7 +125,7 @@ test('backToTabBelow: 바로 아래가 탭이면 들어온 탭으로 돌아간�
       '(tabs)/_layout': () => <Tabs backBehavior="history" />,
       '(tabs)/index': () => <Text>홈</Text>,
       '(tabs)/profile': () => <Text>프로필</Text>,
-      '(tabs)/coaching': () => <Text>코칭 탭</Text>,
+      '(tabs)/practice': PracticeTabLike,
       coach: CoachWaitingLike,
     },
     { initialUrl: '/profile' },

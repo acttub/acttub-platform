@@ -335,7 +335,7 @@ export default function ReadingNew() {
   // 안드로이드는 나누는 중에 뒤로 가면 리딩 탭 첫 화면으로 간다(10-27 정함). 나누기는 서버에서 계속되고 리딩 탭에 진행 행이 보인다(SOMA-976).
   // iOS 는 막지 않고 아래 화면으로 그대로 내려간다 — 막으면 밀어서 나가기가 움직이다 취소된 뒤 다시 이동해 부자연스럽다(SOMA-966).
   const splitting = popup?.kind === 'splitting';
-  useWaitExit(splitting && Platform.OS !== 'ios', '/reading');
+  useWaitExit(splitting && Platform.OS !== 'ios', '/practice?mode=reading');
   // 나누는 중 화면을 보고 있으면 완료 푸시를 배너로 띄우지 않는다 — 이 화면이 끝나면 바로 다음으로 넘어간다(SOMA-960).
   // 확인 중에도 같다. 예시 대본은 대기 화면 없이 여기서 끝난다.
   const hidePush = splitting || checking;

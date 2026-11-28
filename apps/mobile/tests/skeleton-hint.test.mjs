@@ -19,12 +19,12 @@ test('적어 둔 것이 없으면 비어 있다 — 화면은 첫 사용자 모�
 });
 
 test('실제로 그린 모양을 기기에 적고, 다음에 켤 때 다시 읽는다', async () => {
-  rememberSkeletonHints({ coaching: 'next', coachingRows: 2 }, storage);
+  rememberSkeletonHints({ home: 'returning', homeCardHeight: 167 }, storage);
   rememberSkeletonHints({ reading: 'list', readingRows: 3 }, storage);
   await new Promise((resolve) => setTimeout(resolve, 0)); // 저장은 화면을 막지 않도록 비동기로 쓴다.
   assert.deepEqual(JSON.parse(await storage.getItem(SKELETON_HINT_KEY)), {
-    coaching: 'next',
-    coachingRows: 2,
+    home: 'returning',
+    homeCardHeight: 167,
     reading: 'list',
     readingRows: 3,
   });
@@ -32,28 +32,35 @@ test('실제로 그린 모양을 기기에 적고, 다음에 켤 때 다시 읽�
   resetSkeletonHints();
   assert.deepEqual(getSkeletonHints(), {});
   await loadSkeletonHints(storage);
-  assert.equal(getSkeletonHints().coaching, 'next');
+  assert.equal(getSkeletonHints().home, 'returning');
   assert.equal(getSkeletonHints().readingRows, 3);
 });
 
-test('이상한 값은 버리고 범위를 넘는 수는 자른다 — 없어진 홈 칸(SOMA-1120)은 읽지 않는다', async () => {
-  await storage.setItem(SKELETON_HINT_KEY, JSON.stringify({ home: 'returning', homeAd: true, reading: 'list', readingRows: 40, homeCardHeight: 5, coachingRows: 9 }));
+test('이상한 값은 버리고 범위를 넘는 수는 자른다', async () => {
+  await storage.setItem(SKELETON_HINT_KEY, JSON.stringify({ home: 'x', reading: 'list', readingRows: 40, homeCardHeight: 5, coachingRows: 9 }));
   resetSkeletonHints();
   await loadSkeletonHints(storage);
-  assert.deepEqual(getSkeletonHints(), { reading: 'list', readingRows: 6, coachingRows: 2 });
+  assert.deepEqual(getSkeletonHints(), { reading: 'list', readingRows: 6, homeCardHeight: 80, coachingRows: 2 });
   await storage.setItem(SKELETON_HINT_KEY, 'not json');
   resetSkeletonHints();
   await loadSkeletonHints(storage);
   assert.deepEqual(getSkeletonHints(), {});
 });
 
-test('리딩·코칭이 기억한 모양으로 받기 전 화면을 고르고, 로그아웃하면 기억을 지운다', () => {
-  const reading = read('app/(tabs)/reading.tsx');
+test('홈·리딩·코칭이 기억한 모양으로 받기 전 화면을 고르고, 로그아웃하면 기억을 지운다', () => {
+  const home = read('app/(tabs)/index.tsx');
+  // 지난번이 첫 사용자 홈이면 기다리지 않고 실제 첫 사용자 홈을 그리고 로고도 닫는다.
+  assert.match(home, /const showFirstHome = loaded \? firstUser : skeletonHints\.home === 'first' && !graduatedNow;/);
+  assert.match(home, /if \(loaded \|\| showFirstHome\) markHomeReady\(\);/);
+  assert.match(home, /\{!showFirstHome && !loaded \? \(/);
+  assert.match(home, /variant=\{skeletonHints\.home === 'returning' \? 'returning' : 'first'\}/);
+  assert.match(home, /rememberSkeletonHints\(\{ home: 'returning' \}\)/);
+  const reading = read('components/practice/reading-pane.tsx');
   assert.match(reading, /const entryHint = skeletonHints\.reading === 'empty' \|\| \(!skeletonHints\.reading && firstTime\);/);
   assert.match(reading, /const showEntry = empty \|\| \(listPending && entryHint\);/);
   assert.match(reading, /listSkeleton \? <ReadingListSkeleton/);
   assert.doesNotMatch(reading, /SkeletonRows/);
-  const coaching = read('app/(tabs)/coaching.tsx');
+  const coaching = read('components/practice/coaching-pane.tsx');
   assert.match(coaching, /const first = entry \? entry\.kind === 'first' : firstHint;/);
   assert.match(coaching, /skeletonHints\.coaching === 'next' \?/);
   assert.match(coaching, /if \(!entry \|\| entryFailed\) return;/);
@@ -61,4 +68,25 @@ test('리딩·코칭이 기억한 모양으로 받기 전 화면을 고르고, �
   assert.match(wipe, /SKELETON_HINT_KEY,\n\];/);
   assert.match(wipe, /resetSkeletonHints\(\);/);
   assert.match(read('app/_layout.tsx'), /void loadSkeletonHints\(\);/);
+});
+
+// 11/3 폰 QA: 뼈대에는 광고 자리가 없어서, 실제 홈이 뜰 때 광고 칸만큼 카드가 밀려 내려갔다.
+test('홈 광고 칸이 지난번에 보였는지 적고 읽는다 — 참·거짓만 받는다', async () => {
+  resetSkeletonHints();
+  await storage.removeItem(SKELETON_HINT_KEY);
+  rememberSkeletonHints({ home: 'returning', homeAd: false }, storage);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(JSON.parse(await storage.getItem(SKELETON_HINT_KEY)).homeAd, false);
+  await storage.setItem(SKELETON_HINT_KEY, JSON.stringify({ home: 'returning', homeAd: 'yes' }));
+  resetSkeletonHints();
+  await loadSkeletonHints(storage);
+  assert.equal(getSkeletonHints().homeAd, undefined);
+});
+
+test('홈 뼈대는 실제 홈과 같은 자리에 광고 칸 높이를 두고, 지난번에 비었으면 받기 전 자리도 잡지 않는다', () => {
+  const home = read('app/(tabs)/index.tsx');
+  assert.match(home, /adSpace=\{skeletonHints\.homeAd !== false \? AD_SIZES\[AD_SLOTS\.home_top\.size\]\.height : 0\}/);
+  assert.match(home, /\{adSpace > 0 && <View style=\{\{ height: adSpace \}\} \/>\}\n\s+<SkeletonBlock height=\{cardHeight\}/);
+  assert.match(home, /reserve=\{skeletonHints\.homeAd !== false\}/);
+  assert.match(home, /onShownChange=\{\(shown\) => rememberSkeletonHints\(\{ homeAd: shown \}\)\}/);
 });

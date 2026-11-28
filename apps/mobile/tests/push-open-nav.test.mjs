@@ -27,7 +27,7 @@ test('쌓인 화면이 있으면 먼저 걷는다', () => {
 });
 
 test('대상이 탭이면 그 탭으로만 간다', () => {
-  for (const tab of ['/(tabs)', '/reading']) {
+  for (const tab of ['/(tabs)', '/practice?mode=reading', '/practice?mode=coaching']) {
     const r = fakeRouter(false);
     openPushTarget(r, tab);
     assert.deepEqual(r.calls, [['replace', tab]]);

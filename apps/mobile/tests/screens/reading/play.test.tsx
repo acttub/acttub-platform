@@ -251,7 +251,7 @@ test('현재 대본이나 회차가 없으면 내 대본으로 돌아가는 길�
   await render(<ReadingPlay />);
 
   await fireEvent.press(screen.getByText('내 대본으로'));
-  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=reading');
 });
 
 test('회차 구간의 줄이 대본에 없으면 실행하지 않는다', async () => {
@@ -1073,7 +1073,7 @@ test('목소리를 내려받는 중에 뒤로 가면(안드로이드 뒤로 키)
   const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
   const back = preventRemove.mock.calls.filter(([on]) => on).at(-1)[1];
   await act(async () => back({ data: { action: { type: 'GO_BACK' } } }));
-  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=reading');
   os.restore();
 });
 
@@ -2379,7 +2379,7 @@ test('독백 결과의 다른 대본으로·홈으로 가기는 이미 있는 �
 
   await waitFor(() => expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeEnabled(), { timeout: 2000 });
   await fireEvent.press(screen.getByText('다른 대본으로'));
-  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=reading');
   await fireEvent.press(screen.getByText('홈으로 가기'));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
   expect(mockRouter.replace).not.toHaveBeenCalledWith('/(tabs)');
@@ -2557,7 +2557,7 @@ test('완료 화면은 액티 · 대사 줄 수 줄 아래에 홈으로 가기�
   expect(await screen.findByText('리딩 완료')).toBeOnTheScreen();
   await waitFor(() => expect(screen.getByRole('button', { name: '홈으로 가기' })).toBeEnabled(), { timeout: 2000 });
   await fireEvent.press(screen.getByText('다른 대본으로'));
-  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=reading');
   await fireEvent.press(screen.getByText('홈으로 가기'));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)');
 });

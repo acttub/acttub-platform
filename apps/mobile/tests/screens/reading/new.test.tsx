@@ -256,7 +256,7 @@ test('안드로이드는 나누는 동안 서버가 알려 주는 줄 수와 나
   expect(screen.getByText('리딩 탭에서 진행 상황을 볼 수 있고, 다 되면 알림으로 알려 드릴게요.')).toBeOnTheScreen();
   const back = jest.mocked(usePreventRemove).mock.calls.filter(([on]) => on).at(-1)![1];
   await act(async () => back({ data: { action: { type: 'GO_BACK' } } } as never));
-  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=reading');
   await act(async () => pressing);
   await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled(), { timeout: 3000 });
   os.restore();

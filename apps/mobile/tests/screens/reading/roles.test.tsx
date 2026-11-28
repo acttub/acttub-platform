@@ -68,7 +68,7 @@ test('현재 대본이 없으면 내 대본으로 돌아가는 길을 보여 준
 
   expect(screen.getByText('대본이 없어요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByText('내 대본으로'));
-  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/reading');
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=reading');
 });
 
 test('배역마다 대사 수와 서버가 정한 목소리를 보이고, 전체 보기로 대본을 연다', async () => {

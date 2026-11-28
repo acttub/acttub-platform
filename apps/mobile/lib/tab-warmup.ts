@@ -5,12 +5,12 @@
  * 탭만 늦게 떴다(11/2 사용자 지적 「처음 들어갈 때만 느리다」). 큰 앱들처럼 앱을 연 뒤 다음 화면을 미리 만들어 둔다.
  * 앱을 켜는 순간 한꺼번에 만들면 홈이 느려지므로, 홈이 다 그려진 뒤 하나씩 간격을 두고 만든다.
  *
- * 커뮤니티는 홈이 받지 않는 챌린지 목록을 먼저 받아 둔 뒤 만든다 — 그래야 만들 때 받아 둔 목록으로 그린다(lib/last-reads).
+ * 챌린지 탭은 홈이 받지 않는 챌린지 목록을 먼저 받아 둔 뒤 만든다 — 그래야 만들 때 받아 둔 목록으로 그린다(lib/last-reads).
  */
-export type WarmTab = 'coaching' | 'reading' | 'challenges' | 'profile' | 'community';
+export type WarmTab = 'practice' | 'challenges' | 'community' | 'profile';
 
-/** 앱을 열 때 처음 보이는 탭(lib/last-tab)도 목록에 있다 — 이미 만들어진 탭은 lazy 를 꺼도 달라지지 않는다. 게시판(community)은 SOMA-1121. */
-export const WARM_ORDER: readonly WarmTab[] = ['coaching', 'reading', 'challenges', 'profile', 'community'];
+/** 하단 바 순서대로 만든다. 연습 탭은 리딩·코칭 중 보일 쪽 하나만 그린다(app/(tabs)/practice). 게시판(community)은 SOMA-1121. */
+export const WARM_ORDER: readonly WarmTab[] = ['practice', 'challenges', 'community', 'profile'];
 /** 홈이 뜬 뒤 첫 탭을 만들기까지, 그리고 탭 사이의 간격. 홈 첫 화면의 움직임·누름과 겹치지 않게 둔다. */
 export const WARM_START_DELAY_MS = 600;
 export const WARM_STEP_MS = 350;

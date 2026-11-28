@@ -8,7 +8,7 @@ import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { translate as t } from '@/lib/i18n';
 
 /**
- * 머리 오른쪽 알림 종(예전 홈 종, SOMA-1120에서 리딩·프로필 탭 머리로 옮김). 안 읽은 알림 묶음이 있으면 빨간 점을 단다
+ * 탭 머리 오른쪽 알림 종(커뮤니티 탭, 홈은 히어로 안 자기 종). 안 읽은 알림 묶음이 있으면 빨간 점을 단다
  * (challenge.notification). 누르면 알림함이다.
  */
 export function NotificationBell({ phLabel }: { phLabel: string }) {

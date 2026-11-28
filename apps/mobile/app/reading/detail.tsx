@@ -85,7 +85,7 @@ export default function ReadingDetail() {
     if (!ok) return;
     try {
       await deleteScript(script.id);
-      router.dismissTo('/reading');
+      router.dismissTo('/practice?mode=reading');
     } catch (e) {
       void alert({ title: t('reading.deleteFailTitle'), message: scriptErrorMessage(e) });
     }

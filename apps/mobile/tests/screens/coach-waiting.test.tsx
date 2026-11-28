@@ -216,7 +216,7 @@ describe('기다리는 동안', () => {
 
     // 기다리지 않고 나가면 코칭 탭 첫 화면으로 간다 — 분석은 서버에서 계속 돌고 끝나면 알림이 온다.
     await fireEvent.press(screen.getByRole('button', { name: '끝나면 알려 주세요' }));
-    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching');
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=coaching');
   });
 
   test('영상 보는 중에 뒤로 가면 코칭 탭 첫 화면으로 간다', async () => {
@@ -229,7 +229,7 @@ describe('기다리는 동안', () => {
     const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
     const back = preventRemove.mock.calls.filter(([on]) => on).at(-1)[1];
     await act(async () => back({ data: { action: { type: 'POP' } } }));
-    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching');
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/practice?mode=coaching');
     // 나가는 동안 막기를 풀지 않는다 — 풀면 안드로이드에서 머리 갱신이 화면 제거와 겹쳐 앱이 꺼진다(SOMA-972).
     expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
     os.restore();
@@ -254,7 +254,7 @@ describe('기다리는 동안', () => {
     const action = { type: 'REPLACE', payload: { name: 'coach' } };
     await act(async () => leave({ data: { action } }));
     expect(mockNavDispatch).toHaveBeenCalledWith({ type: 'REPLACE', payload: { name: 'coach' } });
-    expect(mockRouter.dismissTo).not.toHaveBeenCalledWith('/coaching');
+    expect(mockRouter.dismissTo).not.toHaveBeenCalledWith('/practice?mode=coaching');
     os.restore();
   });
 

@@ -117,6 +117,7 @@ const ko = {
   tabs: {
     coaching: '코칭',
     home: '홈',
+    practice: '연습',
     reading: '리딩',
     shoot: '촬영',
     shootA11y: '촬영 시작',

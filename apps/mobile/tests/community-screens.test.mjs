@@ -14,7 +14,7 @@ test('커뮤니티는 독립 탭(community, users 아이콘)이고 챌린지 탭
   const layout = read('app/(tabs)/_layout.tsx');
   assert.match(layout, /name="community"/);
   assert.match(layout, /tabIcon\(\{ feather: 'users' \}, t\('tabs\.community'\)/);
-  assert.match(layout, /name="challenges" options=\{\{ \.\.\.tab\('challenge'\).*tabIcon\('trophy-outline', t\('tabs\.challenge'\)\)/);
+  assert.match(layout, /name="challenges"\s+options=\{\{ \.\.\.tab\('challenge'\).*tabIcon\('trophy-outline', t\('tabs\.challenge'\)/);
 });
 
 test('커뮤니티 탭은 맨 위 「오디션·입시」 입구 아래 게시판이고, 챌린지 탭에는 게시판 전환이 없다(SOMA-1121)', () => {

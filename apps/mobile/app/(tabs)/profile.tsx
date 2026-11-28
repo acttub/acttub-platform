@@ -3,14 +3,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
 import { useAppDialog } from '@/components/app-dialog';
 import { InviteCard } from '@/components/invite-card';
-import { NotificationBell } from '@/components/notification-bell';
-import { WeekPracticeCard } from '@/components/week-practice-card';
 import { pt } from '@/components/ui/anchored-menu';
 import { Badge } from '@/components/ui/badge';
 import { SettingsCard } from '@/components/ui/settings-card';
@@ -27,7 +25,6 @@ import { radius, space, type } from '@/constants/tokens';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useNextTakes } from '@/hooks/use-next-takes';
 import { useFocusLoad } from '@/hooks/use-focus-load';
-import { usePracticeRecords } from '@/hooks/use-practice-records';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { EntryCard, MyEntriesResponse, MyEntryCard } from '@/lib/challenge/types';
@@ -78,18 +75,6 @@ export default function ProfileScreen() {
   const [failed, setFailed] = useState<Record<Tab, boolean>>({ practice: false, entries: false, saved: false });
   const [reloadKey, setReloadKey] = useState(0);
   const retry = () => setReloadKey((n) => n + 1);
-  const records = usePracticeRecords();
-  // 맨 위에서 당기면 이번 주 연습 기록과 아래 목록을 같이 다시 받는다.
-  const [refreshing, setRefreshing] = useState(false);
-  const refresh = async () => {
-    setRefreshing(true);
-    retry();
-    try {
-      await records.refresh();
-    } finally {
-      setRefreshing(false);
-    }
-  };
   // 이번 달 숫자는 셋을 다 받아야 센다. 처음엔 0 대신 뼈대를, 다시 들어오면 지난 숫자를 먼저 보인다(11/3 폰 QA: 0 → 18로 바뀜).
   const [counts, setCounts] = useState<MonthPracticeCounts | null>(() => lastRead<MonthPracticeCounts>('profileMonthCounts') ?? null);
   const serverProfile = profile.me?.profile ?? null;
@@ -232,20 +217,13 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* 머리 오른쪽 — 알림 종(예전 홈 종, SOMA-1120)과 설정. */}
+      {/* 머리 오른쪽은 설정. 알림 종은 홈에 있다. */}
       <NavHeader
         large
         title={t('profileTab.title')}
-        right={
-          <View style={styles.headRight}>
-            <NotificationBell phLabel="profile_bell" />
-            <NavIconButton icon="settings" label={t('settings.title')} phLabel="profile_settings" onPress={() => router.push('/settings')} />
-          </View>
-        }
+        right={<NavIconButton icon="settings" label={t('settings.title')} phLabel="profile_settings" onPress={() => router.push('/settings')} />}
       />
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace + space[5] }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.blue} />}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace + space[5] }]}>
 
         <View style={styles.me}>
           <View style={styles.photo}>
@@ -275,14 +253,6 @@ export default function ProfileScreen() {
           </View>
           <Button size="sm" variant="secondary" label={t('profileTab.edit')} phLabel="profile_edit" onPress={() => router.push('/profile-edit')} />
         </View>
-
-        {/* 이번 주 연습(예전 홈, SOMA-1120) — 기록은 탭 레이아웃의 연습 기록 공급자가 받는다. 받기 전엔 원 자리만 회색이다. */}
-        <WeekPracticeCard
-          days={records.weekDays}
-          practicedDays={records.weekPracticedDays}
-          totalDays={records.totalDays}
-          loading={!records.activityLoaded}
-        />
 
         {/* 「코치가 기억하는 것」 바로가기는 뺐다(10/25 결정) — 기억은 코치가 계속 쓰지만 배우에게 화면으로 보여 주지 않는다. */}
         <View style={styles.month} testID="profile-month">
@@ -529,7 +499,6 @@ function CardGrid({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  headRight: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
   content: { paddingHorizontal: space.gutter, paddingTop: space[2], gap: space[4] },
 
   me: {

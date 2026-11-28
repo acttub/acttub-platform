@@ -82,10 +82,10 @@ test('코칭 입구: 노트가 있는 묶음의 다음 테이크 대화가 열�
   assert.equal(coachingEntry([g]).kind, 'next');
 });
 
-test('하단 탭은 리딩·코칭·커뮤니티·챌린지·프로필이고 홈(index)은 탭바에 없으며 가운데 촬영 버튼도 없다(SOMA-1120)', () => {
+test('하단 탭은 홈·연습·챌린지·커뮤니티·프로필이고 가운데 촬영 버튼은 없다', () => {
   const layout = src('app/(tabs)/_layout.tsx');
   const order = [...layout.matchAll(/<Tabs\.Screen\s+name="([a-z]+)"/g)].map((m) => m[1]);
   const visible = order.filter((name) => !new RegExp(`name="${name}"\\s+options=\\{\\{\\s*href: null`).test(layout));
-  assert.deepEqual(visible, ['reading', 'coaching', 'community', 'challenges', 'profile']);
+  assert.deepEqual(visible, ['index', 'practice', 'challenges', 'community', 'profile']);
   assert.doesNotMatch(layout, /styles\.fab\b/);
 });

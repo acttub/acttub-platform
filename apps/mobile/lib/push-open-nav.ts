@@ -4,7 +4,7 @@
  * 전에는 알림이 말한 화면으로 router.replace 만 했다. 앱이 켜져 있던 탭 화면이 그 자리에서 바뀌어
  * 스택에 화면이 하나만 남고, 안드로이드 뒤로가기를 누르면 앱이 닫혔다. 이제는 쌓인 화면을 걷고
  * 홈으로 간 뒤 그 위에 대상 화면을 올린다. 뒤로가기는 홈으로 온다.
- * 대상이 탭(홈·리딩)이면 그 탭으로만 간다.
+ * 대상이 탭(홈·연습 탭 리딩)이면 그 탭으로만 간다.
  */
 export type PushOpenRouter = {
   replace: (href: string) => void;
@@ -13,7 +13,7 @@ export type PushOpenRouter = {
   canDismiss?: () => boolean;
 };
 
-const TAB_TARGETS = new Set(['/(tabs)', '/reading', '/(tabs)/reading']);
+const TAB_TARGETS = new Set(['/(tabs)', '/practice?mode=reading', '/practice?mode=coaching']);
 
 export function openPushTarget(router: PushOpenRouter, target: string): void {
   if (router.canDismiss?.()) router.dismissAll?.();

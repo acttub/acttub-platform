@@ -7,7 +7,8 @@ const read = (p) => readFileSync(new URL(p, root), 'utf8');
 
 // 지금 토큰 밖에 있는 곳의 파일별 개수. 새 어긋남만 막는다. 개수가 줄면 함께 낮춘다.
 const HEX_ALLOWED = {
-  'app/(tabs)/reading.tsx': 1,
+  'app/(tabs)/index.tsx': 3,
+  'components/practice/reading-pane.tsx': 1,
   'app/challenge-play.tsx': 2,
   'app/login.tsx': 11,
   'components/ad-slot.tsx': 1,

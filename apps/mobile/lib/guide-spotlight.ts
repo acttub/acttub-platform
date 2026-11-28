@@ -92,8 +92,7 @@ export function stepAfter(index: number, total: number): number | null {
 }
 
 /** 가이드를 본 화면. 화면마다 따로 기억한다 — 홈을 봤다고 대본 가이드가 사라지면 안 된다. */
-// firstUse 는 비추는 가이드가 아니라 처음 한 번 뜨는 「뭐부터 해 볼까요?」 화면을 봤는지다(SOMA-1120) — 같은 계정별 기억을 쓴다.
-export type SpotlightTopic = 'home' | 'reading' | 'group' | 'firstUse';
+export type SpotlightTopic = 'home' | 'reading' | 'group';
 
 export function spotlightKey(topic: SpotlightTopic): string {
   return `acttub.spotlight.${topic}.seen`;

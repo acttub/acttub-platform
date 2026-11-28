@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Text } from 'react-native';
 
-import ReadingList from '@/app/(tabs)/reading';
+import ReadingList from '@/components/practice/reading-pane';
 import { setFirstTimeState } from '@/lib/practice/first-time';
 import { SpotlightHost } from '@/components/spotlight-guide';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
@@ -471,16 +472,14 @@ describe('처음 온 사람', () => {
 describe('머리', () => {
   afterEach(() => setFirstTimeState('unknown'));
 
-  test('오른쪽에 알림 종을 두고, 안 읽은 알림이 있으면 점을 단다 — 누르면 알림함(SOMA-1120, 예전 홈 종)', async () => {
+  test('알림 종은 홈에 있어 두지 않고, 연습 탭이 준 「리딩 | 코칭」이 「내 대본」 제목 자리에 들어간다', async () => {
     mockUnread.count = 3;
-    await render(<ReadingList />);
+    await render(<ReadingList modeSwitch={<Text>모드 전환</Text>} />);
     await screen.findByText('옥상 장면');
 
-    const bell = screen.getByRole('button', { name: '알림함, 안 읽은 알림 있음' });
-    expect(bell.props['ph-label']).toBe('reading_bell');
-    expect(screen.getByTestId('bell-unread-dot')).toBeOnTheScreen();
-    await fireEvent.press(bell);
-    expect(mockRouter.push).toHaveBeenCalledWith('/notifications');
+    expect(screen.queryByRole('button', { name: '알림함, 안 읽은 알림 있음' })).not.toBeOnTheScreen();
+    expect(screen.getByText('모드 전환')).toBeOnTheScreen();
+    expect(screen.queryByText('내 대본')).not.toBeOnTheScreen();
     mockUnread.count = 0;
   });
 

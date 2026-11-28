@@ -1,8 +1,8 @@
 import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 
-/** 기다리는 일을 시작한 탭. 대본 일은 리딩 탭, 코칭 일은 코칭 탭이다. */
-export type WaitTab = '/reading' | '/coaching';
+/** 기다리는 일을 시작한 탭. 대본 일은 연습 탭 리딩, 코칭 일은 연습 탭 코칭이다(lib/practice-mode practiceHref). */
+export type WaitTab = '/practice?mode=reading' | '/practice?mode=coaching';
 
 /**
  * 기다림 화면의 뒤로 가기(10-27 정함). 머리 뒤로·안드로이드 뒤로 키·밀어서 나가기를 그 일을 시작한 탭의 첫 화면으로 보낸다.
