@@ -73,7 +73,7 @@ public class ReadingExampleService {
                 .map(line -> new ReadingExampleAudio.CopiedLine(line.id(), line.ordinal(), line.kind(),
                         line.characterId() == null ? null : names.get(line.characterId()), line.text(), line.speech()))
                 .toList();
-        List<AudioLine> lines = example.audio().match(example, copied).stream()
+        List<AudioLine> lines = example.matchAudio(copied).stream()
                 .map(matched -> new AudioLine(matched.lineId(),
                         storage.downloadUrl(matched.objectKey(), VoiceModelService.EXPIRES_IN_SECONDS), matched.durationMs()))
                 .toList();

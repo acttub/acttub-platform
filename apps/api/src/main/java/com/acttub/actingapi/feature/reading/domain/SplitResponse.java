@@ -44,6 +44,8 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
      * 넘는 칸은 여기서 비운다. 이름도 머리도 아닌 글이고, 머리를 떼지 않으니 줄 글은 본문에 그대로 남는다.
      */
     static final int CELL_MAX = 200;
+    /** 대사가 이 수 이하인 이름은 드문 이름이다 — 한 번 나온 오타·문장·문장부호 이름이 여기 든다. */
+    static final int RARE = 2;
 
     private static final String JUDGMENT_PREFIX = "대본\t";
     /** 종류 칸에 배역을 붙여 쓴 답 — {@code d=샬럿}. */
@@ -267,7 +269,7 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
         if (kind == Kind.DIALOGUE && speaker.isEmpty()) {
             String written = header.strip();
             boolean nameHeader = written.endsWith(":") || written.endsWith("：") || written.matches("\\[[^\\]]+]");
-            speaker = nameHeader ? SplitDraft.nameOf(header) : "";
+            speaker = nameHeader ? nameOf(header) : "";
             header = nameHeader ? header : "";
         }
         return new Row(no, kind, kind == Kind.DIALOGUE ? speaker : "", header);
@@ -277,10 +279,22 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
     private static boolean innerTag(String original, String answered, String speaker) {
         String line = ScriptText.visible(original);
         String tag = ScriptText.visible(answered).strip();
-        String name = SplitDraft.nameOf(answered);
+        String name = nameOf(answered);
         int at = tag.isEmpty() ? -1 : line.indexOf(tag);
         return at > 0 && !name.isEmpty() && CharacterNames.squash(name).equals(CharacterNames.squash(speaker))
                 && line.substring(0, at).contains(")") && !line.substring(at + tag.length()).isBlank();
+    }
+
+    static String nameOf(String header) {
+        // 원문 줄도 그대로 들어온다 — 이만큼 긴 글은 이름이 아니다
+        if (header.length() > CELL_MAX) {
+            return "";
+        }
+        String name = ScriptText.visible(header).strip().replaceAll("[\\s:：.,，、\\-—]+$", "");
+        if (name.length() > 1 && (name.startsWith("[") && name.endsWith("]") || name.startsWith("(") && name.endsWith(")"))) {
+            name = name.substring(1, name.length() - 1).strip();
+        }
+        return name.codePoints().anyMatch(Character::isLetter) ? name : "";
     }
 
     /**
@@ -332,7 +346,7 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
             }
             if (row.kind() == Kind.IGNORE) {
                 // 블록 형식의 이름 줄(「앰버, 페니, 트레이시」)이면 그 뒤 대사는 그 배역이다.
-                String name = SplitDraft.nameOf(line.text());
+                String name = nameOf(line.text());
                 previous = known.contains(name) ? name : previous;
                 continue;
             }
@@ -399,8 +413,8 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
             if (row != null && row.kind() == Kind.DIALOGUE && !grounded(row.speaker(), source)) {
                 String text = CharacterNames.squash(ScriptText.visible(line.text()));
                 Row before = above == null ? null : rows.get(above.no());
-                String name = before != null && before.kind() == Kind.IGNORE ? SplitDraft.nameOf(above.text()) : "";
-                String header = SplitDraft.nameOf(row.header());
+                String name = before != null && before.kind() == Kind.IGNORE ? nameOf(above.text()) : "";
+                String header = nameOf(row.header());
                 String speaker = NAME_LINE.matcher(header).matches() ? header : known.stream()
                         .filter(listed -> CharacterNames.squash(listed).length() >= 2 && text.startsWith(CharacterNames.squash(listed)))
                         .findFirst().orElse(NAME_LINE.matcher(name).matches() ? name : null);
@@ -481,7 +495,7 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
     /**
      * 화자 칸에 이름 조각이 든 대사 판정을 고친다 (SOMA-709). 그 줄(블록 형식이면 위 이름 줄)이 원문 머리로 더 긴 배역 이름을 쓰면 그 배역이다
      * (「젊은」 → 「젊은 시워드」). 원문 머리로 한 번도 쓰이지 않은 의심 이름 — 접속사·대명사 낱말, 「~의/~은/~는」으로 끝나는 말, 깨진 글자가
-     * 섞인 이름, 대본 전체에서 {@link SpeakerMerge#RARE} 줄 이하인 이름 — 은 판정에서 빼고 돌려준다. 빠진 줄 다시 묻기가 이 줄을 다시 묻고,
+     * 섞인 이름, 대본 전체에서 {@link #RARE} 줄 이하인 이름 — 은 판정에서 빼고 돌려준다. 빠진 줄 다시 묻기가 이 줄을 다시 묻고,
      * 그래도 답이 없으면 돌려받은 판정으로 되돌린다. 「하은」처럼 ~은 으로 끝나는 이름도 원문 머리면 이름이다. 배역 이름만 이은 함께 말하기
      * 화자는 보지 않는다.
      *
@@ -532,7 +546,7 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
             String bare = CharacterNames.squash(name);
             boolean fragment = FUNCTION_WORD.matcher(bare).matches() || MODIFIER_END.matcher(bare).matches()
                     || CharacterNames.mixesScripts(name) || CharacterNames.hasForeignLetters(name);
-            if (fragment || count.getOrDefault(name, 0) <= SpeakerMerge.RARE) {
+            if (fragment || count.getOrDefault(name, 0) <= RARE) {
                 asked.put(no, row);
             }
         });
