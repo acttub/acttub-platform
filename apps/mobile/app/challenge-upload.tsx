@@ -1,9 +1,9 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from 'expo-router/react-navigation';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -70,7 +70,7 @@ export default function ChallengeUploadScreen() {
   const challengeId = params.challengeId ?? null;
 
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const [videoId, setVideoId] = useState<string | null>(params.videoId ?? null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [localUri, setLocalUri] = useState<string | null>(null);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { type View } from 'react-native';
+import { type ViewInstance } from 'react-native';
 
 import { clearTargetRect, registerMeasure, setTargetRect } from '@/lib/spotlight-targets';
 
@@ -16,7 +16,7 @@ import { clearTargetRect, registerMeasure, setTargetRect } from '@/lib/spotlight
  * 나온다. 그래도 놓치는 경우를 위해 재는 법을 맡겨 두고, 가이드가 열릴 때 다시 잰다.
  */
 export function useSpotlightTarget(id: string) {
-  const ref = useRef<View | null>(null);
+  const ref = useRef<ViewInstance | null>(null);
   const frame = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
 
   const measure = useCallback(() => {

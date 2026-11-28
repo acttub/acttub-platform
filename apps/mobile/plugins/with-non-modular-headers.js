@@ -1,21 +1,16 @@
-// RNFirebase + useFrameworks(static) 조합에서 나는
-// "include of non-modular header inside framework module 'RNFBApp...'" 컴파일 에러 해결.
+// useFrameworks 로 파드를 프레임워크로 묶을 때 나는
+// "include of non-modular header inside framework module" 컴파일 에러를 막는다.
 // Podfile의 post_install 훅에 CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES=YES를 주입한다.
 const { withDangerousMod } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
-// RNFBAnalytics는 RNFBApp(정적 프레임워크 모듈)을 의존하면서 `#import <React/RCTBridgeModule.h>`를
-// 텍스트로 재인클루드해 "declaration of 'RCTBridgeModule' must be imported from module
-// 'RNFBApp.RNFBAppModule' before it is required" 에러가 난다. 이건 non-modular 플래그로는 안 잡히고
-// 해당 RNFB 타겟에서 CLANG_ENABLE_MODULES=NO(ObjC @import만 끔, Swift 브릿징엔 무관)로 해결한다.
+// RNFB 타깃에 걸던 CLANG_ENABLE_MODULES=NO 는 정적 프레임워크 때의 우회였다. RNFB 27 은 Swift 가 섞이고
+// Firebase 를 SPM 모듈로 가져오므로 모듈을 끄면 안 된다(동적 프레임워크로 바꾸며 뺐다).
 const SNIPPET = `
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-        if ['RNFBApp', 'RNFBAnalytics', 'RNFBCrashlytics'].include?(target.name)
-          config.build_settings['CLANG_ENABLE_MODULES'] = 'NO'
-        end
       end
     end`;
 

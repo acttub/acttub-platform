@@ -20,7 +20,7 @@ const fakes = {
       get exists() { return s.files.has(this.uri); }
       get size() { return s.files.get(this.uri)?.length; }
       async bytes() { if (s.unreadable) throw new Error('io'); return s.files.get(this.uri); }
-      write(bytes) { s.files.set(this.uri, bytes); s.rewritten.push([this.uri, bytes]); }
+      writeSync(bytes) { s.files.set(this.uri, bytes); s.rewritten.push([this.uri, bytes]); }
     }`,
   '@/lib/account-files': `const s = globalThis.__runnerTest;
     export async function deleteDeviceFile(uri) { s.deleted.push(uri); s.files.delete(uri); }`,
@@ -28,6 +28,8 @@ const fakes = {
     export const api = {
       async uploadReadingRecording(sessionId, body) {
         s.uploads.push([sessionId, body]);
+        // 실제 fetch 처럼 올리는 동안 파일 파트를 bytes() 로 읽는다.
+        s.sentBytes.push(await body.audio.bytes().catch(() => null));
         if (s.uploadError) throw s.uploadError;
         return { id: 'rec1', line_id: body.line_id, attempt_no: body.attempt_no };
       },
@@ -101,6 +103,7 @@ beforeEach(() => {
     rewritten: [],
     deleted: [],
     uploads: [],
+    sentBytes: [],
     uploadError: null,
   });
   heard = [];
@@ -112,15 +115,18 @@ test('내 차례 녹음을 큐에 넣고 바로 올린 뒤 기기 파일을 지�
   assert.deepEqual(await runner.enqueueLineRecording(input()), { kind: 'queued' });
   await runner.flushRecordingUploads();
 
-  assert.deepEqual(s.uploads, [['r1', {
+  const [[sessionId, { audio, ...body }]] = s.uploads;
+  assert.equal(sessionId, 'r1');
+  assert.deepEqual(body, {
     request_id: 'q1',
     line_id: 'l2',
     attempt_no: 1,
     duration_ms: 1500,
     transcript: '오늘 왔구나',
     transcript_source: 'stt',
-    audio: { uri: 'file:///rec/l2.m4a', name: 'line.m4a', type: 'audio/mp4' },
-  }]]);
+  });
+  assert.deepEqual({ name: audio.name, type: audio.type }, { name: 'line.m4a', type: 'audio/mp4' });
+  assert.equal(s.sentBytes[0].length, 5000);
   assert.deepEqual(s.deleted, ['file:///rec/l2.m4a']);
   assert.equal(await runner.pendingRecordingUploads(), 0);
   assert.equal(s.storage.has(QUEUE_KEY), false);
@@ -137,7 +143,8 @@ test('인식기가 남긴 작은 WAV 는 세기를 키워 다시 쓴 뒤 올린�
   assert.deepEqual(s.rewritten.map(([uri]) => uri), ['file:///rec/l2.wav']);
   assert.equal(peakOf(wav), 300);
   assert.ok(peakOf(s.rewritten[0][1]) > 300);
-  assert.deepEqual(s.uploads[0][1].audio, { uri: 'file:///rec/l2.wav', name: 'line.wav', type: 'audio/wav' });
+  const { audio } = s.uploads[0][1];
+  assert.deepEqual({ name: audio.name, type: audio.type }, { name: 'line.wav', type: 'audio/wav' });
 });
 
 test('WAV 를 읽지 못하면 세기를 맞추지 않고 그대로 올린다', async () => {

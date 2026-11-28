@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View, type ViewInstance } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -97,7 +97,7 @@ export function SpotlightHost() {
   // 띄워 달라는 요청도, 비출 자리도 화면 밖에서 바뀐다 — 바뀌면 다시 그린다.
   const [, refresh] = useReducer((n: number) => n + 1, 0);
   // 덮개 판의 원점은 창 기준과 다르다 — 판 자신을 같은 방법으로 재서 그 차이를 뺀다.
-  const probe = useRef<View | null>(null);
+  const probe = useRef<ViewInstance | null>(null);
   const [origin, setOrigin] = useState({ x: 0, y: 0 });
 
   // 구멍 자리·모양과 설명 카드 높이. 셋 다 같은 박자로 움직인다.
@@ -292,7 +292,7 @@ export function SpotlightHost() {
 }
 
 const styles = StyleSheet.create({
-  root: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100 },
+  root: { ...StyleSheet.absoluteFill, zIndex: 100, elevation: 100 },
   shroud: { position: 'absolute', backgroundColor: palette.scrim },
   // overflow hidden 이 있어야 iOS 가 이 두꺼운 반투명 테두리를 Core Animation(GPU)으로 그린다. 없으면 RN 이 테두리를
   // 그림으로 직접 그리는데, 덮개가 화면 대각선의 두 배라 한 장이 수백 MB 급이고 구멍이 움직일 때마다 다시 그려 버벅였다(SOMA-924).
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
   hole: { position: 'absolute' },
   // 밝은 배경 위에서도 보이게 파랑으로 두른다 — 흰 테두리는 흰 화면에 묻힌다.
   // 고리도 같은 까닭으로 overflow hidden(SOMA-924).
-  ring: { ...StyleSheet.absoluteFillObject, overflow: 'hidden', borderWidth: 3, borderColor: palette.blue },
+  ring: { ...StyleSheet.absoluteFill, overflow: 'hidden', borderWidth: 3, borderColor: palette.blue },
   caption: {
     position: 'absolute',
     left: space[3],

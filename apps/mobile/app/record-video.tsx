@@ -611,7 +611,7 @@ function CloseButton({ onPress, phLabel }: { onPress: () => void; phLabel: strin
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.text },
-  camera: { ...StyleSheet.absoluteFillObject },
+  camera: { ...StyleSheet.absoluteFill },
   overlay: { flex: 1, justifyContent: 'space-between' },
   topGroup: { flexShrink: 1, gap: space[2] },
   topBar: {

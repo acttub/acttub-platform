@@ -11,7 +11,7 @@ const modules = {
     export class File {
       constructor(root, name) { this.uri = root + '/' + name; }
       get exists() { return s.files.has(this.uri); }
-      write(bytes) { s.files.set(this.uri, bytes); }
+      writeSync(bytes) { s.files.set(this.uri, bytes); }
     }`,
   'expo-audio': `const s = globalThis.__engineQueueTest;
     export async function setAudioModeAsync() {}

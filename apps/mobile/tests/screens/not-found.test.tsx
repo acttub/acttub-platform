@@ -14,8 +14,7 @@ describe('+not-found', () => {
   beforeEach(() => jest.mocked(logEvent).mockClear());
 
   it('앱에 없는 주소로 들어오면 홈으로 보내고, 어떤 주소였는지 남긴다', async () => {
-    const view = renderRouter(ROUTES, { initialUrl: '/kakaolink/oops' });
-    await view;
+    const view = await renderRouter(ROUTES, { initialUrl: '/kakaolink/oops' });
     expect(await screen.findByText('홈 화면')).toBeTruthy();
     expect(view.getPathname()).toBe('/');
     expect(logEvent).toHaveBeenCalledWith('route_not_found', { path: '/kakaolink/oops' });

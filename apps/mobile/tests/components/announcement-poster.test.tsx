@@ -13,7 +13,7 @@ import { localDay, type Poster } from '@/lib/poster';
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
-jest.mock('@react-navigation/native', () => ({ useIsFocused: () => true }));
+jest.mock('expo-router/react-navigation', () => ({ useIsFocused: () => true }));
 jest.mock('@/lib/api', () => ({ api: { getPosters: jest.fn() }, APP_VERSION: '0.1.9' }));
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));

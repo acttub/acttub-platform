@@ -9,7 +9,7 @@
  *  - import: onnxruntime-web → onnxruntime-react-native
  *  - fetch 기반 로더(loadCfgs/loadTextProcessor/loadVoiceStyle) 제거 → 파일시스템에서 읽은
  *    JSON 객체를 직접 넘겨 받는다(loadVoiceStyleFromObject). 모델은 파일 경로로 로드.
- *  - writeWavFile 은 ArrayBuffer 대신 Uint8Array 를 돌려준다(expo-file-system File.write 용).
+ *  - writeWavFile 은 ArrayBuffer 대신 Uint8Array 를 돌려준다(expo-file-system File.writeSync 용).
  * 나머지 UnicodeProcessor / TextToSpeech 파이프라인은 원본 그대로다.
  */
 import * as ort from 'onnxruntime-react-native';
@@ -422,7 +422,7 @@ function chunkText(text, maxLen = 300) {
 }
 
 /**
- * PCM float 배열 → 16-bit WAV. Uint8Array 로 돌려준다(File.write 로 저장).
+ * PCM float 배열 → 16-bit WAV. Uint8Array 로 돌려준다(File.writeSync 로 저장).
  */
 export function writeWavFile(audioData, sampleRate) {
     const numChannels = 1;

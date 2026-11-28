@@ -1,8 +1,8 @@
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarButtonProps } from 'expo-router/js-tabs';
 import { useEffect, useRef, type Ref } from 'react';
-import { Animated, Image, Platform, StyleSheet, View, type ImageSourcePropType, type LayoutChangeEvent, type ViewStyle } from 'react-native';
+import { Animated, Image, Platform, StyleSheet, View, type ImageSourcePropType, type LayoutChangeEvent, type ViewStyle, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -90,7 +90,7 @@ export const TAB_BAR_HIDDEN: ViewStyle = { display: 'none' };
 export function tabIcon(
   icon: IoniconName | FeatherTabIcon | ImageSourcePropType,
   label: string,
-  { target, badge }: { target?: { ref: Ref<View>; onLayout: (e: LayoutChangeEvent) => void }; badge?: string | null } = {},
+  { target, badge }: { target?: { ref: Ref<ViewInstance>; onLayout: (e: LayoutChangeEvent) => void }; badge?: string | null } = {},
 ) {
   const TabIcon = ({ focused }: { focused: boolean }) => {
     const color = focused ? (IOS ? palette.text : palette.blueDeep) : palette.iconFaint;

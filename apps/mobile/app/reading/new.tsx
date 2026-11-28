@@ -1,9 +1,9 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useNavigation, usePreventRemove } from '@react-navigation/native';
+import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type TextInput } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance, type TextInputInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from 'expo-document-picker';
@@ -313,8 +313,8 @@ export default function ReadingNew() {
   const pasteEmpty = !makeOpen && input.tab === 'paste' && !pending && input.file.kind !== 'reading';
   const [pasteBlocked, setPasteBlocked] = useState(0);
   useEffect(() => setPasteBlocked(0), [pasteEmpty]);
-  const scrollRef = useRef<ScrollView>(null);
-  const pasteRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const pasteRef = useRef<TextInputInstance>(null);
   // 「다음」을 빠르게 두 번 눌러도 대본을 한 번만 나눈다.
   const splitLock = useRef(false);
   const checking = popup?.kind === 'checking';

@@ -16,23 +16,23 @@ const modules = {
       textSync() { if (!s.files.has(this.uri)) throw new Error('missing'); return s.files.get(this.uri).text; }
       async text() { return this.textSync(); }
       create() { s.files.set(this.uri, { size: 0, text: '' }); }
-      write(text) { s.files.set(this.uri, { size: text.length, text }); }
+      writeSync(text) { s.files.set(this.uri, { size: text.length, text }); }
       delete() { if (s.stuck.has(this.uri)) throw new Error('busy'); s.files.delete(this.uri); }
-      move(target) { s.files.set(target.uri, s.files.get(this.uri)); s.files.delete(this.uri); }
+      moveSync(target) { s.files.set(target.uri, s.files.get(this.uri)); s.files.delete(this.uri); }
       get name() { return this.uri.split('/').pop(); }
       get parentDirectory() { return { uri: this.uri.slice(0, this.uri.lastIndexOf('/')) }; }
       open() {
         const uri = this.uri;
         let offset = 0;
         return {
-          readBytes(n) {
+          readBytesSync(n) {
             if (s.unpackFails) throw new Error('read failed');
             const all = s.files.get(uri)?.bytes ?? new Uint8Array(0);
             const out = all.slice(offset, offset + n);
             offset += out.byteLength;
             return out;
           },
-          writeBytes(chunk) {
+          writeBytesSync(chunk) {
             const cur = s.files.get(uri);
             const prev = cur.bytes ?? new Uint8Array(0);
             const next = new Uint8Array(prev.byteLength + chunk.byteLength);
@@ -47,7 +47,7 @@ const modules = {
         s.fetched.push(url);
         const body = s.remote.get(url);
         if (typeof body !== 'string') throw body ?? new Error('network unreachable');
-        file.write(body);
+        file.writeSync(body);
         return file;
       }
     }

@@ -16,7 +16,7 @@ jest.mock('expo-router', () => ({
   Stack: { Screen: ({ options }: { options?: { gestureEnabled?: boolean } }) => { if (options) mockScreenOptions.push(options); return null; } },
 }));
 jest.mock('expo-image', () => ({ Image: () => null }));
-jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
+jest.mock('expo-router/react-navigation', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
 jest.mock('@/lib/auth', () => ({
   useAuth: () => ({
     profile: { me: { profile: { experience: 'exam_prep', age: 19, gender: 'male', goal: 'audition' } } },
@@ -397,7 +397,7 @@ test('만드는 중 — 대본 올리기(리딩)에서 열었으면 안드로이
   void fireEvent.press(screen.getByRole('button', { name: '대본 만들기' }));
   expect(await screen.findByText('30초에서 1분쯤 걸려요. 화면을 닫지 말고 기다려 주세요.')).toBeOnTheScreen();
 
-  const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+  const preventRemove = jest.requireMock('expo-router/react-navigation').usePreventRemove as jest.Mock;
   expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
   await act(async () => preventRemove.mock.calls.at(-1)[1]({ data: { action: { type: 'GO_BACK' } } }));
   await fireEvent.press(await screen.findByRole('button', { name: '나가기' }));

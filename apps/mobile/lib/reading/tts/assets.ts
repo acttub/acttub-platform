@@ -144,7 +144,7 @@ function readResume(stateFile: File, url: string): string | null {
 function writeResume(stateFile: File, url: string, resumeData: string) {
   try {
     if (!stateFile.exists) stateFile.create();
-    stateFile.write(JSON.stringify({ url, resumeData }));
+    stateFile.writeSync(JSON.stringify({ url, resumeData }));
   } catch {}
 }
 
@@ -221,7 +221,7 @@ async function ensureModel(
   const stateFile = new File(dir, `${m.name}.resume`);
 
   const finalize = () => {
-    part.move(target);
+    part.moveSync(target);
     clearResume(stateFile);
     progress.complete(m.name);
     emit();
@@ -434,9 +434,9 @@ async function unpackWeights(src: File, dst: File): Promise<void> {
   const writer = part.open();
   try {
     for (;;) {
-      const chunk = reader.readBytes(FP16_UNPACK_CHUNK);
+      const chunk = reader.readBytesSync(FP16_UNPACK_CHUNK);
       if (chunk.byteLength === 0) break;
-      writer.writeBytes(halfToFloatBytes(chunk));
+      writer.writeBytesSync(halfToFloatBytes(chunk));
       // 화면이 멈추지 않게 조각마다 한 번 양보한다.
       await new Promise((r) => setTimeout(r, 0));
     }
@@ -445,7 +445,7 @@ async function unpackWeights(src: File, dst: File): Promise<void> {
     writer.close();
   }
   if (dst.exists) dst.delete();
-  part.move(dst);
+  part.moveSync(dst);
 }
 
 async function downloadFp16(preset: string, onProgress: ProgressFn): Promise<DownloadResult> {

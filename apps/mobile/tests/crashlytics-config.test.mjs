@@ -12,8 +12,7 @@ test('crashlytics: 플러그인·iOS dSYM 업로드·디버그 빌드 제외가 
   const plugins = JSON.parse(read('app.json')).expo.plugins.map((p) => (Array.isArray(p) ? p[0] : p));
   assert.ok(plugins.includes('@react-native-firebase/crashlytics'));
   assert.ok(plugins.includes('./plugins/with-crashlytics-dsym.js'));
-  assert.match(read('plugins/with-crashlytics-dsym.js'), /FirebaseCrashlytics\/run/);
-  assert.match(read('plugins/with-non-modular-headers.js'), /'RNFBCrashlytics'/);
+  assert.match(read('plugins/with-crashlytics-dsym.js'), /SourcePackages\/checkouts\/firebase-ios-sdk\/Crashlytics\/run/);
   const firebase = JSON.parse(read('firebase.json'))['react-native'];
   assert.equal(firebase.crashlytics_debug_enabled, false);
   assert.match(read('app/_layout.tsx'), /initCrashlytics\(\)/);

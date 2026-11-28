@@ -1,4 +1,4 @@
-import type { ImageSourcePropType } from 'react-native';
+import type { ImageRequireSource } from 'react-native';
 
 /**
  * 액티(마스코트) 자세 — pen images/app 의 그림 그대로(SOMA-770). 화면마다 디자인이 쓰는 자세를 고른다.
@@ -12,7 +12,7 @@ import type { ImageSourcePropType } from 'react-native';
 export type MascotPose = 'home' | 'coach' | 'reading' | 'cheer' | 'jump' | 'run' | 'dizzy' | 'breathe' | 'shy' | 'hamlet' | 'sob' | 'angry' | 'surprised' | 'smug' | 'love' | 'wink' | 'flat' | 'dance' | 'whisper' | 'bow' | 'slate' | 'selfie' | 'nervous' | 'yawn';
 
 // 그리는 곳은 expo-image 에 cachePolicy="memory-disk" 를 준다 — 기본(disk)은 뜰 때마다 PNG 를 다시 읽고 풀어 늦게 뜬다(SOMA-847).
-export const MASCOT: Record<MascotPose, ImageSourcePropType> = {
+export const MASCOT: Record<MascotPose, ImageRequireSource> = {
   home: require('@/assets/images/mascot-home.png'),
   coach: require('@/assets/images/mascot-coach.png'),
   reading: require('@/assets/images/mascot-reading.png'),

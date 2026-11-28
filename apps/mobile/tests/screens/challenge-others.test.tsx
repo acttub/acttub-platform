@@ -11,7 +11,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => ({ id: 'c1' }),
 }));
-jest.mock('@react-navigation/native', () => ({ useIsFocused: () => true }));
+jest.mock('expo-router/react-navigation', () => ({ useIsFocused: () => true }));
 jest.mock('expo-video', () => ({
   useVideoPlayer: () => ({ play: jest.fn(), pause: jest.fn(), release: jest.fn() }),
   VideoView: () => null,

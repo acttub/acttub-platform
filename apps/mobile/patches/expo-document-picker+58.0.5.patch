@@ -1,5 +1,5 @@
 diff --git a/node_modules/expo-document-picker/android/src/main/java/expo/modules/documentpicker/DocumentPickerModule.kt b/node_modules/expo-document-picker/android/src/main/java/expo/modules/documentpicker/DocumentPickerModule.kt
-index 472a5ab..356529c 100644
+index 6ee5e2d..062f052 100644
 --- a/node_modules/expo-document-picker/android/src/main/java/expo/modules/documentpicker/DocumentPickerModule.kt
 +++ b/node_modules/expo-document-picker/android/src/main/java/expo/modules/documentpicker/DocumentPickerModule.kt
 @@ -6,6 +6,7 @@ import android.content.Intent
@@ -10,7 +10,7 @@ index 472a5ab..356529c 100644
  import expo.modules.core.utilities.FileUtilities
  import expo.modules.kotlin.Promise
  import expo.modules.kotlin.exception.Exceptions
-@@ -44,33 +45,56 @@ class DocumentPickerModule : Module() {
+@@ -49,33 +50,56 @@ class DocumentPickerModule : Module() {
            options.type[0]
          }
        }
@@ -85,7 +85,7 @@ index 472a5ab..356529c 100644
      }
    }
  
-@@ -94,17 +118,12 @@ class DocumentPickerModule : Module() {
+@@ -99,17 +123,12 @@ class DocumentPickerModule : Module() {
      return Uri.fromFile(outputFile)
    }
  
@@ -107,7 +107,7 @@ index 472a5ab..356529c 100644
      val count = intent?.clipData?.itemCount ?: 0
      val assets = mutableListOf<DocumentInfo>()
  
-@@ -115,7 +134,7 @@ class DocumentPickerModule : Module() {
+@@ -120,7 +139,7 @@ class DocumentPickerModule : Module() {
        assets.add(document)
      }
  

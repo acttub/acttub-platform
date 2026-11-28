@@ -719,7 +719,7 @@ const styles = StyleSheet.create({
   heroPerform: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[2], height: 48, borderRadius: radius.full, marginTop: 2, backgroundColor: palette.bg },
   heroPerformArrow: { position: 'absolute', right: space[2], width: 32, height: 32, borderRadius: radius.full, backgroundColor: heroCard.ctaNavy, alignItems: 'center', justifyContent: 'center' },
   heroPerformText: { ...type.headline, color: heroCard.ctaNavy },
-  heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim },
+  heroScrim: { ...StyleSheet.absoluteFill, backgroundColor: palette.scrim },
   sameHead: { gap: space[1], marginTop: space[1.5] },
   sameTitle: { ...type.title2, color: palette.text },
   sameMeta: { ...type.caption, color: palette.textMeta },

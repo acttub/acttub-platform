@@ -3,8 +3,8 @@ import { clearReachedEnd, markReachedEnd } from '@/lib/reading/progress-display'
 import Feather from '@expo/vector-icons/Feather';
 import { useNavigation, useRouter } from 'expo-router';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { usePreventRemove } from '@react-navigation/native';
-import { AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { usePreventRemove } from 'expo-router/react-navigation';
+import { AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -327,9 +327,9 @@ export default function ReadingPlay() {
   const queueRef = useRef<ProgressQueue | null>(null);
   const speechQueue = useRef<tts.SpeechQueueHandle | null>(null);
   const mounted = useRef(true);
-  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollRef = useRef<ScrollViewInstance | null>(null);
   // 끝난 화면 — 「이번 리딩 어땠나요?」 한 줄 칸을 누르면 키보드 위로 올린다(10/26 폰: 키보드에 가렸다).
-  const doneScrollRef = useRef<ScrollView | null>(null);
+  const doneScrollRef = useRef<ScrollViewInstance | null>(null);
   const liftRatingInput = useCallback(() => {
     setTimeout(() => doneScrollRef.current?.scrollToEnd({ animated: true }), 250);
   }, []);
@@ -1626,14 +1626,14 @@ export default function ReadingPlay() {
   // 버튼이 아닌 길(안드로이드 뒤로 가기·스와이프)로 [시작] 전에 내려가도 회차를 남기지 않는다.
   // iOS 는 밀어서 나가기를 막지 않으므로 여기서 읽은 데까지 저장한다(SOMA-966).
   const saveOnLeaveRef = useRef<() => void>(() => undefined);
-  useEffect(
-    () =>
-      navigation.addListener('beforeRemove', () => {
-        if (Platform.OS === 'ios') saveOnLeaveRef.current();
-        void discardIfUnstarted();
-      }),
-    [navigation, discardIfUnstarted],
-  );
+  // SDK 58 에서 beforeRemove 가 빠졌다. removed 는 화면이 내려간 뒤에 오므로 해제를 다음 마이크로태스크로 미룬다(expo-router 안내).
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('removed', () => {
+      if (Platform.OS === 'ios') saveOnLeaveRef.current();
+      void discardIfUnstarted();
+    });
+    return () => queueMicrotask(unsubscribe);
+  }, [navigation, discardIfUnstarted]);
 
   // 새 연습(R8)은 실행 화면으로 바뀌어 있어 replace 하면 상세가 하나 더 쌓인다 — 이미 있는 상세까지 내려간다.
   const exitToDetail = () => {
@@ -1730,7 +1730,7 @@ export default function ReadingPlay() {
   // 목소리를 내려받는(준비하는) 중에 뒤로 가면 안드로이드는 리딩 탭 첫 화면으로 간다(10-27 정함). 내려받기는 화면을 떠나도 이어진다.
   // iOS 는 막지 않고 아래 화면으로 내려간다 — 막으면 밀어서 나가기가 움직이다 취소된 뒤 다시 이동해 부자연스럽다(SOMA-966).
   useWaitExit(phase.kind === 'preparing' && Platform.OS !== 'ios', '/reading');
-  // 안드로이드 뒤로 가기도 확인 없이 같은 「저장하고 나가기」로 간다. 나가는 중(exiting)에는 풀어 준다. iOS 는 위 beforeRemove 가 저장한다.
+  // 안드로이드 뒤로 가기도 확인 없이 같은 「저장하고 나가기」로 간다. 나가는 중(exiting)에는 풀어 준다. iOS 는 위 removed 가 저장한다.
   usePreventRemove(Platform.OS !== 'ios' && phase.kind === 'running' && !exiting && run?.status !== 'done', () => leaveReading());
 
   // 완료 화면이 뜨면 잠깐(DONE_LOCK_MS) 버튼을 막는다.

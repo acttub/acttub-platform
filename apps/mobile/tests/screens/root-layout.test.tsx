@@ -54,7 +54,7 @@ jest.mock('expo-router', () => {
     useGlobalSearchParams: () => mockNav.params,
   };
 });
-jest.mock('@react-navigation/native', () => ({
+jest.mock('expo-router/react-navigation', () => ({
   DefaultTheme: { colors: {} },
   ThemeProvider: ({ children }: { children: unknown }) => children,
   getFocusedRouteNameFromRoute: () => 'profile',

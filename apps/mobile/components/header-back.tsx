@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useCanGoBack, useRouter } from 'expo-router';
 
 import { NavBackButton } from '@/components/ui/nav-header';
 
@@ -6,9 +6,11 @@ import { NavBackButton } from '@/components/ui/nav-header';
  * 스택 화면 헤더의 뒤로 버튼(SOMA-638). 네이티브 뒤로 버튼은 iOS 에서 앞 화면 이름이 붙고 눌리지 않는 경우가 있어 쓰지 않는다.
  * 돌아갈 화면이 없으면(딥링크로 바로 연 화면) 그리지 않는다.
  * iOS 헤더(AppHeader)에서만 쓴다 — 안드로이드는 네이티브 뒤로 버튼에 꺾쇠 그림을 씌운다(SOMA-665, app/_layout).
+ * 그릴 때는 useCanGoBack 으로 읽는다 — SDK 58 은 렌더 중 router.canGoBack() 이 옛 값을 줄 수 있다고 경고한다.
  */
 export function HeaderBack() {
   const router = useRouter();
-  if (!router.canGoBack()) return null;
+  const canGoBack = useCanGoBack();
+  if (!canGoBack) return null;
   return <NavBackButton onPress={() => router.back()} />;
 }

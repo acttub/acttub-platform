@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { usePreventRemove } from '@react-navigation/native';
+import { usePreventRemove } from 'expo-router/react-navigation';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Platform } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
@@ -28,7 +28,7 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
 }));
 const mockNavDispatch = jest.fn();
-jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: mockNavDispatch }) }));
+jest.mock('expo-router/react-navigation', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: mockNavDispatch }) }));
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
 jest.mock('expo-file-system', () => ({
   File: class {

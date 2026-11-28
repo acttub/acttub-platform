@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
-import { Platform, ScrollView, TextInput, View, type ScrollViewProps } from 'react-native';
+import { Platform, ScrollView, TextInput, type ScrollViewProps, type ScrollViewInstance } from 'react-native';
 
 import { useKeyboardLift } from '@/components/keyboard-lift';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
@@ -17,14 +17,14 @@ const REVEAL_GAP = 24;
  *
  * 탭이 키보드에 먹히지 않게 keyboardShouldPersistTaps="handled"를 기본으로 둔다.
  */
-export const KeyboardAwareScroll = forwardRef<ScrollView, ScrollViewProps>(
+export const KeyboardAwareScroll = forwardRef<ScrollViewInstance, ScrollViewProps>(
   function KeyboardAwareScroll({ onLayout, onScroll, contentContainerStyle, ...props }, ref) {
     const lift = useKeyboardLift();
     const keyboard = useKeyboardHeight();
-    const inner = useRef<ScrollView>(null);
+    const inner = useRef<ScrollViewInstance>(null);
     const viewport = useRef(0);
     const offset = useRef(0);
-    useImperativeHandle(ref, () => inner.current as ScrollView, []);
+    useImperativeHandle(ref, () => inner.current as ScrollViewInstance, []);
 
     const lifted = lift !== null;
     const androidPad = !lifted && Platform.OS === 'android' ? keyboard : 0;
@@ -33,8 +33,7 @@ export const KeyboardAwareScroll = forwardRef<ScrollView, ScrollViewProps>(
     const reveal = useCallback(() => {
       const scroll = inner.current;
       const input = TextInput.State.currentlyFocusedInput?.();
-      // getInnerViewRef는 RN 0.81 런타임에 있지만 .d.ts에 빠져 있다.
-      const content = (scroll as (ScrollView & { getInnerViewRef?: () => View | null }) | null)?.getInnerViewRef?.();
+      const content = scroll?.getInnerViewRef();
       if (!scroll || !input || !content || viewport.current <= 0) return;
       // 실제 보이는 높이 — 밖에서 줄지 않는 경우(안드로이드, KeyboardLift 밖)는 키보드만큼 덜 보인다.
       const visible = viewport.current - androidPad;

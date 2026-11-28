@@ -1,6 +1,10 @@
 import mockSafeAreaContext from 'react-native-safe-area-context/jest/mock';
 
 jest.mock('react-native-safe-area-context', () => mockSafeAreaContext);
+// worklets 는 jest 에서 네이티브 쪽을 찾다 멈춘다. 공식 안내의 mock 을 건다(제스처 처리기 3 도 이 mock 의
+// getUIRuntimeHolder 를 쓴다). reanimated 쪽은 package.json jest.resolver 가 웹 구현을 고른다.
+// https://docs.swmansion.com/react-native-worklets/docs/guides/testing
+jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
 jest.mock('expo-localization', () => ({
   getLocales: () => [{ languageCode: 'ko', languageTag: 'ko-KR', regionCode: 'KR' }],
   getCalendars: () => [{ timeZone: 'Asia/Seoul' }],

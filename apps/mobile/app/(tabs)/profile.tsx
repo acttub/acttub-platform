@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
     gap: space[1],
   },
   cardMenu: { position: 'absolute', top: 0, right: 0 },
-  thumbEmpty: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  thumbEmpty: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: palette.scrim },
   cardTitle: { ...type.micro, color: palette.onAccent },
   cardMeta: { ...type.micro, color: palette.onMediaSub },

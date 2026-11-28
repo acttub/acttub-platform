@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   footer: { gap: space[3] },
 
   sheetLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: palette.scrim,
     // 하단 시트를 쓰지 않는다(10/24 규칙) — 문서 본문도 가운데 칸으로 띄운다.
     justifyContent: 'center',

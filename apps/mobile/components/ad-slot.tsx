@@ -1,8 +1,8 @@
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from 'expo-router/react-navigation';
 import { Image } from 'expo-image';
 import { useRouter, type Href } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle, type ViewInstance } from 'react-native';
 
 import { palette } from '@/constants/palette';
 import {
@@ -279,7 +279,7 @@ export function AdSlot({ slot, style, fillTimeoutMs = NETWORK_FILL_TIMEOUT_MS, a
  * 화면 폭으로 늘린다(부모 좌우 여백이 화면마다 달라도 같은 결과). 바깥 칸은 움직이지 않아 다시 재도 값이 같다.
  */
 function FullBleed({ on = true, children }: { on?: boolean; children: ReactNode }) {
-  const ref = useRef<View>(null);
+  const ref = useRef<ViewInstance>(null);
   const { width } = useWindowDimensions();
   const [left, setLeft] = useState<number | null>(null);
   if (!on) return <>{children}</>;

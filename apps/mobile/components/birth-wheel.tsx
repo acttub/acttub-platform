@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance } from 'react-native';
 
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
@@ -43,7 +43,7 @@ function Wheel({
   testID: string;
   onTouchActive?: (active: boolean) => void;
 }) {
-  const ref = useRef<ScrollView>(null);
+  const ref = useRef<ScrollViewInstance>(null);
   const index = Math.max(0, values.indexOf(selected));
   // 굵게 칠하는 줄은 마지막으로 고른 값이 아니라 지금 가운데 칸에 걸린 줄이다 — 스크롤하는 동안에도 따라간다.
   const [live, setLive] = useState(index);

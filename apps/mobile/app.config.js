@@ -1,11 +1,5 @@
 // app.json을 베이스로, 플랫폼별 iOS 설정을 동적으로 덧씌운다.
 //
-// ▶ iOS 빌드(EAS_BUILD_PLATFORM === 'ios')에서는 Firebase(애널리틱스)를 제외한다.
-//   이유: @react-native-firebase + useFrameworks(static) + New Architecture 조합이
-//   Xcode에서 모듈 충돌(non-modular header / RCTBridgeModule import)로 컴파일 실패한다.
-//   analytics는 가드 래퍼(lib/analytics.ts)라 네이티브 모듈이 없으면 조용히 no-op → 앱은 정상 동작.
-//   (안드로이드는 그대로 Firebase 유지 — 이미 잘 빌드/동작함)
-//
 // ▶ google-signin iosUrlScheme: iOS OAuth 클라 ID(462 프로젝트)에서 reversed로 도출해 주입.
 
 const GOOGLE_PLIST = './GoogleService-Info.plist';
@@ -56,7 +50,6 @@ function reversedClientId(iosClientId) {
 const pluginName = (pl) => (Array.isArray(pl) ? pl[0] : pl);
 
 module.exports = ({ config }) => {
-  const isIOSBuild = process.env.EAS_BUILD_PLATFORM === 'ios';
   const rev = reversedClientId(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID);
   const apiUrl = (process.env.EXPO_PUBLIC_API_URL || 'https://dev.acttub.com')
     .trim()
@@ -106,7 +99,8 @@ module.exports = ({ config }) => {
   // (AuthCodeHandlerActivity)·strings 를 채운다. 키가 없는 빌드는 플러그인을 빼고 앱도 버튼을 숨긴다.
   const kakaoAppKey = process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY?.trim();
   plugins = plugins.filter((pl) => pluginName(pl) !== KAKAO_LOGIN);
-  if (kakaoAppKey) plugins.push([KAKAO_LOGIN, { kakaoAppKey }]);
+  // SDK 58 AppDelegate 에는 카카오 플러그인이 줄을 끼울 application(_:open:options:) 이 없어 함께 만든다.
+  if (kakaoAppKey) plugins.push([KAKAO_LOGIN, { kakaoAppKey }], './plugins/with-kakao-open-url.js');
 
   // AdMob(SOMA-876). iOS ATT 는 새로 묻지 않는다 — Meta SDK 초기화(lib/meta-events)가 이미 묻는 팝업을 같이 쓰고,
   // 광고 SDK 초기화는 그 답을 받은 뒤에 한다(app/_layout). 그래서 userTrackingUsageDescription 을 여기서 넣지 않는다.
@@ -124,12 +118,10 @@ module.exports = ({ config }) => {
 
   const ios = { ...config.ios };
 
-  // iOS에도 Firebase(애널리틱스) 유지 — $RNFirebaseAsStaticFramework=true(plugins/with-rnfirebase-static)로
-  // useFrameworks(static)+New Arch 컴파일 충돌을 해결한다. (과거엔 iOS에서 제외했었음)
+  // iOS 의 Firebase 는 RNFB 27 부터 Swift Package 로만 들어온다 — app.json 의 useFrameworks 를 dynamic 으로 둔다.
   // 모노레포에서 GoogleService-Info.plist는 gitignore라 EAS 빌더에 안 올라간다(git-tracked만 업로드).
   // → EAS 파일 환경변수(GOOGLE_SERVICE_INFO_PLIST, secret)로 주입하고, 없으면 로컬 경로 폴백.
   ios.googleServicesFile = process.env.GOOGLE_SERVICE_INFO_PLIST || GOOGLE_PLIST;
-  void isIOSBuild; // 더 이상 플랫폼별 firebase strip 안 함
 
   // 모노레포에서 google-services.json은 gitignore라 EAS 빌더에 안 올라간다.
   // EAS 파일 환경변수(GOOGLE_SERVICES_JSON, secret)로 주입하고, 없으면 app.json 로컬 경로 폴백.

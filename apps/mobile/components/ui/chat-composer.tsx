@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import type { Ref } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View, type TextInputInstance } from 'react-native';
 
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
@@ -32,7 +32,7 @@ export function ChatComposer({
   label: string;
   maxLength: number;
   editable?: boolean;
-  inputRef?: Ref<TextInput>;
+  inputRef?: Ref<TextInputInstance>;
   onFocus?: () => void;
   /** 보내기 탭 기록 이름(lib/touch-capture). */
   sendPhLabel?: string;

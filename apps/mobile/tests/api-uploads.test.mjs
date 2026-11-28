@@ -94,7 +94,7 @@ const recordingInput = {
   attempt_no: 2,
   duration_ms: 3_500,
   transcript_source: 'stt',
-  audio: { uri: 'file:///line.m4a', name: 'line.m4a', type: 'audio/mp4' },
+  audio: { name: 'line.m4a', type: 'audio/mp4', bytes: async () => new Uint8Array([1, 2, 3]) },
 };
 
 test('uploadReadingRecording: 녹음 한 줄을 multipart 로 보내고 요청 id 를 헤더에도 싣는다', async t => {

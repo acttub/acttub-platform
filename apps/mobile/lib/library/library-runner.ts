@@ -174,7 +174,7 @@ export async function saveRecordingToLibrary(input: { uri: string; durationMs: n
   let uri = input.uri;
   try {
     const dest = new File(libraryDirectory(), `${id}.mp4`);
-    new File(input.uri).copy(dest);
+    new File(input.uri).copySync(dest);
     uri = dest.uri;
   } catch {
     // 복사 실패 — 원본을 그대로 가리킨다(캐시가 지워지면 큐가 파일 없음으로 버린다)

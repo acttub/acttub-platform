@@ -1,4 +1,4 @@
-import { useNavigation, usePreventRemove } from '@react-navigation/native';
+import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
 import { useRouter } from 'expo-router';
 
 /** 기다리는 일을 시작한 탭. 대본 일은 리딩 탭, 코칭 일은 코칭 탭이다. */
@@ -10,9 +10,10 @@ export type WaitTab = '/reading' | '/coaching';
  * 돌려주는 함수는 화면 안 뒤로 버튼이 같은 길로 나갈 때 부른다.
  * `confirmLeave` 를 주면 뒤로 가기 전에 묻고, false 면 기다림 화면에 남는다(나가면 결과를 다시 찾을 수 없는 일).
  *
- * 나갈 때 막기를 풀지 않는다(SOMA-972). 풀면 native-stack 이 이 화면 머리의 속성을 바꾸고, 그 갱신이 화면 제거와 함께
- * 안드로이드에 닿으면 react-native-screens 가 "ScreenStackFragment added into a non-stack container" 로 앱을 끈다.
- * 막힌 이동은 `data.action` 을 다시 보내면 막기를 지나간다(React Navigation 의 usePreventRemove 사용법).
+ * 막힌 이동은 `repeat` 로 이어 간다(expo-router SDK 58). SDK 58 은 막기를 켠 채 `data.action` 을 다시 보내면 또 막아
+ * 콜백이 끝없이 돈다. `repeat` 는 이 화면의 막기를 풀고 같은 이동을 보낸다. 그래서 화면이 내려가기 전에 머리 속성
+ * (preventNativeDismiss)이 한 번 바뀐다. SOMA-972 때는 이 순서에서 안드로이드 react-native-screens 4.16 이
+ * "ScreenStackFragment added into a non-stack container" 로 앱을 껐다. 4.30 에서 다시 나는지는 실기기로 본다.
  */
 export function useWaitExit(
   waiting: boolean,
@@ -23,10 +24,10 @@ export function useWaitExit(
 ): () => void {
   const router = useRouter();
   const navigation = useNavigation();
-  usePreventRemove(waiting, ({ data }) => {
+  usePreventRemove(waiting, ({ data, repeat }) => {
     const back = data.action.type === 'GO_BACK' || data.action.type === 'POP';
-    if (back) leaveToTab(() => navigation.dispatch(data.action));
-    else navigation.dispatch(data.action);
+    if (back) leaveToTab(repeat);
+    else repeat();
   });
   // backToTabBelow 이고 바로 아래가 탭 화면이면(프로필·홈에서 하던 코칭을 바로 연 경우) 그 탭으로 그냥 돌아간다 — 코칭 탭으로
   // 보내면 들어온 곳이 아닌 데로 가 어색했다(11/2 QA). 중간 화면(올리기 등)을 거쳐 왔으면 일을 시작한 탭으로 보낸다.

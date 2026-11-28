@@ -223,7 +223,7 @@ async function synthesizeOne(text: string, scriptId: string, preset: string, spe
   const { wav } = await tts.call(clean, lang, voice, cfg.steps, speed, 0.1);
   // 기기 목소리는 고품질 목소리보다 작게 나와 세기를 맞춘다(SOMA-664).
   const samples = normalizeFloatSamples(Float32Array.from(wav), { maxGain: 3 });
-  out.write(writeWavFile(samples, tts.sampleRate));
+  out.writeSync(writeWavFile(samples, tts.sampleRate));
   return out.uri;
 }
 

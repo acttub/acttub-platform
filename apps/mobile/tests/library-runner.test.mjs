@@ -31,7 +31,7 @@ stubModules({
       constructor(dir, name) { this.uri = name === undefined ? String(dir) : dir + '/' + name; }
       get exists() { return s.files.has(this.uri); }
       get size() { return s.files.get(this.uri); }
-      copy(dest) { if (s.copyFails) throw new Error('copy failed'); s.files.set(dest.uri, s.files.get(this.uri)); }
+      copySync(dest) { if (s.copyFails) throw new Error('copy failed'); s.files.set(dest.uri, s.files.get(this.uri)); }
     }`,
   '@/lib/account-files': `const s = globalThis.__libraryRunner;
     export const libraryDirectory = () => 'file:///docs/archive';

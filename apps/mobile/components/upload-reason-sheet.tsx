@@ -56,7 +56,7 @@ export function UploadReasonSheet({ onFace, onShort, onLater }: {
 }
 
 const styles = StyleSheet.create({
-  root: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.bg },
+  root: { ...StyleSheet.absoluteFill, backgroundColor: palette.bg },
   body: { paddingHorizontal: space.gutter, paddingTop: space[6], paddingBottom: space[6] },
   title: { ...type.title2, color: palette.text },
   sub: { ...type.caption, color: palette.textMeta, marginTop: space[1] },

@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode, type Ref } from 'react';
-import { BackHandler, type LayoutChangeEvent, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, ToastAndroid, View } from 'react-native';
+import { BackHandler, type LayoutChangeEvent, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, ToastAndroid, View, type ViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdSlot } from '@/components/ad-slot';
@@ -1098,7 +1098,7 @@ function TodayCardBody({
   progress: SessionProgress | null;
   perLine?: number;
   onPress: () => void;
-  cardRef?: Ref<View>;
+  cardRef?: Ref<ViewInstance>;
   onCardLayout?: ComponentProps<typeof View>['onLayout'];
 }) {
   let eyebrow: string;
@@ -1211,7 +1211,7 @@ function FirstChoice({
   selected: boolean;
   phLabel: string;
   onPress: () => void;
-  targetRef?: Ref<View>;
+  targetRef?: Ref<ViewInstance>;
   onLayout?: (e: LayoutChangeEvent) => void;
 }) {
   return (

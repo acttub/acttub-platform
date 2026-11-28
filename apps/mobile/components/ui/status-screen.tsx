@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import type { ReactNode } from 'react';
-import { type ImageSourcePropType, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { type ImageRequireSource, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/buttons';
@@ -38,7 +38,7 @@ export function StatusScreen({
   kind?: 'error' | 'empty' | 'loading';
   header?: string;
   onBack?: () => void;
-  mascot?: ImageSourcePropType;
+  mascot?: ImageRequireSource;
   title?: string;
   body?: string | null;
   /** 설명 아래 흐린 한 줄(원인 등). */

@@ -45,7 +45,7 @@ export function UploadOptionsPage({ initial, onDone }: { initial?: UploadOptions
 }
 
 const styles = StyleSheet.create({
-  root: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.bg },
+  root: { ...StyleSheet.absoluteFill, backgroundColor: palette.bg },
   body: { flex: 1, paddingHorizontal: space.gutter, paddingTop: space[4], gap: space[3] },
   card: { borderWidth: 1, borderColor: palette.border, borderRadius: radius.lg, padding: space[4], gap: space[5] },
   row: { flexDirection: 'row', alignItems: 'center', gap: space[3] },

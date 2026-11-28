@@ -14,7 +14,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
 }));
-jest.mock('@react-navigation/native', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
+jest.mock('expo-router/react-navigation', () => ({ usePreventRemove: jest.fn(), useNavigation: () => ({ dispatch: jest.fn() }) }));
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
@@ -209,7 +209,7 @@ test('일지를 만드는 중에 뒤로 가면 코칭 탭 첫 화면으로 간�
   void fireEvent.press(screen.getByText('건너뛰기'));
   expect(await screen.findByText('일지를 만들고 있어요…')).toBeOnTheScreen();
 
-  const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+  const preventRemove = jest.requireMock('expo-router/react-navigation').usePreventRemove as jest.Mock;
   expect(preventRemove).toHaveBeenLastCalledWith(true, expect.any(Function));
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching');

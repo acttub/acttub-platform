@@ -28,7 +28,9 @@ export function LinePage({
 }) {
   const insets = useSafeAreaInsets();
   return (
-    <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => !busy && onClose()}>
+    <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => {
+      if (!busy) onClose();
+    }}>
       <View style={[styles.page, { paddingTop: insets.top, paddingBottom: insets.bottom }]} accessibilityViewIsModal>
         <KeyboardLift aboveSafeBottom>
           <NavHeader

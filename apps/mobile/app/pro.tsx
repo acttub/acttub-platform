@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type ImageRequireSource } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NavBackButton, NavHeader } from '@/components/app-header';
@@ -30,11 +30,11 @@ import { translate as t } from '@/lib/i18n';
 import type { StorePlan } from '@/lib/store-billing';
 
 type Context = {
-  mascot: ImageSourcePropType;
+  mascot: ImageRequireSource;
   title: string;
   benefits: readonly [string, string, string];
   /** 한도에 걸려 들어왔으면 맨 위 상자(마스코트 48 · 제목 · 설명)가 마스코트 96 자리를 대신한다. */
-  hero: { mascot: ImageSourcePropType; title: string; body: string } | null;
+  hero: { mascot: ImageRequireSource; title: string; body: string } | null;
 };
 
 /** 들어온 곳마다 다른 위쪽 안내. 값은 번역 키다. */

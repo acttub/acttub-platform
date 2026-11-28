@@ -57,7 +57,7 @@ const mockLoop = {
   startConversation: jest.fn(),
   replyToCoach: jest.fn(),
 };
-jest.mock('@react-navigation/native', () => ({
+jest.mock('expo-router/react-navigation', () => ({
   useNavigation: () => ({ dispatch: mockNavDispatch, addListener: () => () => undefined }),
   usePreventRemove: jest.fn(),
 }));
@@ -226,7 +226,7 @@ describe('기다리는 동안', () => {
     expect(await screen.findByText(QUEUED)).toBeOnTheScreen();
     staysWaiting();
 
-    const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+    const preventRemove = jest.requireMock('expo-router/react-navigation').usePreventRemove as jest.Mock;
     const back = preventRemove.mock.calls.filter(([on]) => on).at(-1)[1];
     await act(async () => back({ data: { action: { type: 'POP' } } }));
     expect(mockRouter.dismissTo).toHaveBeenCalledWith('/coaching');
@@ -239,7 +239,7 @@ describe('기다리는 동안', () => {
     getStatus.mockResolvedValue(status({ job: { id: 'j1', status: 'pending' } }));
     await render(<CoachScreen />);
     expect(await screen.findByText(QUEUED)).toBeOnTheScreen();
-    const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+    const preventRemove = jest.requireMock('expo-router/react-navigation').usePreventRemove as jest.Mock;
     expect(preventRemove.mock.calls.filter(([on]) => on)).toEqual([]);
   });
 
@@ -249,11 +249,11 @@ describe('기다리는 동안', () => {
     await render(<CoachScreen />);
     expect(await screen.findByText(QUEUED)).toBeOnTheScreen();
 
-    const preventRemove = jest.requireMock('@react-navigation/native').usePreventRemove as jest.Mock;
+    const preventRemove = jest.requireMock('expo-router/react-navigation').usePreventRemove as jest.Mock;
     const leave = preventRemove.mock.calls.filter(([on]) => on).at(-1)[1];
-    const action = { type: 'REPLACE', payload: { name: 'coach' } };
-    await act(async () => leave({ data: { action } }));
-    expect(mockNavDispatch).toHaveBeenCalledWith({ type: 'REPLACE', payload: { name: 'coach' } });
+    const repeat = jest.fn();
+    await act(async () => leave({ data: { action: { type: 'REPLACE', payload: { name: 'coach' } } }, repeat }));
+    expect(repeat).toHaveBeenCalledTimes(1);
     expect(mockRouter.dismissTo).not.toHaveBeenCalledWith('/coaching');
     os.restore();
   });
