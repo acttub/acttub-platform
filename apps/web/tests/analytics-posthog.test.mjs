@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { test } from "node:test";
 
@@ -69,6 +70,43 @@ function deliveredDuring(run) {
   run();
   return sdk.delivered.slice(before).map(({ event }) => event);
 }
+
+// 이벤트마다 싣는 속성(정렬). 정본은 ANALYTICS.md §3 표이고, 아래 테스트가 표와 이 목록, 이 목록과 래퍼의 payload 를 견준다.
+const ALLOWED_KEYS = {
+  practice_prep_opened: ["entry"],
+  practice_video_selected: ["is_reselect", "size_bucket"],
+  practice_scene_skipped: [],
+  practice_blockage_submitted: ["has_detail", "kind", "sub_branch"],
+  practice_upload_failed: ["reason_code", "stage"],
+  practice_upload_profiled: [
+    "compress_ms",
+    "original_bytes",
+    "upload_ms",
+    "uploaded_bytes",
+    "video_duration_ms",
+    "was_compressed",
+    "webcodecs_supported",
+  ],
+  practice_session_created: [
+    "duration_bucket",
+    "kind",
+    "scene_skipped",
+    "sub_branch",
+  ],
+  practice_analysis_settled: ["error_code", "result", "wait_bucket"],
+  practice_dialogue_started: ["kind", "sub_branch", "with_evidence"],
+  practice_dialogue_start_failed: ["restart"],
+  practice_dialogue_turn_sent: ["answer_length_bucket", "turn_index"],
+  practice_dialogue_turn_failed: ["turn_index"],
+  practice_dialogue_completed: ["ended_by", "report_type", "turn_count"],
+  practice_result_viewed: ["report_type", "source", "turn_count"],
+  practice_abandoned: ["mode", "pct_bucket", "turn_count"],
+  practice_history_opened: ["age_days_bucket", "has_note", "status"],
+  exit_review_opened: ["mode", "trigger"],
+  exit_review_submitted: ["trigger"],
+  consent_submitted: ["result"],
+  screen_viewed: ["path"],
+};
 
 // 키 하나가 운영 스위치다. 비어 있을 때 SDK가 이벤트를 내부 큐에 쌓는 것조차 막는다.
 test("키가 없으면 init도 capture도 하지 않는다", () => {
@@ -266,43 +304,8 @@ test("20개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
     ].sort(),
   );
 
-  const allowedKeys = {
-    practice_prep_opened: ["entry"],
-    practice_video_selected: ["is_reselect", "size_bucket"],
-    practice_scene_skipped: [],
-    practice_blockage_submitted: ["has_detail", "kind", "sub_branch"],
-    practice_upload_failed: ["reason_code", "stage"],
-    practice_upload_profiled: [
-      "compress_ms",
-      "original_bytes",
-      "upload_ms",
-      "uploaded_bytes",
-      "video_duration_ms",
-      "was_compressed",
-      "webcodecs_supported",
-    ],
-    practice_session_created: [
-      "duration_bucket",
-      "kind",
-      "scene_skipped",
-      "sub_branch",
-    ],
-    practice_analysis_settled: ["error_code", "result", "wait_bucket"],
-    practice_dialogue_started: ["kind", "sub_branch", "with_evidence"],
-    practice_dialogue_start_failed: ["restart"],
-    practice_dialogue_turn_sent: ["answer_length_bucket", "turn_index"],
-    practice_dialogue_turn_failed: ["turn_index"],
-    practice_dialogue_completed: ["ended_by", "report_type", "turn_count"],
-    practice_result_viewed: ["report_type", "source", "turn_count"],
-    practice_abandoned: ["mode", "pct_bucket", "turn_count"],
-    practice_history_opened: ["age_days_bucket", "has_note", "status"],
-    exit_review_opened: ["mode", "trigger"],
-    exit_review_submitted: ["trigger"],
-    consent_submitted: ["result"],
-    screen_viewed: ["path"],
-  };
   for (const { event, payload } of events) {
-    assert.deepEqual(Object.keys(payload).sort(), allowedKeys[event], `${event} 속성이 계약과 다르다`);
+    assert.deepEqual(Object.keys(payload).sort(), ALLOWED_KEYS[event], `${event} 속성이 계약과 다르다`);
   }
 
   const forbiddenKeys = new Set([
@@ -388,4 +391,40 @@ test("계측 I-6: 새로고침 뒤 같은 게스트로 켜지면 기기 식별�
     { event: "$pageview", distinctId: "guest-3", deviceId: device },
     { event: "screen_viewed", distinctId: "guest-3", deviceId: device },
   ]);
+});
+
+/** ANALYTICS.md 「3. 이벤트 사전」 표의 이벤트 → 속성(정렬). 속성 칸의 쉼표로 나눈 조각마다 맨 앞 `이름`이 속성이다. */
+function documentedEvents() {
+  const doc = readFileSync(new URL("../ANALYTICS.md", import.meta.url), "utf8");
+  const section = doc.slice(doc.indexOf("## 3. 이벤트 사전"), doc.indexOf("## 4. "));
+  const events = {};
+  for (const line of section.split("\n")) {
+    const cells = line.split(/(?<!\\)\|/).slice(1, -1).map((cell) => cell.trim());
+    const event = cells[0]?.match(/^`([a-z_]+)`$/)?.[1];
+    if (!event) continue;
+    events[event] = cells[2] === "없음"
+      ? []
+      : cells[2].split(", ").map((part) => part.match(/^`([a-z_]+)`/)?.[1]).filter(Boolean).sort();
+  }
+  return events;
+}
+
+test("ANALYTICS.md §3 표의 이벤트·속성이 계약 목록과 같다 — 이벤트나 속성을 바꾸면 표도 고친다", () => {
+  const documented = documentedEvents();
+  assert.ok(Object.keys(documented).length >= 20, "표에서 이벤트를 읽지 못했다");
+  assert.deepEqual(documented, ALLOWED_KEYS);
+});
+
+test("ANALYTICS.md §1(7): 원래 값(*_ms·*_bytes)은 문서가 적은 예외 이벤트 하나만 싣는다", () => {
+  const doc = readFileSync(new URL("../ANALYTICS.md", import.meta.url), "utf8");
+  const exception = doc.match(/예외는 하나다\. `([a-z_]+)`/)?.[1];
+  assert.equal(exception, "practice_upload_profiled");
+  const raw = (key) => /_(ms|bytes)$/.test(key);
+  for (const [event, keys] of Object.entries(ALLOWED_KEYS)) {
+    if (event === exception) {
+      assert.ok(keys.some(raw), `${event} 에 원래 값 속성이 없다 — 예외 문장을 고친다`);
+    } else {
+      assert.deepEqual(keys.filter(raw), [], `${event} 는 원래 값 대신 버킷을 싣는다`);
+    }
+  }
 });
