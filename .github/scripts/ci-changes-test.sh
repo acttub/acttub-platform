@@ -85,7 +85,8 @@ check "smoke web" pull_request dev apps/web/CLAUDE.md
 check "" pull_request dev
 
 check "monitoring" pull_request dev deploy/monitoring/alloy/config.alloy
-check "monitoring restore smoke" pull_request dev deploy/home/compose.yml
+check "api monitoring restore smoke" pull_request dev deploy/home/compose.yml
+check "api restore smoke" pull_request dev deploy/home/.env.example
 check "monitoring restore smoke" pull_request dev deploy/home/deploy.sh
 check "restore smoke" pull_request dev deploy/home/backup/run.sh
 check "smoke" pull_request dev deploy/guard.sh

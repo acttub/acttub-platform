@@ -1,4 +1,4 @@
-package com.acttub.actingapi.feature.profile.app;
+package com.acttub.actingapi.platform.operation;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -8,7 +8,7 @@ import java.util.UUID;
 /**
  * 탈퇴 트랜잭션 밖에서 하는 정리의 장부({@code account_cleanup_operations}).
  *
- * <p>행은 탈퇴 트랜잭션이 만든다({@link ProfileRepository#withdraw}). 여기는 그것을 집어 시도하고
+ * <p>행은 탈퇴를 비롯해 객체를 지우는 트랜잭션이 만든다({@link PostgresObjectCleanupLedger}). 여기는 그것을 집어 시도하고
  * 결과를 적는 쪽이다. 성공한 것은 지운다. 7일이 지난 뒤는 종류에 따라 다르다: <b>제공자 해제 값</b>
  * ({@code apple_revoke}·{@code kakao_unlink}·{@code naver_revoke})은 값과 함께 지우고, <b>객체 삭제</b>
  * ({@code object_delete}·{@code reading_recording_delete})는 성공할 때까지 키를 지우지 않는다 — 7일 연속

@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntSupplier;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
-import com.acttub.actingapi.feature.profile.app.AccountCleanup;
+import com.acttub.actingapi.platform.operation.AccountCleanup;
 import com.acttub.actingapi.integration.media.AudioTranscoder;
 import com.acttub.actingapi.integration.media.Ffmpeg;
 import com.acttub.actingapi.support.AccountFixtures;

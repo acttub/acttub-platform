@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
@@ -126,6 +127,55 @@ class PostgresAiJobLedger implements AiJobLedger {
                 .setParameter("since", since)
                 .getSingleResult();
         return requested.intValue();
+    }
+
+    @Override
+    public int countEnqueuedSince(UUID userId, String kind, Instant since) {
+        return entityManager.createQuery(
+                        "select count(*) from AiJobEntity j where j.userId = :userId and j.kind = :kind and j.createdAt >= :since",
+                        Long.class)
+                .setParameter("userId", userId)
+                .setParameter("kind", kind)
+                .setParameter("since", since)
+                .getSingleResult()
+                .intValue();
+    }
+
+    @Override
+    public Optional<Requested> findRequest(UUID userId, UUID requestId) {
+        return entityManager.createQuery("""
+                        select new com.acttub.actingapi.platform.ledger.AiJobLedger$Requested(j.kind, j.requestFingerprint)
+                        from AiJobEntity j where j.userId = :userId and j.requestId = :requestId
+                        """, Requested.class)
+                .setParameter("userId", userId)
+                .setParameter("requestId", requestId)
+                .getResultList().stream().findFirst();
+    }
+
+    @Override
+    public int attemptCount(UUID jobId) {
+        return entityManager.createQuery("select j.attemptCount from AiJobEntity j where j.id = :jobId", Integer.class)
+                .setParameter("jobId", jobId)
+                .getSingleResult();
+    }
+
+    @Override
+    public String lockStatus(UUID jobId) {
+        return entityManager.createQuery("select j.status from AiJobEntity j where j.id = :jobId", String.class)
+                .setParameter("jobId", jobId)
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                .getSingleResult();
+    }
+
+    @Override
+    public List<UUID> exhaustedPending(String kind) {
+        return entityManager.createQuery("""
+                        select j.id from AiJobEntity j
+                        where j.kind = :kind and j.status = 'pending' and j.attemptCount >= :maxAttempts
+                        """, UUID.class)
+                .setParameter("kind", kind)
+                .setParameter("maxAttempts", MAX_ATTEMPTS)
+                .getResultList();
     }
 
     @Override

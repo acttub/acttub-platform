@@ -12,6 +12,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 import com.acttub.actingapi.feature.coach.app.CoachReadingAudio;
+import com.acttub.actingapi.feature.practice.app.PracticesFromReading;
 import com.acttub.actingapi.feature.practice.app.ReadingVoice;
 import com.acttub.actingapi.feature.reading.app.ReadingVoiceMaterials;
 import com.acttub.actingapi.feature.reading.app.ReadingVoiceMaterials.Material;
@@ -29,6 +30,7 @@ import com.acttub.actingapi.integration.storage.ObjectStorage;
 public class ReadingVoiceCoaching implements ReadingVoice, CoachReadingAudio {
 
     private final ReadingVoiceMaterials materials;
+    private final PracticesFromReading practices;
     private final Supplier<ObjectStorage> storage;
     private final RecordingSounds sounds;
     private final AudioJoiner joiner;
@@ -40,9 +42,10 @@ public class ReadingVoiceCoaching implements ReadingVoice, CoachReadingAudio {
         }
     });
 
-    public ReadingVoiceCoaching(ReadingVoiceMaterials materials, Supplier<ObjectStorage> storage, RecordingSounds sounds,
-            AudioJoiner joiner) {
+    public ReadingVoiceCoaching(ReadingVoiceMaterials materials, PracticesFromReading practices,
+            Supplier<ObjectStorage> storage, RecordingSounds sounds, AudioJoiner joiner) {
         this.materials = materials;
+        this.practices = practices;
         this.storage = storage;
         this.sounds = sounds == null ? RecordingSounds.NONE : sounds;
         this.joiner = joiner;
@@ -59,7 +62,7 @@ public class ReadingVoiceCoaching implements ReadingVoice, CoachReadingAudio {
     public Availability availability(UUID userId, UUID readingSessionId) {
         Check check = check(userId, readingSessionId);
         if (check == Check.NOT_FOUND) return null;
-        return new Availability(check == Check.READY, materials.practiceOf(userId, readingSessionId));
+        return new Availability(check == Check.READY, practices.practiceOf(userId, readingSessionId));
     }
 
     public record Availability(boolean available, UUID practiceId) {
@@ -67,7 +70,7 @@ public class ReadingVoiceCoaching implements ReadingVoice, CoachReadingAudio {
 
     @Override
     public CoachReadingAudio.Prepared prepare(UUID userId, UUID practiceId, boolean withAudio) {
-        UUID readingSessionId = materials.readingSessionOf(userId, practiceId);
+        UUID readingSessionId = practices.readingSessionOf(userId, practiceId);
         if (readingSessionId == null) return null;
         Material material = materials.material(userId, readingSessionId);
         if (material == null) return null;

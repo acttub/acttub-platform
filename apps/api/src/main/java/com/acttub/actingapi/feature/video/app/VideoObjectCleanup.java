@@ -11,7 +11,7 @@ import java.util.UUID;
  * <b>같은 트랜잭션에서</b> 장부({@code account_cleanup_operations}, 종류 {@code object_delete})에 남기고 커밋 뒤에
  * 시도한다 — 저장소가 실패해도 요청은 끝나고 장부가 성공할 때까지 다시 시도한다(CONTRACT §6-8).
  *
- * <p>선언은 쓰는 쪽(여기)에 있고 구현은 장부의 주인인 {@code profile} 이 한다 (ADR-017,
+ * <p>선언은 쓰는 쪽(여기)에 있고 구현은 장부의 주인인 배관({@code platform/operation})이 한다 (ADR-017,
  * {@code reading/app/ReadingRecordingCleanup} 과 같은 형태).
  */
 public interface VideoObjectCleanup {

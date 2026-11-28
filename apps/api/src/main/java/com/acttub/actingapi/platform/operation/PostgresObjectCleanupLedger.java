@@ -1,4 +1,4 @@
-package com.acttub.actingapi.feature.profile.adapter.db;
+package com.acttub.actingapi.platform.operation;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -9,8 +9,7 @@ import com.acttub.actingapi.feature.auth.app.ProviderDisconnectCleanup;
 import com.acttub.actingapi.feature.billing.app.RevenueCatCustomerCleanup;
 import com.acttub.actingapi.feature.community.app.CommunityImageCleanup;
 import com.acttub.actingapi.feature.portfolio.app.PortfolioPhotoCleanup;
-import com.acttub.actingapi.feature.profile.app.AccountCleanup;
-import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository;
+import com.acttub.actingapi.feature.profile.app.AccountCleanupLedger;
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
 import com.acttub.actingapi.feature.video.app.VideoObjectCleanup;
@@ -33,7 +32,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Repository
 class PostgresObjectCleanupLedger
         implements PortfolioPhotoCleanup, ReadingRecordingCleanup, VideoObjectCleanup, ScriptFileCleanup,
-        CommunityImageCleanup, ProviderDisconnectCleanup, RevenueCatCustomerCleanup {
+        CommunityImageCleanup, ProviderDisconnectCleanup, RevenueCatCustomerCleanup, AccountCleanupLedger {
     private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     private final EntityManager entityManager;
@@ -71,6 +70,11 @@ class PostgresObjectCleanupLedger
     @Override
     public void attempt(List<UUID> operationIds) {
         cleanup.attempt(operationIds);
+    }
+
+    @Override
+    public int runDue() {
+        return cleanup.runDue();
     }
 
     /** 제공자 해제. 바로 시도해도 된다. */

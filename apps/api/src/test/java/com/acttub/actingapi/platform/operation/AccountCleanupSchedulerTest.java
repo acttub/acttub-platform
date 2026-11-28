@@ -1,11 +1,10 @@
-package com.acttub.actingapi.feature.profile.adapter.sched;
+package com.acttub.actingapi.platform.operation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.acttub.actingapi.feature.profile.app.AccountCleanup;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import org.junit.jupiter.api.Test;
 

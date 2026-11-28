@@ -22,7 +22,7 @@ import java.util.concurrent.Future;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.portfolio.app.PortfolioService;
-import com.acttub.actingapi.feature.profile.app.AccountCleanup;
+import com.acttub.actingapi.platform.operation.AccountCleanup;
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.feature.profile.domain.Profile;

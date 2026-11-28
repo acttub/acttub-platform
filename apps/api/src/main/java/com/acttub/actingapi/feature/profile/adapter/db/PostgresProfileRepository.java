@@ -16,7 +16,7 @@ import com.acttub.actingapi.feature.auth.app.AccountErasureSequence;
 import com.acttub.actingapi.feature.auth.app.AccountRowLock;
 import com.acttub.actingapi.feature.auth.app.RetentionPurge;
 import com.acttub.actingapi.feature.challenge.app.EntryMediaPurge;
-import com.acttub.actingapi.feature.profile.app.DiscoveryAnswerOwnership;
+import com.acttub.actingapi.feature.profile.app.AccountCleanupLedger; import com.acttub.actingapi.feature.profile.app.DiscoveryAnswerOwnership;
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.app.SignupAttributionOwnership;
 import com.acttub.actingapi.feature.push.app.PushTokenRevocation;
@@ -45,7 +45,7 @@ class PostgresProfileRepository
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
-    private final PostgresObjectCleanupLedger cleanups;
+    private final AccountCleanupLedger cleanups;
 
     /** 알림을 모두 끌 때 푸시 토큰을 지우는 주인. */
     private final PushTokenRevocation pushTokens;
@@ -70,7 +70,7 @@ class PostgresProfileRepository
     PostgresProfileRepository(
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
-            PostgresObjectCleanupLedger cleanups,
+            AccountCleanupLedger cleanups,
             PushTokenRevocation pushTokens,
             VideoRetention retainedVideos,
             RetentionPurge retentionPurge,

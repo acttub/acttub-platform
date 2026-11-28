@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.AccountFacts;
+import com.acttub.actingapi.platform.schema.UserStatus;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
 
@@ -26,6 +27,16 @@ class PostgresAccountFacts implements AccountFacts {
         return entityManager.createQuery("select u.createdAt from UserEntity u where u.id = :userId", Instant.class)
                 .setParameter("userId", userId)
                 .getResultList().stream().findFirst();
+    }
+
+    @Override
+    public boolean active(UUID userId) {
+        return !entityManager.createQuery(
+                        "select u.id from UserEntity u where u.id = :userId and u.status = :active", UUID.class)
+                .setParameter("userId", userId)
+                .setParameter("active", UserStatus.ACTIVE)
+                .getResultList()
+                .isEmpty();
     }
 
     @Override

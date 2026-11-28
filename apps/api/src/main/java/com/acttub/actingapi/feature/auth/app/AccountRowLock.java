@@ -21,8 +21,18 @@ public interface AccountRowLock {
      */
     boolean lockActive(UUID userId);
 
-    /** 계정 행을 잠그기만 한다. 활성인지는 묻지 않는다(같은 사람의 겹친 요청을 줄 세울 때). */
-    default void lockRow(UUID userId) {
-        lockActive(userId);
-    }
+    /**
+     * 계정 행을 잠그기만 한다. 활성인지는 묻지 않는다(같은 사람의 겹친 요청을 줄 세울 때, 상대의 행을 쓰기로 잡을 때).
+     *
+     * @return 계정이 있으면 참
+     */
+    boolean lockRow(UUID userId);
+
+    /**
+     * 계정 행을 읽기로 잠근다({@code FOR SHARE}). 그 행을 쓰기로 잡는 쪽(탈퇴, 그 사람의 쓰기)은 이 트랜잭션이 끝날 때까지 기다리고,
+     * 읽기끼리는 함께 쥔다. 행동하는 사람이 아니라 상대의 행을 잡을 때 쓴다 — 활성인지는 묻지 않는다.
+     *
+     * @return 계정이 있으면 참
+     */
+    boolean lockShared(UUID userId);
 }

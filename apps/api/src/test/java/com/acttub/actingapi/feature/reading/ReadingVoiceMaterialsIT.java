@@ -2,10 +2,11 @@ package com.acttub.actingapi.feature.reading;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.practice.app.PracticeOwners;
+import com.acttub.actingapi.feature.practice.app.PracticesFromReading;
 import com.acttub.actingapi.feature.reading.app.ReadingVoiceMaterials;
 import com.acttub.actingapi.feature.reading.app.ReadingVoiceMaterials.Material;
 import com.acttub.actingapi.feature.reading.domain.ReadingVoiceMaterial;
@@ -24,6 +25,52 @@ class ReadingVoiceMaterialsIT extends ReadingRepositoryFixture {
 
     @Autowired
     ReadingVoiceMaterials materials;
+
+    @Autowired
+    PracticesFromReading practices;
+
+    @Autowired
+    PracticeOwners practiceOwners;
+
+    @Test
+    @DisplayName("리딩 회차로 시작한 코칭 회차는 practice 가 답한다: 그 회차의 코칭 회차, 이어 간 회차가 가리키는 리딩 회차, 묶음. 남의 것·없는 것·리딩으로 시작하지 않은 것은 null 이다")
+    void practiceAnswersWhichPracticeAReadingSessionStarted() {
+        UUID owner = member();
+        UUID script = script(owner);
+        UUID first = line(script, 1, "dialogue", character(script, "니나", 0), "안녕");
+        UUID session = session(owner, script, first, first);
+        UUID root = practice(owner, null, 1, session, false);
+        UUID continued = practice(owner, root, 2, null, true);
+        UUID fromVideo = practice(owner, null, 1, null, true);
+        UUID stranger = member();
+
+        assertThat(practices.practiceOf(owner, session)).isEqualTo(root);
+        assertThat(practices.practiceOf(stranger, session)).isNull();
+        assertThat(practices.practiceOf(owner, UUID.randomUUID())).isNull();
+        assertThat(practices.readingSessionOf(owner, root)).isEqualTo(session);
+        assertThat(practices.readingSessionOf(owner, continued)).as("영상으로 이은 회차도 첫 회차의 리딩 회차").isEqualTo(session);
+        assertThat(practices.readingSessionOf(owner, fromVideo)).isNull();
+        assertThat(practices.readingSessionOf(stranger, root)).isNull();
+        assertThat(practiceOwners.groupOf(owner, continued)).isEqualTo(root);
+        assertThat(practiceOwners.groupOf(stranger, continued)).isNull();
+        assertThat(practiceOwners.groupOf(owner, UUID.randomUUID())).isNull();
+
+        assertThat(statementsOf(() -> practices.practiceOf(owner, session))).containsExactly("select practices");
+        assertThat(statementsOf(() -> practices.readingSessionOf(owner, continued))).containsExactly("select practices");
+        assertThat(statementsOf(() -> practiceOwners.groupOf(owner, continued))).containsExactly("select practices");
+    }
+
+    /** 묶음에 열린 회차는 하나뿐이라({@code uq_practices_open_root}) 이어 간 묶음의 앞 회차는 닫아 둔다. */
+    private UUID practice(UUID owner, UUID root, int ordinal, UUID readingSession, boolean open) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO practices(id,user_id,root_id,ordinal,stage,close_reason,experience_version,blockage_kind,sub_branch,
+                                      situation,goal,reading_session_id)
+                VALUES (?,?,?,?,?,?,'legacy','분석','캐릭터 분석','장면','목표',?)
+                """, id, owner, root == null ? id : root, ordinal, open ? "conversing" : "closed",
+                open ? null : "conversation_closed", readingSession);
+        return id;
+    }
 
     @Test
     @DisplayName("material: 내 배역, 구간(시작 줄~끝 줄) 안의 줄을 순서대로(배역 이름과 함께, 지문은 배역 없이), 그 회차의 줄마다 녹음을 낸다. 남의 회차·없는 회차는 null 이다")

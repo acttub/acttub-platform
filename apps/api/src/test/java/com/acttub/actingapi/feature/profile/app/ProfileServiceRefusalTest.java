@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 class ProfileServiceRefusalTest {
     final ProfileRepository profiles = mock(ProfileRepository.class);
     final ProfilePhotoStorage photos = mock(ProfilePhotoStorage.class);
-    final AccountCleanup cleanup = mock(AccountCleanup.class);
+    final AccountCleanupLedger cleanup = mock(AccountCleanupLedger.class);
     final AirbridgeAttributionClient airbridge = mock(AirbridgeAttributionClient.class);
     final PendingConsentDocuments consents = mock(PendingConsentDocuments.class);
     final MutableClock clock = new MutableClock(Instant.parse("2026-10-20T00:00:00Z"));

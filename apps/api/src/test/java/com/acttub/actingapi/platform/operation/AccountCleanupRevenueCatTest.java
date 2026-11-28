@@ -1,4 +1,4 @@
-package com.acttub.actingapi.feature.profile.app;
+package com.acttub.actingapi.platform.operation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -13,10 +13,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository.Abandoned;
-import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository.CleanupOperation;
+import com.acttub.actingapi.platform.operation.AccountCleanupRepository.Abandoned;
+import com.acttub.actingapi.platform.operation.AccountCleanupRepository.CleanupOperation;
 import com.acttub.actingapi.integration.oidc.AppleTokenClient;
 import com.acttub.actingapi.integration.oidc.KakaoUserClient;
 import com.acttub.actingapi.integration.oidc.NaverTokenClient;
@@ -40,7 +41,7 @@ class AccountCleanupRevenueCatTest {
     final RevenueCatCustomerClient revenueCat = mock(RevenueCatCustomerClient.class);
     final FailureReporter reporter = mock(FailureReporter.class);
     final AccountSecrets secrets = new AccountSecrets("jwt-secret", "hash-key", "encryption-key");
-    final AccountCleanup cleanup = new AccountCleanup(operations, mock(ProfilePhotoStorage.class),
+    final AccountCleanup cleanup = new AccountCleanup(operations, Optional.empty(),
             mock(AppleTokenClient.class), mock(KakaoUserClient.class), mock(NaverTokenClient.class), revenueCat,
             secrets, reporter, Clock.fixed(NOW, ZoneOffset.UTC));
 

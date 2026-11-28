@@ -9,7 +9,10 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
-/** {@code billing_checkouts} 를 읽고 쓰는 문장. 창 집기는 한 문장이다(apps/api/CONTRACT.md §5-9). */
+/**
+ * {@code billing_checkouts} 를 읽고 쓰는 문장. 상태를 바꾸는 문장(창 집기, 닫기)은 여기 두지 않고
+ * {@code PostgresBillingStatusTransitions} 에 모은다.
+ */
 interface BillingCheckoutJpaRepository extends Repository<BillingCheckoutEntity, UUID> {
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
@@ -20,14 +23,6 @@ interface BillingCheckoutJpaRepository extends Repository<BillingCheckoutEntity,
     int open(UUID id, UUID userId, String stateHash, String purpose, String customerKey, String orderId, Instant expiresAt,
             String plan);
 
-    /** 시한 전의 open 창을 processing 으로 바꾼다. 1 이면 이 요청이 집었다. */
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("""
-            update BillingCheckoutEntity c set c.status = 'processing', c.updatedAt = :now
-            where c.stateHash = :stateHash and c.status = 'open' and c.expiresAt > :now
-            """)
-    int claim(String stateHash, Instant now);
-
     Optional<BillingCheckoutEntity> findByStateHash(String stateHash);
 
     @Query("""
@@ -35,8 +30,4 @@ interface BillingCheckoutJpaRepository extends Repository<BillingCheckoutEntity,
             where c.stateHash = :stateHash and c.status = 'open' and c.expiresAt > :now
             """)
     Optional<BillingCheckoutEntity> findOpen(String stateHash, Instant now);
-
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("update BillingCheckoutEntity c set c.status = :status, c.resultCode = :code, c.updatedAt = :now where c.id = :id")
-    int finish(UUID id, String status, String code, Instant now);
 }
