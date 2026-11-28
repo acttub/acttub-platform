@@ -17,7 +17,7 @@
 | `GET /v2/videos/{video_id}` | video_id | `Video` 200(10분 서명 `playback_url`·`playback_expires_at`, `poster_url`, 사용처 `usage{practice_count, entry_count}`. 조회마다 새 주소) | `video_not_found` 404 |
 | `PATCH /v2/videos/{video_id}` | 필수 `favorite` (`VideoPatch`) | `Video` 200 | `video_not_found` 404 |
 | `DELETE /v2/videos/{video_id}` | video_id | 204 | `video_in_use` 422, `video_not_found` 404 |
-| `POST /v2/videos/{video_id}/purge-file` | video_id | `Video` 200(이미 파기됐어도 200) | `video_not_found` 404 |
+| `POST /v2/videos/{video_id}/purge-file` | video_id | `Video` 200(이미 파기됐어도 200) | `video_in_public_entry` 409, `video_not_found` 404 |
 | `GET /v2/practices` | `filter`(all·favorite·recent30) | `PracticeGroupList` 200(묶음마다 회차 요약·진행 중 회차 id, 회차마다 `poster_url`) | 필터 값 오류 422(배열) |
 | `GET /v2/practices/{practice_id}` | practice_id | `Practice` 200(`poster_url` 포함) | `practice_not_found` 404 |
 | `PATCH /v2/practices/{root_id}/group` | 첫 회차 id, `favorite`·`hidden`·`title` 중 보낸 것만 (`PracticeGroupPatch`) | `PracticeGroup` 200 | `practice_not_found` 404 |
@@ -48,8 +48,10 @@ practices.hidden_at — 묶음 숨김. 첫 회차 행(root)에만 있다.
   하나, 사용처는 조회 응답에서). 삭제가 참조 생성(회차 시작·참여)과 겹치면 하나만 성공한다. 삭제되면 객체는 장부로 지우고
   받아쓰기도 함께 지운다.
 - 참조가 있는 영상은 "파일만 파기"할 수 있다. 회차·참여작 기록은 남기고 객체와 받아쓰기를 지우며(장부), 그 영상은 재생 불가로 표시되고
-  총량에서 빠진다. 파기했어도 참조가 있으면 삭제는 여전히 422 video_in_use다. 공개 참여작이 참조하면 먼저 참여작을 비공개·삭제해야 한다(422 video_in_use와 사용처 안내, 결정 필요 — 「열린 질문」). 총량이 가득한 계정이 공간을
-  되찾는 길이다.
+  총량에서 빠진다. 파기했어도 참조가 있으면 삭제는 여전히 422 video_in_use다. 총량이 가득한 계정이 공간을 되찾는 길이다.
+- 공개 챌린지 참여작(visibility public)이 쓰는 영상은 파일만 파기하지 않는다. 409 video_in_public_entry이고 아무것도 지우지 않는다.
+  참여작을 먼저 비공개로 돌리거나 지우면 파기된다. 파기가 공개 전환·공개 참여와 겹치면 하나만 성공한다(파기가 먼저면 공개는
+  422 video_not_ready, [challenge.entry](../challenge/entry.md#상태)).
 - 연습 기록(A1.1)은 묶음 단위다. 서버는 묶음 제목으로 첫 행의 title만 주고, 없으면 화면이 마지막 회차 노트의 제목 → 상황 문장 →
   "제목 없는 연습" 순으로 채운다. 목록은 숨긴 묶음을 빼고 묶음마다 회차 요약(노트 제목·대화 수 포함)과 진행 중 회차 id를 준다. 회차 수·마지막 대화·태그·즐겨찾기를 보여 준다. 필터는 전체·즐겨찾기·최근 30일, 월별로 묶는다.
   기록은 AI 코치와 한 연습만 보인다 — 대본 리딩 회차는 섞지 않고 대본 탭의 대본 상세에서 본다(SOMA-494).
@@ -112,8 +114,9 @@ practices.hidden_at — 묶음 숨김. 첫 회차 행(root)에만 있다.
 - 보관함 조회: 최신 저장순이고 예시 영상이 없다. 최근 7일 필터: 7일 안의 것만. 즐겨찾기 토글: videos.favorite가 바뀐다.
 - 두 회차가 참조하는 영상 삭제: 422 video_in_use, 영상·회차 그대로, 상세에 "회차 2개"가 보인다.
 - 참조 없는 영상 삭제: 커밋 뒤 조회에 없고 장부에 키가 있다. 장부 작업 성공 뒤: 객체·video_transcripts가 없다. DB 삭제 실패: 행 그대로.
-- 두 회차가 참조하는 영상 "파일만 파기": 회차 그대로, 객체·받아쓰기 없음, 상세에 "재생할 수 없어요", 총량에서 빠진다. 공개 참여작이
-  참조: 422 video_in_use(결정 필요 — 「열린 질문」, 지금 코드는 파기한다).
+- 두 회차가 참조하는 영상 "파일만 파기": 회차 그대로, 객체·받아쓰기 없음, 상세에 "재생할 수 없어요", 총량에서 빠진다.
+- 공개 참여작이 쓰는 영상 "파일만 파기": 409 video_in_public_entry, 객체·받아쓰기 그대로, 재생된다. 참여작을 비공개로 돌린 뒤: 200,
+  파기된다. 공개 전환이 영상 행을 잡은 사이의 파기: 공개가 커밋되면 409, 되돌려지면 파기된다.
 - 회차 시작과 영상 삭제가 동시: 하나만 성공한다(삭제됐으면 422 video_not_ready, 시작됐으면 422 video_in_use).
 - 묶음 숨김: 첫 행 hidden_at이 차고 목록에서 사라지며 노트·대화·기억 행은 그대로다. 영상은 보관함에 남는다. 묶음 즐겨찾기: 첫 행 favorite.
 - 최근 30일 필터·월별 묶기: 회차 시작 날짜 기준으로 맞다. 홈 최근 연습: 숨기지 않은 묶음 3개. 리딩 회차가 있어도 기록에는 섞이지 않는다.
@@ -134,7 +137,3 @@ practices.hidden_at — 묶음 숨김. 첫 회차 행(root)에만 있다.
 - 개별 회차 숨김.
 - 보관함에 예시 영상을 섞는 것.
 - 대본 리딩 회차를 연습 기록에 섞는 것. 대본 탭의 대본 상세에서 본다.
-
-## 열린 질문
-- 규칙은 공개 참여작이 참조하는 영상의 "파일만 파기"를 422 video_in_use로 막지만, `PostgresVideoRepository.purgeFile`은 참조를 보지 않고
-  파기한다. 막는 검사를 더할지 규칙을 고칠지 정한다.
