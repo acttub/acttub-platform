@@ -31,16 +31,19 @@ import org.springframework.stereotype.Repository;
 class PostgresBillingAccountErasure implements AccountErasure {
 
     private final EntityManager entityManager;
+    private final PostgresBillingStatusTransitions transitions;
     private final RevenueCatCustomerClient revenueCat;
     private final RevenueCatCustomerCleanup cleanups;
     private final AccountSecrets secrets;
 
     PostgresBillingAccountErasure(
             EntityManager entityManager,
+            PostgresBillingStatusTransitions transitions,
             RevenueCatCustomerClient revenueCat,
             RevenueCatCustomerCleanup cleanups,
             AccountSecrets secrets) {
         this.entityManager = entityManager;
+        this.transitions = transitions;
         this.revenueCat = revenueCat;
         this.cleanups = cleanups;
         this.secrets = secrets;
@@ -67,19 +70,10 @@ class PostgresBillingAccountErasure implements AccountErasure {
     }
 
     private void endBilling(UUID userId) {
-        entityManager.createQuery("""
-                        update BillingSubscriptionEntity s
-                        set s.status = 'expired', s.billingKey = null, s.nextRetryAt = null, s.updatedAt = instant
-                        where s.userId = :userId
-                        """)
-                .setParameter("userId", userId)
-                .executeUpdate();
+        transitions.expireForWithdrawal(userId);
         entityManager.createQuery("delete from BillingProGrantEntity g where g.userId = :userId")
                 .setParameter("userId", userId)
                 .executeUpdate();
-        entityManager.createQuery(
-                        "update BillingCheckoutEntity c set c.status = 'failed' where c.userId = :userId and c.status = 'open'")
-                .setParameter("userId", userId)
-                .executeUpdate();
+        transitions.closeOpenCheckoutsForWithdrawal(userId);
     }
 }
