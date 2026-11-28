@@ -44,14 +44,13 @@ class EntryLocks {
         UUID second = first.equals(actor) ? other : actor;
         boolean found = true;
         for (UUID id : first.equals(second) ? new UUID[]{first} : new UUID[]{first, second}) {
-            boolean exclusive = id.equals(actor) || otherExclusive;
-            var rows = NativeTuples.list(em.createNativeQuery(
-                    "SELECT status FROM users WHERE id=:id " + (exclusive ? "FOR UPDATE" : "FOR SHARE"), Tuple.class)
-                    .setParameter("id", id));
-            if (id.equals(actor) && (rows.isEmpty() || !"active".equals(rows.getFirst().get("status", String.class)))) {
-                throw new ApiException(403, "account_deactivated");
+            if (id.equals(actor)) {
+                if (!accountRows.lockActive(id)) {
+                    throw new ApiException(403, "account_deactivated");
+                }
+            } else if (!(otherExclusive ? accountRows.lockRow(id) : accountRows.lockShared(id))) {
+                found = false;
             }
-            if (!id.equals(actor) && rows.isEmpty()) found = false;
         }
         return found;
     }

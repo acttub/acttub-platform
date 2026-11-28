@@ -12,7 +12,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -283,6 +282,53 @@ class OperationStoreIT {
         assertThat(jobs.countRequestedSince(user, "analyze", now.plusSeconds(1))).isZero();
     }
 
+    // ---- 다른 기능이 묻는 읽기(countEnqueuedSince·findRequest·attemptCount·lockStatus·exhaustedPending) ----
+
+    @Test
+    @DisplayName("countEnqueuedSince 는 그 사람·종류의 작업을 이 장부에서만 since 부터(같은 시각 포함) 센다. findRequest 는 그 사람의 그 요청 id 만 찾는다")
+    void countsAndFindsRequestsInThisLedgerOnly() {
+        job(id(1), user, "challenge_report", "pending", 0, now, null);
+        job(id(2), user, "challenge_report", "failed", 3, now.minusSeconds(1), null);
+        job(id(3), other, "challenge_report", "pending", 0, now, null);
+        job(id(4), user, "analyze", "pending", 0, now, null);
+        operation(user, "analyze", "pending", now);
+
+        assertThat(jobs.countEnqueuedSince(user, "challenge_report", now)).isEqualTo(1);
+        assertThat(jobs.countEnqueuedSince(user, "challenge_report", now.minusSeconds(1))).isEqualTo(2);
+        assertThat(jobs.countEnqueuedSince(user, "analyze", now)).as("옛 원장은 세지 않는다").isEqualTo(1);
+        assertThat(jobs.countRequestedSince(user, "analyze", now)).as("하루 요청 수는 두 장부를 함께 센다").isEqualTo(2);
+
+        UUID request = jdbc.queryForObject("SELECT request_id FROM ai_jobs WHERE id=?", UUID.class, id(1));
+        assertThat(jobs.findRequest(user, request)).contains(new AiJobLedger.Requested("challenge_report", "f".repeat(64)));
+        assertThat(jobs.findRequest(other, request)).as("남의 요청 id").isEmpty();
+        assertThat(jobs.findRequest(user, UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("attemptCount 는 시도 수를, exhaustedPending 은 시도를 다 쓴 그 종류의 대기 작업만 낸다. lockStatus 는 상태를 내고 트랜잭션이 끝날 때까지 그 행을 쥔다")
+    void readsAttemptsAndLocksTheJobRow() throws Exception {
+        job(id(1), user, "analyze", "pending", 3, now, null);
+        job(id(2), user, "analyze", "pending", 2, now, null);
+        job(id(3), user, "analyze", "running", 3, now, now.plusSeconds(60));
+        job(id(4), other, "script_split", "pending", 3, now, null);
+
+        assertThat(jobs.attemptCount(id(2))).isEqualTo(2);
+        assertThat(jobs.exhaustedPending("analyze")).containsExactly(id(1));
+        assertThat(jobs.exhaustedPending("memory_update")).isEmpty();
+
+        try (Connection probe = probe()) {
+            new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+                assertThat(jobs.lockStatus(id(3))).isEqualTo("running");
+                assertThatThrownBy(() -> lock(probe, id(3), "FOR KEY SHARE NOWAIT"))
+                        .as("FOR UPDATE 로 쥐고 있어 FOR KEY SHARE 도 들어오지 못한다").isInstanceOf(SQLException.class);
+            });
+            probe.rollback();
+            lock(probe, id(3), "FOR KEY SHARE NOWAIT");
+            probe.rollback();
+        }
+        assertThatThrownBy(() -> jobs.lockStatus(id(3))).as("트랜잭션 밖에서는 잠그지 못한다").isInstanceOf(RuntimeException.class);
+    }
+
     // ---- 탈퇴(PostgresOperationAccountErasure) ----
 
     @Test
@@ -442,6 +488,11 @@ class OperationStoreIT {
             return null;
         })).containsExactly("select external_operations");
         assertThat(statementsOf(() -> health.health())).as("연결 확인은 다른 스레드에서 돈다").isEmpty();
+        assertThat(statementsOf(() -> jobs.countEnqueuedSince(user, "analyze", now))).containsExactly("select ai_jobs");
+        assertThat(statementsOf(() -> jobs.findRequest(user, UUID.randomUUID()))).containsExactly("select ai_jobs");
+        assertThat(statementsOf(() -> jobs.attemptCount(id(1)))).containsExactly("select ai_jobs");
+        assertThat(statementsOf(() -> jobs.exhaustedPending("analyze"))).containsExactly("select ai_jobs");
+        assertThat(statementsOf(() -> inTransaction(() -> jobs.lockStatus(id(1))))).containsExactly("select ai_jobs for update");
         assertThat(statementsOf(() -> inTransaction(() -> cleanups.schedule(user, List.of("users/a/photo.jpg"), now, now))))
                 .containsExactly("insert account_cleanup_operations");
     }

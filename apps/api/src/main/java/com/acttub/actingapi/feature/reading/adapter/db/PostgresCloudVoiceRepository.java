@@ -1,23 +1,21 @@
 package com.acttub.actingapi.feature.reading.adapter.db;
 
-import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
-
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.consent.app.ReadingConsents;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceRepository;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 고품질 목소리의 Postgres 구현. 읽기와 권고 잠금은 Spring Data 저장소에 있다. 동의는 consent 의 표를 읽고, 저장 기록과 줄 수
- * 차감은 두 표를 한 문장(CTE)으로 고쳐 native SQL 로 둔다(apps/api/CONTRACT.md §5-9).
+ * 고품질 목소리의 Postgres 구현. 읽기와 권고 잠금은 Spring Data 저장소에 있다. 동의는 consent 의 {@link ReadingConsents} 가 답하고,
+ * 저장 기록과 줄 수 차감은 두 표를 한 문장(CTE)으로 고쳐 native SQL 로 둔다(apps/api/CONTRACT.md §5-9).
  */
 @Repository
 class PostgresCloudVoiceRepository implements CloudVoiceRepository {
@@ -26,9 +24,12 @@ class PostgresCloudVoiceRepository implements CloudVoiceRepository {
     private final ReadingVoiceCacheJpaRepository cache;
     private final ReadingSessionJpaRepository sessions;
     private final TransactionTemplate transaction;
+    private final ReadingConsents consents;
 
     PostgresCloudVoiceRepository(EntityManager entityManager, ReadingVoiceUsageJpaRepository usage,
-            ReadingVoiceCacheJpaRepository cache, ReadingSessionJpaRepository sessions, PlatformTransactionManager manager) {
+            ReadingVoiceCacheJpaRepository cache, ReadingSessionJpaRepository sessions, PlatformTransactionManager manager,
+            ReadingConsents consents) {
+        this.consents = consents;
         this.entityManager = entityManager;
         this.usage = usage;
         this.cache = cache;
@@ -38,22 +39,7 @@ class PostgresCloudVoiceRepository implements CloudVoiceRepository {
 
     @Override
     public String consent(UUID userId) {
-        // 개인정보 수집·이용 동의 v9 이상에 동의했으면 고품질 목소리 처리도 그 동의에 들어 있다(SOMA-726).
-        Object covered = entityManager.createNativeQuery("SELECT " + PostgresScriptImportRepository.privacyCoversReading(":userId"))
-                .setParameter("userId", userId).getSingleResult();
-        if (Boolean.TRUE.equals(covered)) return "granted";
-        var rows = list(entityManager.createNativeQuery("""
-                SELECT last_decision.action
-                FROM (SELECT id FROM consent_documents
-                      WHERE type='cloud_voice' AND locale='ko'
-                      ORDER BY published_at DESC,id DESC LIMIT 1) current_document
-                LEFT JOIN LATERAL (SELECT action FROM user_consents
-                    WHERE user_id=:userId AND document_id=current_document.id
-                    ORDER BY occurred_at DESC,id DESC LIMIT 1) last_decision ON true
-                """, Tuple.class).setParameter("userId", userId));
-        if (rows.isEmpty() || rows.getFirst().get("action", String.class) == null) return "undecided";
-        // 계약은 granted·denied·undecided 셋이다 — 거절·철회는 모두 denied.
-        return "granted".equals(rows.getFirst().get("action", String.class)) ? "granted" : "denied";
+        return consents.cloudVoice(userId);
     }
 
     @Override

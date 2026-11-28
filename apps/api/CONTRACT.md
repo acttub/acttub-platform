@@ -1034,9 +1034,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   이 표를 모른다.
 - 요청 플래그 `allow_duplicate`·`skip_script_check` 는 지문에 든다. 플래그의 뜻과 요청 모양(제목 길이, 보이는 글자가 없는 `raw_text`)은
   reading.script 가 정본이다.
-- 동의 판정 SQL 은 `PostgresScriptImportRepository#splitDecision` 한 곳이다 — 개인정보 수집·이용 동의 v9 이상에 동의했으면
-  (`privacyCoversReading`, SOMA-726) 동의로 보고, 아니면 현재 판 `script_split` 문서의 마지막 결정을 본다. 고품질 목소리도
-  `privacyCoversReading` 을 쓴다. 예시 대본과 같은 글은 모델을 부르지 않으므로 동의를 보지 않고 바로 저장한다(게스트도).
+- 동의 판정은 consent 의 `ReadingConsents`(구현 `PostgresReadingConsents`)가 답한다 — 개인정보 수집·이용 동의 v9 이상에 동의했으면
+  (SOMA-726) 동의로 보고, 아니면 현재 `script_split` 문서의 마지막 결정을 본다. 고품질 목소리도 같은 Port 에 묻는다. 대본 올리기가
+  자기 문장 안에서 행마다 읽는 같은 판정(`PostgresScriptImportRepository#splitDecision`·`#latestSplitDecision`)은 리딩에 남아 있고,
+  둘이 같은 답을 내는지는 `ScriptUploadConsentParityIT` 가 본다. 예시 대본과 같은 글은 모델을 부르지 않으므로 동의를 보지 않고 바로 저장한다(게스트도).
   `ConsentDocument.askedAtEntry` 가 `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어
   (`ConsentService`, 403 `member_only`) 개인정보 v9 이상에 동의하지 않은 게스트의 나누기는 403 `script_split_consent_required` 다.
 - 탈퇴는 `PostgresReadingAccountErasure` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
@@ -1067,8 +1068,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 실패 원본(V39): 읽기의 `Unreadable` 과 원본 탓인 나누기 실패(워커가 `keepFile` 로 가른다 — `KEPT_SPLIT_FAILURES` 와 모델 호출
   실패, 지문 불일치·한도는 빠진다)가 `recordFailure` 로 `failure` 를 적고, 같은
   문장에서 현재 판 결정이 granted 면 `kept_until` 을 채운다(`ck_script_uploads_kept_failure`: 시한은 이유가 있어야 한다). 나누기 실패는
-  `PostgresScriptImportRepository#fail` 의 트랜잭션 안이다. 현재 판 결정의 SQL 은 `PostgresScriptImportRepository#splitDecision` 한 곳이고
-  나누기 접수 게이트(`consent`)도 그것을 쓴다. `saveText` 는 두 칸을 비운다.
+  `PostgresScriptImportRepository#fail` 의 트랜잭션 안이다. 현재 문서 결정의 SQL 식은 `PostgresScriptImportRepository#splitDecision` 이고
+  나누기 접수 게이트(`consent`)는 같은 규칙을 consent 의 `ReadingConsents` 에 묻는다. `saveText` 는 두 칸을 비운다.
 - 읽기는 프로세스 전체 세마포어 둘(10초 기다림, 못 얻으면 429 `script_upload_busy`)을 잡고 가상 스레드에서 받기·뽑기를 하며 45초를
   넘으면 끊고(interrupt, 뽑기는 읽을 때마다 끊김을 본다) 422 `script_file_unreadable` 이다. 자리는 일이 실제로 끝날 때 돌려준다.
 - 뽑기의 자원 상한: 표 칸까지 센 글자 수가 한도의 두 배를 넘으면 멈추고, zip 안 XML 은 풀린 200MB, hwp 는 hwplib 에 넘기기 전에
@@ -1288,7 +1289,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 > 제품 규칙의 정본: [challenge.react](../../docs/specs/challenge/react.md)(좋아요·저장·댓글, 저장 목록), [challenge.block](../../docs/specs/challenge/block.md)(차단), [challenge.report](../../docs/specs/challenge/report.md)(신고·운영 판정·`target_version`·`target_text`)
 
 - 반응·신고의 잠금 순서는 사람(`users`, id 순 — 행동하는 사람은 쓰기, 작성자는 읽기) → 챌린지(마감 뒤 첫 변경이면 마감 집계)
-  → 참여작이다(`EntryLocks`). 참여작 수정·삭제도 사용자 → 챌린지 → 참여작 순서라 서로 기다려도 원을 만들지 않는다. 행동하는
+  → 참여작이다(`EntryLocks`. 사람 행의 잠금은 auth 의 `AccountRowLock` 이 내준다: 쓰기 `lockActive`·`lockRow`, 읽기 `lockShared`). 참여작 수정·삭제도 사용자 → 챌린지 → 참여작 순서라 서로 기다려도 원을 만들지 않는다. 행동하는
   사람이 활성이 아니면 여기서 403 이다. **차단 행은 잠그지 않는다** — 차단 켜기가 두 사람의 `users` 행을 같은 순서로 잠그므로
   반응과 차단이 겹치면 먼저 잡은 쪽이 끝난 뒤 다른 쪽이 조건을 다시 본다. 신고 저장과 숨김은 대상 행을 잠근 한 트랜잭션이고,
   운영 판정도 대상 행을 잠그고 한다. 챌린지 신고는 챌린지 행을 잠근 채 처리 전 신고의 서로 다른 신고자 수를 세어 임계값
