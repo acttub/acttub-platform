@@ -10,7 +10,10 @@ import { radius, space, type } from '@/constants/tokens';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 import { logEvent } from '@/lib/analytics';
+import { currentFirstUseOwner } from '@/lib/practice/first-use-graduation';
+import { markSceneCoached } from '@/lib/practice/scene-takes';
 import { startPractice } from '@/lib/practice/session-state';
+import { getCurrent } from '@/lib/reading/store';
 import { newRequestId } from '@/lib/request-id';
 import { voiceCoachCardState } from '@/lib/reading/voice-coaching';
 
@@ -93,6 +96,9 @@ export function ReadingAfterCard({ sessionId, ready, part }: { sessionId: string
         playbackUrl: null,
       });
       logEvent('practice_start', { ordinal: 1, continued: false, without_video: true, from_reading: true });
+      // 연습 탭 대본 단계 ③(코칭 받기) — 묶음 id 를 알아 코치 메모를 그 묶음에서 찾는다(lib/practice/scene-takes).
+      const readingScript = getCurrent();
+      if (readingScript) void markSceneCoached(currentFirstUseOwner(), readingScript.id, practice.root_id);
       // 분석을 기다릴 것이 없어 회차 id 없이 연다 — 코치 화면이 방금 든 회차로 바로 대화한다(talk 와 같은 길).
       router.push({ pathname: '/coach', params: { purpose: 'reading' } });
     } catch (e) {

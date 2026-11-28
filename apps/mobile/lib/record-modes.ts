@@ -7,11 +7,15 @@
  *   <li>ai — 보관함에 두고 새 연습 준비로(AI 코칭)
  *   <li>challenge — 오늘의 대사를 띄우고 60초 안에 찍어 챌린지 올리기로
  *   <li>plain — 보관함에 저장만
+ *   <li>scene — 연습 탭 「촬영하기」: 대본을 보며 장면을 찍고 결과 화면(app/scene-take)으로. 대본을 들고 왔을 때만 줄에 보이고 처음 고른 값이다.
  * </ul>
  */
-export type RecordMode = 'ai' | 'challenge' | 'plain';
+export type RecordMode = 'ai' | 'challenge' | 'plain' | 'scene';
 
 export const RECORD_MODES: readonly RecordMode[] = ['ai', 'challenge', 'plain'];
+
+/** 대본을 들고 장면을 찍으러 왔을 때의 줄 — 오늘의 대사(챌린지)는 대본 카드와 겹쳐 뺀다. */
+export const SCENE_RECORD_MODES: readonly RecordMode[] = ['scene', 'ai', 'plain'];
 
 /** 왼쪽으로 넘기면 다음, 오른쪽으로 넘기면 이전. 끝에서는 그대로다. */
 export function recordModeAfterSwipe(

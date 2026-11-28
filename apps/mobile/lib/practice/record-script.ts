@@ -3,7 +3,8 @@
  * 촬영 화면이 처음 그릴 때 꺼내며 비운다 — 다른 길로 연 카메라에 지난 대본이 남지 않는다.
  */
 export type RecordScriptLine = { kind: 'dialogue' | 'direction' | 'scene'; speaker: string | null; text: string; mine: boolean };
-export type RecordScript = { title: string; lines: RecordScriptLine[] };
+/** scriptId·role 은 연습 탭 「촬영하기」(장면 촬영)만 싣는다 — 찍은 장면을 그 대본의 단계(lib/practice/scene-takes)에 남긴다. */
+export type RecordScript = { title: string; lines: RecordScriptLine[]; scriptId?: string; role?: string | null };
 
 let pending: RecordScript | null = null;
 

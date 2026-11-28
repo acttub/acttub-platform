@@ -500,6 +500,8 @@ function RootNavigator() {
           // 헤더는 여기 한 곳에서 숨긴다 — 화면이 따로 바꾸면 iOS에서 다시 그릴 때마다 뒤집혀 깜빡였다.
           options={{ title: t('record.screenTitle'), presentation: 'fullScreenModal', headerShown: false }}
         />
+        {/* 장면 촬영 결과(연습 탭 「촬영하기」) — 화면 안에 자체 헤더가 있다. */}
+        <Stack.Screen name="scene-take" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="analyzing" options={{ title: t('stack.analyzing') }} />
         <Stack.Screen name="coach" options={{ title: t('stack.coach') }} />
         {/* 의견 보내기(SOMA-953)는 화면 안에 자체 헤더가 있다. */}

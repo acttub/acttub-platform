@@ -5,7 +5,9 @@ import { takeRecordScript } from '@/lib/practice/record-script';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
-jest.mock('expo-router', () => ({ useRouter: () => mockRouter, Stack: { Screen: () => null } }));
+let mockParams: Record<string, string> = {};
+jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams, Stack: { Screen: () => null } }));
+const mockLoadIntoCurrent = jest.fn();
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
 jest.mock('@/lib/practice/session-state', () => ({ setContinueOrigin: jest.fn() }));
 const mockListScripts = jest.fn();
@@ -15,6 +17,7 @@ jest.mock('@/lib/reading/store', () => ({
   listScripts: () => mockListScripts(),
   getScriptDetail: (id: string) => mockGetScriptDetail(id),
   rememberedMyRoles: async (id: string) => mockRemembered[id] ?? [],
+  loadIntoCurrent: (id: string) => mockLoadIntoCurrent(id),
 }));
 
 const card = (id: string, title: string, roles: string[]) => ({
@@ -30,7 +33,61 @@ const card = (id: string, title: string, roles: string[]) => ({
   updated_at: '2026-10-23T00:00:00Z',
 });
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockParams = {};
+});
+
+describe('연습 탭 ② 촬영하기(purpose=scene) — 찍을 대본 고르기', () => {
+  const detail = {
+    id: 's1',
+    title: '네가 좋아하는 케이크',
+    characters: [{ id: 'c1', name: '지훈' }, { id: 'c2', name: '수아' }],
+    lines: [
+      { id: 'l2', kind: 'dialogue', character_id: 'c1', text: '이 딸기케이크 주려고 잠깐 들른 거야.' },
+      { id: 'l3', kind: 'dialogue', character_id: 'c2', text: '여기까진 왜 왔어.' },
+    ],
+    scenes: [],
+  };
+
+  test('제목·문구가 「찍을 대본 고르기」이고, 「다음」은 대본 id·배역을 실어 장면 촬영을 연다', async () => {
+    mockParams = { purpose: 'scene' };
+    mockListScripts.mockResolvedValue({ scripts: [card('s1', '네가 좋아하는 케이크', ['지훈'])], total_count: 1, in_progress_count: 0 });
+    mockGetScriptDetail.mockResolvedValue(detail);
+    await render(<CoachScriptsScreen />);
+
+    expect(await screen.findByText('어떤 장면을 찍을까요?')).toBeOnTheScreen();
+    expect(screen.getByText('찍을 대본 고르기')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/record-video', params: { mode: 'scene', from: 'step' } }));
+    const script = takeRecordScript();
+    expect(script).toMatchObject({ scriptId: 's1', role: '지훈', title: '네가 좋아하는 케이크' });
+    expect(script?.lines.map((l) => l.mine)).toEqual([true, false]);
+    expect(setContinueOrigin).not.toHaveBeenCalled();
+  });
+
+  test('배역을 모르면 대본 상세로 보내 리딩을 시작하며 배역을 고르게 한다', async () => {
+    mockParams = { purpose: 'scene' };
+    mockListScripts.mockResolvedValue({ scripts: [card('s9', '새 대본', [])], total_count: 1, in_progress_count: 0 });
+    mockLoadIntoCurrent.mockResolvedValue({ id: 's9' });
+    await render(<CoachScriptsScreen />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: '다음' }));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith('/reading/detail'));
+    expect(mockLoadIntoCurrent).toHaveBeenCalledWith('s9');
+  });
+
+  test('대본 줄을 못 받으면 안내한다', async () => {
+    mockParams = { purpose: 'scene' };
+    mockListScripts.mockResolvedValue({ scripts: [card('s1', '네가 좋아하는 케이크', ['지훈'])], total_count: 1, in_progress_count: 0 });
+    mockGetScriptDetail.mockRejectedValue(new Error('net'));
+    await render(<CoachScriptsScreen />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: '다음' }));
+    expect(await screen.findByText('대본을 열지 못했어요')).toBeOnTheScreen();
+    expect(mockRouter.push).not.toHaveBeenCalled();
+  });
+});
 
 test('저장한 대본을 고르고 「다음」을 누르면 장면 칸을 채우고, 촬영 화면에 띄울 대본을 넘기고 카메라로 간다', async () => {
   mockListScripts.mockResolvedValue({ scripts: [card('s1', '네가 좋아하는 케이크', ['지훈']), card('s2', '작은 상자 안의 열쇠', [])], total_count: 2, in_progress_count: 0 });

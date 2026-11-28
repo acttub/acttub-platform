@@ -1,8 +1,9 @@
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAppDialog } from '@/components/app-dialog';
 import { ChoiceCard } from '@/components/choice-card';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { PrimaryButton, TextButton } from '@/components/ui/buttons';
@@ -13,6 +14,7 @@ import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { StatusScreen } from '@/components/ui/status-screen';
 import { palette } from '@/constants/palette';
 import { space } from '@/constants/tokens';
+import { useSceneStart } from '@/hooks/use-scene-start';
 import { logEvent } from '@/lib/analytics';
 import { translate as t } from '@/lib/i18n';
 import { recordScriptFromDetail, setRecordScript } from '@/lib/practice/record-script';
@@ -24,9 +26,15 @@ import type { ScriptCard } from '@/lib/reading/types';
 /**
  * 코칭 「내 대본으로 찍기」 — 저장한 대본(리딩·대본 만들기·붙여 넣기 모두 같은 목록) 중 하나를 고르고 「다음」을
  * 누르면, 리딩 끝 → 코칭과 같이 대본 제목·내 배역을 새 연습 장면 칸에 채워 카메라로 간다.
+ *
+ * purpose=scene 은 연습 탭 단계 칸 ② 「촬영하기」 — 제목·문구만 「찍을 대본 고르기」로 바꾸고, 「다음」은 대본을 보며 찍는
+ * 장면 촬영(app/record-video mode=scene)을 연다(hooks/use-scene-start).
  */
 export default function CoachScriptsScreen() {
   const router = useRouter();
+  const scene = useLocalSearchParams<{ purpose?: string }>().purpose === 'scene';
+  const sceneStart = useSceneStart();
+  const { alert, dialog } = useAppDialog();
   const [scripts, setScripts] = useState<ScriptCard[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
@@ -64,6 +72,12 @@ export default function CoachScriptsScreen() {
   const record = async () => {
     const script = scripts?.find((s) => s.id === picked);
     if (!script || opening) return;
+    if (scene) {
+      if ((await sceneStart.start(script, 'step')) === 'failed') {
+        void alert({ title: t('coachScripts.sceneOpenFail'), message: t('settings.retryLater') });
+      }
+      return;
+    }
     setOpening(true);
     const detail = await getScriptDetail(script.id).catch(() => null);
     setOpening(false);
@@ -90,7 +104,7 @@ export default function CoachScriptsScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Stack.Screen options={{ headerShown: false }} />
       <NavHeader
-        title={t('coachScripts.title')}
+        title={t(scene ? 'coachScripts.sceneTitle' : 'coachScripts.title')}
         left={<NavIconButton icon="chevron-left" size={26} label={t('common.back')} phLabel="coach_scripts_back" onPress={() => router.back()} />}
       />
       {failed ? (
@@ -108,7 +122,7 @@ export default function CoachScriptsScreen() {
       ) : (
         <View style={styles.flex}>
           <ScrollView contentContainerStyle={styles.body}>
-            <MascotBubble title={t('coachScripts.ask')} guide={t('coachScripts.guide')} />
+            <MascotBubble title={t(scene ? 'coachScripts.sceneAsk' : 'coachScripts.ask')} guide={t(scene ? 'coachScripts.sceneGuide' : 'coachScripts.guide')} />
             {scripts.map((script) => (
               <ChoiceCard
                 key={script.id}
@@ -132,13 +146,14 @@ export default function CoachScriptsScreen() {
               label={t('coachScripts.next')}
               phLabel="coach_scripts_next"
               disabled={!picked}
-              loading={opening}
+              loading={opening || !!sceneStart.opening}
               loadingLabel={t('coachScripts.opening')}
               onPress={() => void record()}
             />
           </CtaBar>
         </View>
       )}
+      {dialog}
     </SafeAreaView>
   );
 }

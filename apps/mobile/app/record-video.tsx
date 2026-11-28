@@ -3,13 +3,15 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Linking, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AppState, Linking, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type TextStyle } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { RecordAlbumButton } from '@/components/record-album-button';
 import { RecordModeSlider } from '@/components/record-mode-slider';
+import { easing, motion } from '@/constants/motion';
 import { palette } from '@/constants/palette';
 import { radius, space, type } from '@/constants/tokens';
 import { keepDeviceFile } from '@/lib/account-files';
@@ -19,8 +21,10 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { CHALLENGE_FUNNEL_EVENTS, permissionResultParams, videoSourceParams } from '@/lib/challenge/funnel';
 import { translate as t } from '@/lib/i18n';
-import { takeRecordScript } from '@/lib/practice/record-script';
-import { RECORD_MODES, recordModeAfterSwipe, type RecordMode } from '@/lib/record-modes';
+import { setRecordScript, takeRecordScript, type RecordScriptLine } from '@/lib/practice/record-script';
+import { clampPrompt, directionText, loadPromptSize, nextPromptSize, promptView, savePromptSize, type PromptSize } from '@/lib/practice/scene-prompt';
+import { recordSceneTake } from '@/lib/practice/scene-takes';
+import { RECORD_MODES, SCENE_RECORD_MODES, recordModeAfterSwipe, type RecordMode } from '@/lib/record-modes';
 import { saveRecordingToLibrary } from '@/lib/library/library-runner';
 import { RECORD_VIDEO_BPS, RECORD_VIDEO_QUALITY, VIDEO_MAX_MS, videoRejectDialog } from '@/lib/library/video-checks';
 import { normalizeVideoDurationMs } from '@/lib/upload-input';
@@ -81,6 +85,8 @@ export default function RecordVideoScreen() {
     picker?: string;
     next?: string;
     maxSec?: string;
+    /** mode=scene 으로 들어온 길(scene_record_start 계측) — step·card·row·retake. */
+    from?: string;
   }>();
   const picker = params.picker === '1';
   // next=upload: 코칭 탭 「지금 찍어서 코칭 받기」 → 찍는 법 → 여기. 준비 화면이 뒤에 없으니 찍은 뒤 새로 연다.
@@ -116,6 +122,47 @@ export default function RecordVideoScreen() {
   // 코칭 촬영에 대본을 띄운다(「내 대본으로 찍기」·대본 만들기 「지금 찍을래요」). 처음 그릴 때 꺼내며 비운다.
   const [recordScript] = useState(() => (isChallenge ? null : takeRecordScript()));
   const [scriptHidden, setScriptHidden] = useState(false);
+  // 연습 탭 「촬영하기」 — 대본(id 포함)을 들고 왔을 때만 장면 촬영이다. 셔터 아래 줄에 「장면 촬영」이 먼저 보이고 처음 고른 값이다.
+  const sceneScript = recordScript?.scriptId ? recordScript : null;
+  const modeLine = sceneScript ? SCENE_RECORD_MODES : RECORD_MODES;
+  const showModeLine = picker || !!sceneScript;
+  useEffect(() => {
+    if (mode === 'scene' && !sceneScript) setMode('plain');
+  }, [mode, sceneScript]);
+  // 대본 보기 — 기본은 한 줄씩(프롬프터), 「대본 전체」를 누르면 예전 전체 카드. 글자 크기는 기기에 기억한다.
+  const [promptAt, setPromptAt] = useState(0);
+  const [fullScript, setFullScript] = useState(false);
+  const [promptSize, setPromptSize] = useState<PromptSize>('normal');
+  useEffect(() => {
+    let live = true;
+    void loadPromptSize().then((size) => {
+      if (live) setPromptSize(size);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const prompt = useMemo(() => (recordScript ? promptView(recordScript.lines, promptAt) : null), [promptAt, recordScript]);
+  // 줄이 바뀔 때 아래에서 짧게 밀려 올라온다. 「동작 줄이기」면 reanimated 가 바로 끝 상태로 둔다(constants/motion).
+  const promptShift = useSharedValue(0);
+  const promptAnim = useAnimatedStyle(() => ({ opacity: 1 - Math.abs(promptShift.value) / 24, transform: [{ translateY: promptShift.value }] }));
+  const movePrompt = useCallback(
+    (delta: 1 | -1, how: 'tap' | 'button') => {
+      if (!prompt || prompt.total === 0) return;
+      const next = clampPrompt(prompt.no - 1 + delta, prompt.total);
+      if (next === prompt.no - 1) return;
+      if (delta > 0) logEvent('scene_prompt_next', { how });
+      setPromptAt(next);
+      promptShift.value = delta > 0 ? 12 : -12;
+      promptShift.value = withTiming(0, { duration: motion.fast, easing: easing.enter });
+    },
+    [prompt, promptShift],
+  );
+  const changePromptSize = () => {
+    const next = nextPromptSize(promptSize);
+    setPromptSize(next);
+    void savePromptSize(next);
+  };
   // 종료 처리가 겹쳐 두 번 도는 것을 막는다(자동 정지 + 사용자 정지).
   const finishedRef = useRef(false);
   // 이 화면을 곧바로 떠나는 중이다. 안드로이드에서 사라지는 화면의 뷰를 다시 그리면 앱이 꺼지므로
@@ -257,18 +304,24 @@ export default function RecordVideoScreen() {
   );
 
   // 화면을 옆으로 넘겨도 용도가 바뀐다(인스타처럼). 가로로 충분히 움직였을 때만 가로챈다 — 버튼 누르기는 그대로다.
+  // 대본을 한 줄씩 보는 중이면 미리보기 아무 데나 누르면 다음 내 대사다(녹화 중에도).
+  const promptTapping = !!prompt && prompt.total > 0 && !scriptHidden && !fullScript;
   const swipe = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => picker,
-        onMoveShouldSetPanResponder: (_, g) => picker && Math.abs(g.dx) > 24 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+        onStartShouldSetPanResponder: () => showModeLine || promptTapping,
+        onMoveShouldSetPanResponder: (_, g) => showModeLine && Math.abs(g.dx) > 24 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
         onPanResponderRelease: (_, g) => {
-          if (Math.abs(g.dx) < 40) return;
+          if (Math.abs(g.dx) < 10 && Math.abs(g.dy) < 10) {
+            if (promptTapping) movePrompt(1, 'tap');
+            return;
+          }
+          if (!showModeLine || Math.abs(g.dx) < 40 || recording) return;
           const current = (mode ?? 'ai') as RecordMode;
-          void changeMode(recordModeAfterSwipe(RECORD_MODES, current, g.dx < 0 ? 'left' : 'right'));
+          void changeMode(recordModeAfterSwipe(modeLine, current, g.dx < 0 ? 'left' : 'right'));
         },
       }),
-    [changeMode, mode, picker],
+    [changeMode, mode, modeLine, movePrompt, promptTapping, recording, showModeLine],
   );
   const goNext = useCallback(() => {
     if (isChallenge) {
@@ -306,6 +359,28 @@ export default function RecordVideoScreen() {
       });
       return;
     }
+    if (mode === 'scene' && sceneScript?.scriptId) {
+      // 장면 촬영 — 보관함에 넣고(어느 버튼을 고르든 남는다) 그 대본에 「찍었어요」를 남긴 뒤 작은 결과 화면으로.
+      // 결과 화면의 「다시 찍기」가 같은 대본으로 카메라를 다시 열 수 있게 대본을 한 번 더 얹는다.
+      const scriptId = sceneScript.scriptId;
+      void saveToLibrary().then((pending) => {
+        const video = takeRecordedVideo();
+        leavingRef.current = true;
+        if (!pending) {
+          router.back();
+          return;
+        }
+        const durationMs = video?.durationMs ?? null;
+        logEvent('scene_record_done', { seconds: Math.round((durationMs ?? 0) / 1000) });
+        void recordSceneTake(user?.id, scriptId, { pendingId: pending.id, uri: pending.uri, durationMs });
+        setRecordScript(sceneScript);
+        router.replace({
+          pathname: '/scene-take',
+          params: { pendingId: pending.id, uri: pending.uri, durationMs: String(durationMs ?? '') },
+        });
+      });
+      return;
+    }
     if (mode === 'plain') {
       // 기본 촬영 — 기기에 저장하고 업로드 대기 큐에 넣은 뒤 이전 화면으로(영상 상세 화면은 SOMA-820에서 없앴다).
       void saveToLibrary().then(() => {
@@ -316,7 +391,7 @@ export default function RecordVideoScreen() {
     }
     leavingRef.current = true;
     router.back();
-  }, [challengeId, isChallenge, line, mode, picker, router, saveToLibrary, toUpload, work]);
+  }, [challengeId, isChallenge, line, mode, picker, router, saveToLibrary, sceneScript, toUpload, user?.id, work]);
 
   // 닫기는 녹화 중·멈춘 뒤에도 받는다 — 예전엔 녹화 중 막혀 있어, iOS 에서 멈춤 뒤 녹화가 늦게 끝나면 위쪽 닫기가 안 눌렸다(10/25 QA).
   // 찍던 것은 버린다. 먼저 끝남·떠남 표시를 해서 녹화가 끝나도 저장·이동하지 않게 한다.
@@ -354,6 +429,7 @@ export default function RecordVideoScreen() {
     setPhase('recording');
     setElapsed(0);
     startedAtRef.current = Date.now();
+    if (mode === 'scene') logEvent('scene_record_start', { from: params.from ?? 'unknown' });
     try {
       // maxDuration 으로 상한에서 네이티브가 스스로 멈춘다 — resolve 되면 결과를 넘긴다.
       // iOS 는 코덱을 정해야 videoBitrate 가 먹는다(H.264).
@@ -373,7 +449,7 @@ export default function RecordVideoScreen() {
       // 곧바로 다른 화면으로 넘어갔으면 녹화 표시를 되돌리지 않는다 — 같은 순간에 바꾸면 안드로이드에서 꺼진다.
       if (!leavingRef.current) setPhase('idle');
     }
-  }, [phase, cameraReady, finishWith, isChallenge, maxSec]);
+  }, [phase, cameraReady, finishWith, isChallenge, maxSec, mode, params.from]);
 
   const stopRecording = useCallback(() => {
     if (!cameraRef.current || !recording) return;
@@ -464,7 +540,9 @@ export default function RecordVideoScreen() {
     ? remainingLabel(remaining)
     : isChallenge
       ? t('record.challengeHint')
-      : picker
+      : promptTapping
+        ? t('record.promptTapHint')
+        : picker
         ? t('recordMode.swipeHint')
         : maxSec < baseMaxSec
           ? t('record.hintShort', { sec: maxSec })
@@ -531,8 +609,23 @@ export default function RecordVideoScreen() {
               <Text style={styles.lineText}>{line}</Text>
             </View>
           )}
-          {cover === 'script' && recordScript && !scriptHidden && (
-            <View style={styles.card}>
+          {cover === 'script' && recordScript && !scriptHidden && !fullScript && prompt && prompt.current && (
+            // 대본 보기(프롬프터) — 앞 줄(작게·흐리게) → 지금 내 대사(크게·굵게) → 다음 줄. 렌즈 가까이 위쪽에 둔다.
+            <View style={styles.card} testID="record-prompter">
+              <Text style={styles.cardLabel} numberOfLines={1}>
+                {prompt.current.mine && prompt.current.speaker
+                  ? t('record.promptLabel', { role: prompt.current.speaker, no: prompt.no, total: prompt.total })
+                  : t('record.promptLabelAll', { no: prompt.no, total: prompt.total })}
+              </Text>
+              <Animated.View style={[styles.promptBody, promptAnim]}>
+                {prompt.prev && <PromptSideLine line={prompt.prev} />}
+                <Text style={[styles.promptNow, PROMPT_NOW_SIZE[promptSize]]}>{prompt.current.text}</Text>
+                {prompt.next && <PromptSideLine line={prompt.next} />}
+              </Animated.View>
+            </View>
+          )}
+          {cover === 'script' && recordScript && !scriptHidden && (fullScript || !prompt?.current) && (
+            <View style={styles.card} testID="record-script-full">
               <Text style={styles.cardLabel} numberOfLines={1}>{t('record.scriptLabel', { title: recordScript.title })}</Text>
               {/* 대본 카드는 화면 4분의 1 안쪽 — 대사가 많으면 안에서 넘긴다(작은 폰에서 얼굴 위치를 가리지 않게). */}
               <ScrollView style={{ maxHeight: Math.round(windowHeight * 0.24) }} contentContainerStyle={styles.scriptBody}>
@@ -547,6 +640,29 @@ export default function RecordVideoScreen() {
                   ),
                 )}
               </ScrollView>
+            </View>
+          )}
+          {cover === 'script' && recordScript && !scriptHidden && !!prompt?.current && (
+            <View style={styles.promptBar} pointerEvents="box-none">
+              {!fullScript && (
+                <>
+                  <PromptButton label={t('record.promptPrev')} phLabel="record_prompt_prev" disabled={prompt.no <= 1} onPress={() => movePrompt(-1, 'button')} />
+                  <PromptButton label={t('record.promptNext')} phLabel="record_prompt_next" disabled={prompt.no >= prompt.total} onPress={() => movePrompt(1, 'button')} />
+                </>
+              )}
+              <PromptButton
+                label={t(fullScript ? 'record.promptOne' : 'record.promptAll')}
+                phLabel="record_prompt_full"
+                onPress={() => setFullScript((v) => !v)}
+              />
+              {!fullScript && (
+                <PromptButton
+                  label={t('record.promptSize')}
+                  a11yLabel={t('record.promptSizeA11y', { size: t(`record.promptSize_${promptSize}`) })}
+                  phLabel="record_prompt_size"
+                  onPress={changePromptSize}
+                />
+              )}
             </View>
           )}
         </View>
@@ -578,10 +694,10 @@ export default function RecordVideoScreen() {
           </View>
           {isChallenge && hint}
           {/* 녹화 중에도 용도 줄 자리를 비워 두지 않는다 — 치우면 아래 정렬이라 셔터가 그만큼 내려간다(SOMA-737). */}
-          {picker && (
+          {showModeLine && (
             <View style={recording ? styles.hiddenKeepSpace : undefined} pointerEvents={recording ? 'none' : 'auto'} collapsable={false}>
               <RecordModeSlider
-                modes={RECORD_MODES}
+                modes={modeLine}
                 value={(mode ?? 'ai') as RecordMode}
                 onChange={(next) => void changeMode(next)}
                 disabled={phase === 'loadingToday'}
@@ -594,6 +710,41 @@ export default function RecordVideoScreen() {
     </View>
   );
 }
+
+/** 프롬프터의 앞·다음 줄 — 작게·흐리게. 대사는 화자 이름(파랑)을 앞에, 지문은 괄호에 넣는다. */
+function PromptSideLine({ line }: { line: RecordScriptLine }) {
+  if (line.kind !== 'dialogue') return <Text style={styles.promptSide} numberOfLines={2}>{directionText(line.text)}</Text>;
+  return (
+    <Text style={styles.promptSide} numberOfLines={2}>
+      {line.speaker ? <Text style={styles.promptSpeaker}>{`${line.speaker}  `}</Text> : null}
+      {line.text}
+    </Text>
+  );
+}
+
+/** 대본 카드 아래 글자 버튼(‹ 이전 · 다음 › · 대본 전체 · 글자 크기) — 카메라 위라 시간 알약과 같은 반투명 알약에 얹는다. */
+function PromptButton({ label, a11yLabel, phLabel, disabled, onPress }: { label: string; a11yLabel?: string; phLabel: string; disabled?: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      style={[styles.promptBtn, disabled && styles.promptBtnOff]}
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={a11yLabel ?? label}
+      accessibilityState={{ disabled: !!disabled }}
+      ph-label={phLabel}>
+      <Text style={styles.promptBtnText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** 지금 내 대사 글자 크기 3단 — 토큰의 글자 단계만 쓴다. */
+const PROMPT_NOW_SIZE: Record<PromptSize, TextStyle> = {
+  small: type.body1Bold,
+  normal: type.headline,
+  large: type.title2,
+};
 
 function CloseButton({ onPress, phLabel }: { onPress: () => void; phLabel: string }) {
   return (
@@ -660,6 +811,14 @@ const styles = StyleSheet.create({
   scriptSpeaker: { ...type.body2Bold, color: palette.onMediaSub },
   scriptSpeakerMine: { color: palette.blueSoft },
   scriptDirection: { ...type.caption, color: palette.onMediaSub },
+  promptBody: { gap: space[2] },
+  promptSide: { ...type.caption, color: palette.onMediaSub },
+  promptSpeaker: { ...type.captionBold, color: palette.blueSoft },
+  promptNow: { color: palette.onAccent },
+  promptBar: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: space[2], paddingHorizontal: space[3] },
+  promptBtn: { height: 32, paddingHorizontal: space[3], borderRadius: radius.full, backgroundColor: palette.scrim, alignItems: 'center', justifyContent: 'center' },
+  promptBtnOff: { opacity: 0.4 },
+  promptBtnText: { ...type.captionBold, color: palette.onAccent },
   bottomGroup: { gap: space[4], paddingBottom: space[3] },
   controls: {
     flexDirection: 'row',

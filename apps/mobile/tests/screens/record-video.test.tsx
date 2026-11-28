@@ -72,6 +72,12 @@ jest.mock('@/lib/auth', () => ({ useAuth: () => ({ user: mockUser }) }));
 jest.mock('@/lib/api', () => ({ api: { listChallenges: jest.fn(), listVideos: jest.fn(async () => ({ videos: [], next_cursor: null })) } }));
 jest.mock('@/lib/account-files', () => ({ keepDeviceFile: jest.fn(async () => undefined) }));
 jest.mock('@/lib/library/library-runner', () => ({ saveRecordingToLibrary: jest.fn() }));
+jest.mock('@/lib/practice/scene-takes', () => ({ recordSceneTake: jest.fn(async () => ({})) }));
+jest.mock('@/lib/practice/scene-prompt', () => ({
+  ...jest.requireActual('@/lib/practice/scene-prompt'),
+  loadPromptSize: jest.fn(async () => 'normal'),
+  savePromptSize: jest.fn(async () => undefined),
+}));
 
 const launchPicker = ImagePicker.launchImageLibraryAsync as jest.Mock;
 const listChallenges = api.listChallenges as jest.Mock;
@@ -172,14 +178,19 @@ test('코칭 촬영에 넘긴 대본이 있으면 카드로 띄우고, 숨김·�
     ],
   });
   await render(<RecordVideoScreen />);
-  expect(await screen.findByText('대본 · 네가 좋아하는 케이크')).toBeOnTheScreen();
+  // 처음엔 한 줄씩 보는 프롬프터 — 「대본 전체」를 누르면 예전 전체 카드(제목·장면 줄 포함)로 바뀐다.
+  expect(await screen.findByText('지훈 · 내 대사 1/1')).toBeOnTheScreen();
   expect(takeRecordScript()).toBeNull();
+  await fireEvent.press(screen.getByLabelText('대본 전체'));
+  expect(screen.getByText('대본 · 네가 좋아하는 케이크')).toBeOnTheScreen();
   expect(screen.getByText('카페 앞 골목, 저녁')).toBeOnTheScreen();
   expect(screen.getByText(/이 딸기케이크 주려고 잠깐 들른 거야\./)).toBeOnTheScreen();
   await fireEvent.press(screen.getByLabelText('대사 숨김'));
   expect(screen.queryByText('대본 · 네가 좋아하는 케이크')).not.toBeOnTheScreen();
   await fireEvent.press(screen.getByLabelText('대사 보기'));
   expect(screen.getByText('대본 · 네가 좋아하는 케이크')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByLabelText('한 줄씩'));
+  expect(screen.getByText('지훈 · 내 대사 1/1')).toBeOnTheScreen();
 });
 
 test('대본으로 찍을 때 녹화 전·녹화 중 모두 닫기가 눌린다 (10/25 iOS QA)', async () => {
@@ -972,5 +983,97 @@ describe('용도 고르기(하단 탭에서 곧장 연 촬영)', () => {
 
     expect(await swipe(-120)).toEqual({ onTouch: false, onMove: false });
     expect(screen.queryByRole('tab')).not.toBeOnTheScreen();
+  });
+});
+
+describe('장면 촬영(연습 탭 「촬영하기」) — 대본 보기 프롬프터', () => {
+  const { recordSceneTake } = jest.requireMock('@/lib/practice/scene-takes') as { recordSceneTake: jest.Mock };
+  const { savePromptSize } = jest.requireMock('@/lib/practice/scene-prompt') as { savePromptSize: jest.Mock };
+  const SCENE = {
+    title: '햄릿',
+    scriptId: 's1',
+    role: '햄릿',
+    lines: [
+      { kind: 'scene' as const, speaker: null, text: '1막 성벽', mine: false },
+      { kind: 'dialogue' as const, speaker: '오필리아', text: '왕자님, 안녕하세요.', mine: false },
+      { kind: 'dialogue' as const, speaker: '햄릿', text: '사느냐 죽느냐.', mine: true },
+      { kind: 'direction' as const, speaker: null, text: '고개를 든다', mine: false },
+      { kind: 'dialogue' as const, speaker: '햄릿', text: '그것이 문제로다.', mine: true },
+    ],
+  };
+  const openScene = async () => {
+    mockParams = { mode: 'scene', from: 'card' };
+    setRecordScript(SCENE);
+    await render(<RecordVideoScreen />);
+  };
+
+  test('앞 줄·지금 내 대사·다음 줄을 보이고, 「다음 ›」「‹ 이전」으로 넘긴다', async () => {
+    await openScene();
+    expect(await screen.findByText('햄릿 · 내 대사 1/2')).toBeOnTheScreen();
+    expect(screen.getByText('사느냐 죽느냐.')).toBeOnTheScreen();
+    expect(screen.getByText(/왕자님, 안녕하세요\./)).toBeOnTheScreen();
+    expect(screen.getByText('(고개를 든다)')).toBeOnTheScreen();
+    expect(screen.getByLabelText('‹ 이전')).toBeDisabled();
+
+    await fireEvent.press(screen.getByLabelText('다음 ›'));
+    expect(screen.getByText('햄릿 · 내 대사 2/2')).toBeOnTheScreen();
+    expect(screen.getByText('그것이 문제로다.')).toBeOnTheScreen();
+    expect(screen.getByLabelText('다음 ›')).toBeDisabled();
+    expect(logged('scene_prompt_next')).toEqual([{ how: 'button' }]);
+
+    await fireEvent.press(screen.getByLabelText('‹ 이전'));
+    expect(screen.getByText('햄릿 · 내 대사 1/2')).toBeOnTheScreen();
+  });
+
+  test('카메라 미리보기를 누르면 녹화 중에도 다음 내 대사로 넘어간다', async () => {
+    await openScene();
+    expect(await screen.findByText('화면을 누르면 다음 대사로 넘어가요')).toBeOnTheScreen();
+    await startRecording();
+    expect(logged('scene_record_start')).toEqual([{ from: 'card' }]);
+    expect(await swipe(0)).toEqual({ onTouch: true, onMove: false });
+    expect(screen.getByText('햄릿 · 내 대사 2/2')).toBeOnTheScreen();
+    expect(logged('scene_prompt_next')).toEqual([{ how: 'tap' }]);
+  });
+
+  test('대본을 숨기면 프롬프터와 넘기기 버튼이 사라지고, 글자 크기는 작게·보통·크게를 돌며 기기에 남긴다', async () => {
+    await openScene();
+    await fireEvent.press(await screen.findByLabelText('글자 크기 바꾸기, 지금 보통'));
+    expect(savePromptSize).toHaveBeenLastCalledWith('large');
+    await fireEvent.press(screen.getByLabelText('글자 크기 바꾸기, 지금 크게'));
+    expect(savePromptSize).toHaveBeenLastCalledWith('small');
+    expect(screen.getByLabelText('글자 크기 바꾸기, 지금 작게')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByLabelText('대사 숨김'));
+    expect(screen.queryByTestId('record-prompter')).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText('다음 ›')).not.toBeOnTheScreen();
+  });
+
+  test('셔터 아래 줄에 「장면 촬영」이 먼저 보이고 처음 고른 값이다 — 오늘의 대사는 없다', async () => {
+    await openScene();
+    expect(await screen.findByRole('tab', { name: '장면 촬영', selected: true })).toBeOnTheScreen();
+    expect(screen.queryByRole('tab', { name: '오늘의 대사' })).not.toBeOnTheScreen();
+  });
+
+  test('찍고 나면 보관함에 넣고 그 대본에 찍은 장면을 남긴 뒤 결과 화면으로 간다', async () => {
+    await openScene();
+    await recordAndStop();
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalled());
+    expect(saveToLibrary).toHaveBeenCalledTimes(1);
+    expect(recordSceneTake).toHaveBeenCalledWith('u1', 's1', expect.objectContaining({ pendingId: 'pend1', uri: 'file:///lib/pend1.mov' }));
+    expect(mockRouter.replace).toHaveBeenCalledWith({
+      pathname: '/scene-take',
+      params: expect.objectContaining({ pendingId: 'pend1', uri: 'file:///lib/pend1.mov' }),
+    });
+    expect(logged('scene_record_done')).toHaveLength(1);
+    // 결과 화면의 「다시 찍기」가 쓰도록 대본을 다시 얹어 둔다.
+    expect(takeRecordScript()?.scriptId).toBe('s1');
+  });
+
+  test('대본 없이 mode=scene 으로 오면 그냥 촬영으로 찍는다', async () => {
+    mockParams = { mode: 'scene' };
+    await render(<RecordVideoScreen />);
+    await recordAndStop();
+    await waitFor(() => expect(mockRouter.back).toHaveBeenCalled());
+    expect(mockRouter.replace).not.toHaveBeenCalled();
   });
 });

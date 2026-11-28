@@ -29,6 +29,8 @@ import { liveStateOf, sceneLabelAt, turnChip } from '@/lib/reading/live';
 import { MIC_STOP_MAX_MS, settleWithin, STT_FINISH_MAX_MS } from '@/lib/reading/turn-close';
 import { onReadingLiveEvent, startReadingLive, stopReadingLive, updateReadingLive } from '@/modules/reading-live';
 import { setContinueOrigin } from '@/lib/practice/session-state';
+import { markSceneCoached } from '@/lib/practice/scene-takes';
+import { currentFirstUseOwner } from '@/lib/practice/first-use-graduation';
 import { Image } from 'expo-image';
 import { useWaitExit } from '@/hooks/use-wait-exit';
 import { currentNetworkType } from '@/lib/reading/network';
@@ -1811,6 +1813,8 @@ export default function ReadingPlay() {
         scene: readingCoachScene({ title: script.title, lineIds: cur.lineIds, scenes: script.scenes, startIndex: cur.startIndex, myRoles: config?.myNames ?? [], t }),
       });
     }
+    // 연습 탭 대본 단계 ③(코칭 받기) — 이 기기에만 남는다(lib/practice/scene-takes).
+    if (script) void markSceneCoached(currentFirstUseOwner(), script.id);
     logEvent('reading_to_coach', { reading_session_id: session?.id ?? '' });
     router.replace({ pathname: '/record-video', params: { mode: 'ai', next: 'upload' } });
   };
