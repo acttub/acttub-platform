@@ -27,14 +27,9 @@ public interface AccountErasure {
     List<UUID> erase(AccountErasureStep step, ClosingAccount account);
 
     /**
-     * 이 계정을 가리키는 자료가 이 기능에 있는가. 있으면 계정 행을 지울 수 없어 탈퇴 절차로 닫는다. 계정 행과 함께 지워도 되는
-     * 것(신원, 토큰, 프로필처럼 계정 그 자체인 것)은 자료로 세지 않는다.
-     */
-    boolean hasRecords(UUID userId);
-
-    /**
-     * 자료가 없는 계정을 행째 지울 때(만 14세 미만 계정 닫기) 그 앞에 부른다. 계정 행을 가리키는 자기 행 가운데 외래 키가 따라
-     * 지워 주지 않는 것(신원, 토큰, 동의 기록)을 지운다. {@code ON DELETE CASCADE} 로 따라 지워지는 행뿐이면 할 일이 없다.
+     * 만 14세 미만 계정 닫기가 계정 행을 지우기 바로 앞에 부른다({@link AccountErasureSequence#closeUnderage}). 이 계정을
+     * 가리키지만 외래 키가 없어 계정 행과 함께 지워지지 않는 자기 행을 지운다. 외래 키가 있는 행은 계정 행을 지울 때
+     * {@code ON DELETE CASCADE} 로 따라 지워지므로(V104) 할 일이 없다.
      */
     default void eraseWithAccountRow(UUID userId) {
     }

@@ -758,6 +758,12 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   [RETENTION-REVOCATION.md](../../docs/deploy/RETENTION-REVOCATION.md) 이고, 그 문서의 셸 계산과 서버의 해시가 같은
   값임을 `AccountSecretsTest` 가 고정한다.
 - 탈퇴 3년 뒤의 파기(해시 행, 보관하던 영상)는 매일 도는 일이다(§6-12).
+- **만 14세 미만 계정 닫기**(가입 게이트, [account.profile](../../docs/specs/account/profile.md#규칙제약))는 같은 트랜잭션에서
+  `AccountErasureSequence#closeUnderage` 가 탈퇴 순서를 보관 동의와 무관하게 돌고, 각 주인의 `eraseWithAccountRow`(외래 키
+  없이 그 계정을 가리키는 행, 지금은 `support_inquiries`) 뒤에 `users` 행을 지운다. 나머지 행은 외래 키가 지운다 —
+  `users` 에서 외래 키로 닿는 표는 모두 `ON DELETE CASCADE` 이고(V104), 남아야 하는 행만 `SET NULL` 이다
+  (`challenges.host_user_id`, 정리 장부의 `user_id`). 장부는 계정 id 없이 남아 커밋 뒤에 실행된다. 막는 외래 키가 생기면
+  `AccountLifecycleFreezeIT#nothingBlocksDeletingTheAccountRow` 가 실패한다.
 
 ### 6-9. 웹 게스트와 이관
 
@@ -1368,8 +1374,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   가입한 계정인지 확실히 증명할 신호가 없으므로, 기존 회원의 과거 가입 출처를 웹 재방문 UTM으로 추정 연결하지
   않는다. 회원에게 이미 있던 Airbridge 등 기존 출처는 그대로다.
 - 쓰기는 회원 자료 쓰기와 같이 `users` 행을 잡고 활성인지 본다(`PostgresProfileRepository#lockActive`) — 탈퇴가
-  먼저면 쓰지 않고 403 `account_deactivated` 다. 탈퇴는 이 행을 지운다(§6-8). 만 14세 미만 종료로 계정 행을
-  지우면 CASCADE 가 함께 지운다.
+  먼저면 쓰지 않고 403 `account_deactivated` 다. 탈퇴는 이 행을 지운다(§6-8). 만 14세 미만 계정 닫기는 계정
+  행을 지우고 외래 키(CASCADE)가 함께 지운다.
 - 탈퇴와 게스트 이관은 해당 행을 즉시 지운다. 매일 도는 `AccountHousekeeping`은 기록 시각이 한국 시간 달력 기준
   14개월보다 오래된 `web_utm` 행만 지운다. Airbridge 행의 보존 규칙은 바꾸지 않는다. 만료 뒤 기존 계정에 새 UTM을
   다시 붙이지 않는 경계는 웹의 신규 guest userId와 세션 결합이며, 서버가 생성 시각으로 신규 여부를 추정하지 않는다.

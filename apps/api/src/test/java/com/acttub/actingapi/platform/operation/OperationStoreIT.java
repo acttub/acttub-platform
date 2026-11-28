@@ -278,7 +278,7 @@ class OperationStoreIT {
     // ---- 탈퇴(PostgresOperationAccountErasure) ----
 
     @Test
-    @DisplayName("탈퇴는 그 사람의 대기·실행 중 작업을 account_deactivated 로 닫고 lease 와 결과를 비운다. 끝난 작업과 다른 사람의 작업은 그대로다. hasRecords 는 두 장부 어느 쪽에든 행이 있는지다")
+    @DisplayName("탈퇴는 그 사람의 대기·실행 중 작업을 account_deactivated 로 닫고 lease 와 결과를 비운다. 끝난 작업과 다른 사람의 작업은 그대로다")
     void accountErasureClosesUnfinishedJobs() {
         job(id(1), user, "analyze", "pending", 0, now.minusSeconds(60), null);
         job(id(2), user, "memory_update", "running", 1, now.minusSeconds(60), now.plusSeconds(60));
@@ -286,12 +286,7 @@ class OperationStoreIT {
         job(id(4), other, "analyze", "pending", 0, now.minusSeconds(60), null);
         jdbc.update("UPDATE ai_jobs SET result='{\"k\":1}'::jsonb, lease_token=? WHERE id IN (?,?,?)", UUID.randomUUID(),
                 id(2), id(3), id(4));
-        UUID legacyOnly = user();
-        operation(legacyOnly, "analyze", "succeeded", now);
 
-        assertThat(erasure.hasRecords(user)).isTrue();
-        assertThat(erasure.hasRecords(legacyOnly)).isTrue();
-        assertThat(erasure.hasRecords(user())).isFalse();
         new TransactionTemplate(transactionManager).executeWithoutResult(tx ->
                 erasure.erase(AccountErasureStep.AI_JOBS, closing(user, now.plusNanos(1_500))));
 
@@ -389,8 +384,6 @@ class OperationStoreIT {
                 .containsExactly("insert ai_jobs");
         assertThat(statementsOf(() -> new TransactionTemplate(transactionManager).execute(tx ->
                 jobs.cancel("analyze", UUID.randomUUID(), now)))).containsExactly("update ai_jobs");
-        assertThat(statementsOf(() -> erasure.hasRecords(other)))
-                .containsExactly("select ai_jobs", "select external_operations");
         assertThat(statementsOf(() -> new TransactionTemplate(transactionManager).execute(tx ->
                 erasure.erase(AccountErasureStep.AI_JOBS, closing(other, now))))).containsExactly("update ai_jobs");
         assertThat(statementsOf(() -> new TransactionTemplate(transactionManager).execute(tx -> {

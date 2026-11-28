@@ -46,14 +46,4 @@ class PostgresFeedbackAccountErasure implements AccountErasure {
                 .executeUpdate();
         return List.of();
     }
-
-    /** 의견의 행은 계정 행을 가리킨 채 남는다(외래 키에 ON DELETE 가 없다). */
-    @Override
-    public boolean hasRecords(UUID userId) {
-        return !entityManager.createQuery("select 1 from PracticeFeedbackEntity f where f.userId = :userId")
-                .setParameter("userId", userId)
-                .setMaxResults(1)
-                .getResultList()
-                .isEmpty();
-    }
 }
