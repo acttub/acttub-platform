@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 import com.acttub.actingapi.feature.auth.app.AccountErasure;
 import com.acttub.actingapi.feature.auth.app.AccountErasureStep;
 import com.acttub.actingapi.feature.auth.app.ClosingAccount;
+import com.acttub.actingapi.feature.profile.app.AccountCleanupLedger;
 import com.acttub.actingapi.feature.profile.domain.AgeBand;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -25,9 +26,9 @@ import org.springframework.stereotype.Repository;
 class PostgresProfileAccountErasure implements AccountErasure {
 
     private final EntityManager entityManager;
-    private final PostgresObjectCleanupLedger cleanups;
+    private final AccountCleanupLedger cleanups;
 
-    PostgresProfileAccountErasure(EntityManager entityManager, PostgresObjectCleanupLedger cleanups) {
+    PostgresProfileAccountErasure(EntityManager entityManager, AccountCleanupLedger cleanups) {
         this.entityManager = entityManager;
         this.cleanups = cleanups;
     }

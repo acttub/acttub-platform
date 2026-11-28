@@ -96,7 +96,7 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 | 주인 | 테이블 |
 |---|---|
 | `feature/auth` | `users`, `user_identities`, `refresh_tokens`, `user_active_days` |
-| `feature/profile` | `user_profiles`, `user_profile_directions`, `user_signup_attributions`, `user_discovery_answers`, `user_airbridge_device_lookups`, `account_cleanup_operations` |
+| `feature/profile` | `user_profiles`, `user_profile_directions`, `user_signup_attributions`, `user_discovery_answers`, `user_airbridge_device_lookups` |
 | `feature/consent` | `consent_documents`, `user_consents` |
 | `feature/transfer` | `guest_transfer_codes` |
 | `feature/portfolio` | `portfolios`, `portfolio_credits`, `portfolio_photos` |
@@ -116,7 +116,7 @@ Entity로 읽고 쓴다. 다른 도메인이 그 데이터를 쓰려면 위 규�
 | `feature/audition` | `audition_postings` |
 | `feature/blog` | `blog_posts` |
 | `feature/support` | `support_inquiries` |
-| `platform/operation` | `ai_jobs`, `external_operations` |
+| `platform/operation` | `ai_jobs`, `external_operations`, `account_cleanup_operations` |
 
 ### 연습 화면의 전환
 

@@ -726,7 +726,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   탈퇴한 계정의 행도 잠근 뒤 활성이 아님을 본다. 탈퇴는 `users` 행을 남기므로
   FK 는 뒤늦은 쓰기를 막지 못한다 — 이 확인이 없으면 파기한 이름·생년월일이 다시 차고 지운 포트폴리오 행이
   되살아난다. 쓰기가 먼저면 탈퇴가 그 뒤에 파기하고, 탈퇴가 먼저면 쓰지 않는다(응답은 [common.md 「탈퇴와 겹친 쓰기」](../../docs/specs/common.md#탈퇴와-겹친-쓰기)).
-- **바깥 호출은 트랜잭션 밖이다**(`feature/profile/app/AccountCleanup`). 탈퇴 트랜잭션은 해제에 쓸 값을
+- **바깥 호출은 트랜잭션 밖이다**(`platform/operation/AccountCleanup`). 탈퇴 트랜잭션은 해제에 쓸 값을
   **파기 전에** `account_cleanup_operations`(V11)로 옮겨 두기만 한다 — `object_delete`(객체 키 목록),
   `apple_revoke`(애플 토큰), `kakao_unlink`(회원번호), `naver_revoke`(refresh token), 그리고 `reading_recording_delete`
   (리딩 녹음 객체 키 목록, V13·§6-14 — 실행은 `object_delete` 와 같다), `revenuecat_delete`(app_user_id = 회원 id, V65 —
@@ -915,7 +915,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 검색은 `%`·`_`·`\` 를 풀어(`escapeLike`) `ILIKE … ESCAPE '\'` 로 찾는다(`PostgresScriptRepository`). 찾는 칸은 reading.script.
 - **삭제**: 줄·회차·녹음·암기 행은 `PostgresScriptRepository#delete` 가 한 트랜잭션에서 지운다. 녹음 객체의 삭제는 행을
   지운 트랜잭션이 정리 장부(`reading_recording_delete`)에 올리고 커밋 뒤에 시도한다(`reading/app/
-  ReadingRecordingCleanup`, 구현은 `profile` 의 `PostgresObjectCleanupLedger`).
+  ReadingRecordingCleanup`, 구현은 `platform/operation` 의 `PostgresObjectCleanupLedger`).
 
 **리딩 회차 (SOMA-546 RA2)**
 

@@ -22,7 +22,7 @@ import org.springframework.stereotype.Service;
  *       암기 갱신)도 든다(specs/reading).</li>
  *   <li>탈퇴 3년 지난 계정의 신원 해시 행과, 보관 동의로 남겨 두었던 영상 객체·리딩 녹음(행과 객체)을 파기한다
  *       (account.withdraw, ADR-029). 객체 삭제는 탈퇴와 같은 정리 장부로 간다.</li>
- *   <li>7일 지난 해제 재시도를 치우고 7일 넘게 실패한 객체 삭제를 알린다 — {@link AccountCleanup#runDue} 가
+ *   <li>7일 지난 해제 재시도를 치우고 7일 넘게 실패한 객체 삭제를 알린다 — {@link AccountCleanupLedger#runDue} 가
  *       하는 일이고 5분마다도 돈다.</li>
  *   <li>쓰였거나 시한이 지난 지 30일 지난 이관 코드 행을 지운다. 쓰인 코드는 "옮겨진 게스트"의 표식이라
  *       그 게스트의 리프레시 토큰이 살 수 있는 30일 동안은 남겨야 한다.</li>
@@ -43,7 +43,7 @@ public class AccountHousekeeping {
     private final StaleRefreshTokens refreshTokens;
     private final StaleTransferCodes transferCodes;
     private final DeletedPracticePurge deletedPractices;
-    private final AccountCleanup cleanup;
+    private final AccountCleanupLedger cleanup;
     private final FailureReporter failureReporter;
     private final Clock clock;
 
@@ -53,7 +53,7 @@ public class AccountHousekeeping {
             StaleRefreshTokens refreshTokens,
             StaleTransferCodes transferCodes,
             DeletedPracticePurge deletedPractices,
-            AccountCleanup cleanup,
+            AccountCleanupLedger cleanup,
             FailureReporter failureReporter,
             Clock clock) {
         this.profiles = profiles;
