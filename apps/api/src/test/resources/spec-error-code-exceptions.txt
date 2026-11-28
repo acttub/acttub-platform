@@ -1,0 +1,4 @@
+# 코드가 내지만 아직 어느 스펙에도 없는 오류 코드(SpecErrorCodeTest). 줄 모양: <코드> <까닭>
+# 줄을 더하지 않는다. 새 오류는 그 기능 스펙에 적는다. 스펙을 채웠으면 줄을 지우고 EXCEPTION_CEILING 도 내린다.
+university_not_found 연기 입시(feature/admissions) 기능의 스펙이 docs/specs 에 없다
+internal_server_error 처리하지 못한 예외의 500. 기능의 오류가 아니라 응답 모양이고 정본은 CONTRACT §6-2 다

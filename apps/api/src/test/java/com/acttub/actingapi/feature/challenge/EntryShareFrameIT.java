@@ -212,11 +212,15 @@ class EntryShareFrameIT {
         assertThat(ledgerRows()).isEqualTo(ledger + 1);
 
         // 파일만 파기: 원본·모자이크본과 함께 프레임 키를 모으는 문장이 돈다(장부 본문은 암호화돼 키는 여기서 보지 않는다).
+        // 공개 참여작의 영상은 파기하지 않으므로(practice.library) 먼저 비공개로 돌린다.
         UUID purgedVideo = video(user);
         String kept = enter(challenge, purgedVideo);
         response(post("/v2/entries/{id}/share-frames", kept).content("{\"frame\":\"black\"}"), 202);
         awaitReady(kept, "black");
         int before = ledgerRows();
+        assertThat(LenientJson.asText(response(post("/v2/videos/{id}/purge-file", purgedVideo), 409).path("detail")))
+                .isEqualTo("video_in_public_entry");
+        response(patch("/v2/entries/{id}", kept).content("{\"visibility\":\"private\"}"), 200);
         response(post("/v2/videos/{id}/purge-file", purgedVideo), 200);
         assertThat(ledgerRows()).isEqualTo(before + 1);
         assertThat(LenientJson.asText(response(post("/v2/entries/{id}/share-frames", kept).content("{\"frame\":\"black\"}"), 422)
