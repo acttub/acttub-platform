@@ -1121,6 +1121,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - 목록의 커서는 저장 시각과 id 다.
   - 삭제는 참조 확인과 삭제를 **영상 행을 잠근 채** 한다(회차 시작과 겹쳐도 하나만 성공한다). 지운 영상과 포스터
     객체는 장부로 간다. 파일만 파기해도 `poster_key` 는 `object_key` 처럼 행에 남지만 객체는 없다.
+  - 파일만 파기도 **영상 행을 잡은 뒤** 공개 참여작(`challenge_entries.visibility='public'`)을 본다. 참여와 공개 전환이 같은
+    영상 행을 `FOR UPDATE` 로 잡고 파기 여부를 보므로(§6-17) 둘 중 먼저 잡은 쪽만 성공한다. 잠그기 전에 보면 그 사이 공개된
+    참여작의 영상이 파기된다(`VideoRepositoryIT.purgeFileWaitsForAnEntryThatIsBeingPublished`).
   - **포스터**(`videos.poster_key`·`poster_attempts`, V23, SOMA-562): `video/app/VideoPosterWorker` 가 뒤에서
     `poster_key` 가 빈 영상을 하나씩 집는다. 스케줄러(`adapter/sched/VideoPosterScheduler`)는 10초마다
     (`VIDEO_POSTER_POLL_INTERVAL_MS`) 자기 스레드 하나에서 일감이 없을 때까지 비운다.

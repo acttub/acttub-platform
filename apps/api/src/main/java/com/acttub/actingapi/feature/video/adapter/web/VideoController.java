@@ -207,7 +207,8 @@ class VideoController {
             summary = "Purge Video File",
             description = """
                     파일만 파기한다 — 회차·참여작의 기록은 남기고 객체와 받아쓰기를 지운다. 그 영상은 재생 불가로
-                    표시되고 총량에서 빠진다. 총량이 가득한 계정이 공간을 되찾는 길이다.""",
+                    표시되고 총량에서 빠진다. 총량이 가득한 계정이 공간을 되찾는 길이다. 공개 챌린지 참여작이 쓰는 영상이면
+                    409 video_in_public_entry 이고 아무것도 지우지 않는다 — 참여작을 먼저 비공개로 돌리거나 지운다.""",
             operationId = "purge_video_file_v2_videos__video_id__purge_file_post",
             tags = "v2-videos",
             security = @SecurityRequirement(name = "HTTPBearer"))
