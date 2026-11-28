@@ -40,13 +40,13 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: INAPP_ESCAPE }} />
         {/* 팀 브라우저(?acttub_team=1)의 Cloudflare 비컨만 막는다 — lib/analytics/team-beacon-guard.ts */}
         <script dangerouslySetInnerHTML={{ __html: buildTeamBeaconGuardScript() }} />
+        <PretendardStylesheet />
       </head>
       <body className="min-h-full flex flex-col">
-        <PretendardStylesheet />
         {/* 계측이 지켜야 하는 조건(동의 전 쿠키 금지·주소에서 식별자 제거·실서비스 호스트
             한정)은 전부 lib/analytics/ga.ts 주석에 있다. 여기서는 자리만 잡는다. */}
         <Analytics />
-        {/* 게스트의 기능별 동의 시트. 평소에는 아무것도 그리지 않는다(consent-sheet.tsx). */}
+        {/* 게스트의 기능별 동의 시트이자 회원의 재동의 시트. 평소에는 아무것도 그리지 않는다(consent-sheet.tsx). */}
         <ConsentSheetHost />
         {/* 웹 회원 로그인이 풀렸을 때만 위에 한 줄 안내를 띄운다(SOMA-834). */}
         <LoginExpiredNoticeHost />

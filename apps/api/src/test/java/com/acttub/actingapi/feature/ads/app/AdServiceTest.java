@@ -9,6 +9,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.ads.domain.Ad;
@@ -83,7 +84,7 @@ class AdServiceTest {
 
     private static Ad direct() {
         return new Ad(UUID.randomUUID(), Ad.DIRECT, List.of("home_top"), "all", 0, "학원",
-                null, null, null, "b.png", null, "https://example.com", null, 100);
+                null, null, null, "b.png", null, "https://example.com", null, 100, Set.of());
     }
 
     @Test

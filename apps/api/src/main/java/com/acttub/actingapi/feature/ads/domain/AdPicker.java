@@ -21,6 +21,8 @@ import java.util.function.IntSupplier;
  *   <li>칸과 대상이 맞는 우리 앱 광고(HOUSE). 대상이 pro 인 광고는 Pro 가 광고를 안 받으므로 나가지 않는다.</li>
  *   <li>없으면 AdMob 으로 채운다(NETWORK).</li>
  * </ol>
+ * 광고마다 보이지 않을 계정(excluded_user_ids)에 든 사람에게는 그 광고가 없는 것처럼 고른다(SOMA-1069) — 직접 광고가
+ * 그것뿐이면 우리 앱 광고 → AdMob 으로 넘어간다.
  * 같은 단계 후보가 여럿이면 priority 가 가장 큰 것들 중에서 사람·날마다 하나로 돌린다.
  * 우리 앱 광고는 그렇게 고른 광고의 노출 비율(share_percent, 0~100)만큼의 확률로 나가고, 아니면 AdMob(NETWORK)이다 —
  * 칸을 열 때마다 난수 0~99 를 뽑아 비율보다 작으면 우리 광고다. 직접 광고도 비율만큼 먼저 나가고(100% 면 늘), 남은 몫이 우리 앱 → AdMob 순서다.
@@ -74,7 +76,8 @@ public final class AdPicker {
             return Pick.none(slot);
         }
         List<Ad> direct = candidates.stream()
-                .filter(ad -> Ad.DIRECT.equals(ad.kind()) && ad.targets(slot) && ad.imageFor(slot.size()) != null
+                .filter(ad -> Ad.DIRECT.equals(ad.kind()) && ad.targets(slot) && !ad.excludes(viewer.userId())
+                        && ad.imageFor(slot.size()) != null
                         && AdRules.validLink(ad.linkUrl()))
                 .toList();
         if (!direct.isEmpty()) {
@@ -93,7 +96,8 @@ public final class AdPicker {
             roll = () -> rest;
         }
         List<Ad> house = candidates.stream()
-                .filter(ad -> Ad.HOUSE.equals(ad.kind()) && ad.targets(slot) && audienceMatches(ad.audience(), viewer.pro())
+                .filter(ad -> Ad.HOUSE.equals(ad.kind()) && ad.targets(slot) && !ad.excludes(viewer.userId())
+                        && audienceMatches(ad.audience(), viewer.pro())
                         && hasPath(ad) && (ad.imageFor(slot.size()) != null || !Ad.blank(ad.headline())))
                 .toList();
         if (!house.isEmpty()) {

@@ -18,9 +18,8 @@ export function StickyDownloadBar({ heroId }: { heroId: string }) {
     const hero = document.getElementById(heroId);
     if (!hero) return;
 
-    // 스냅 스크롤은 히어로 아랫변을 화면 윗변에 정확히 맞춘다. 그 상태를 IntersectionObserver 는
-    // "닿아 있다 = 보인다" 로 치기 때문에 바가 영영 안 뜬다. 관찰 영역 위쪽을 헤더 높이만큼
-    // 줄여서, 히어로가 헤더 밑으로 들어간 순간부터 "안 보인다" 로 본다.
+    // 히어로가 고정 헤더 밑에 가려져도 IntersectionObserver 는 "닿아 있다 = 보인다" 로 친다.
+    // 관찰 영역 위쪽을 헤더 높이만큼 줄여서, 히어로가 헤더 밑으로 들어간 순간부터 "안 보인다" 로 본다.
     const observer = new IntersectionObserver(
       ([entry]) => {
         setVisible(!entry.isIntersecting);
