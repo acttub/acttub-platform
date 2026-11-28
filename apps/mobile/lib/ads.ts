@@ -187,12 +187,13 @@ export const TEST_REWARDED_UNIT = {
 } as const;
 
 /**
- * 운영 AdMob 보상형 광고 단위(무료 코칭 1회 더, SOMA-1067). 아직 만들지 않아 비어 있다 — 비어 있으면 운영 빌드는 버튼을 보이지 않는다.
- * 단위를 만들 때 AdMob 콘솔에서 서버 측 확인 URL 을 `<API 주소>/v2/coaching-rewards/ssv` 로 둔다.
+ * 운영 AdMob 보상형 광고 단위(무료 코칭 1회 더, SOMA-1067). 2026-11-28 AdMob 콘솔에서 만들었다(이름 「코칭 1회 더 보상형」,
+ * 리워드 「코칭」 1). 서버 측 확인 URL(`https://acttub.com/v2/coaching-rewards/ssv`)은 그 API 가 운영에 올라간 뒤 콘솔에서
+ * 연결한다 — 연결 전에는 시청해도 서버가 횟수를 주지 않는다. 비우면 운영 빌드는 버튼을 보이지 않는다.
  */
 export const PRODUCTION_REWARDED_UNITS: { android: string; ios: string } = {
-  android: '',
-  ios: '',
+  android: 'ca-app-pub-9577213564323927/9500328217',
+  ios: 'ca-app-pub-9577213564323927/5577074271',
 };
 
 /** 보상형 광고 단위. 운영 API 를 보는 빌드만 실제 단위(없으면 null — 버튼을 숨긴다), 나머지는 Google 테스트 단위다. */
