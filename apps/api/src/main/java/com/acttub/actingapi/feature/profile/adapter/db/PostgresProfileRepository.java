@@ -195,19 +195,17 @@ class PostgresProfileRepository
             if (saved == 0) {
                 return null;
             }
-            entityManager.createNativeQuery("""
-                    DELETE FROM user_profile_directions
-                    WHERE user_id=:userId
-                    """)
+            entityManager.createQuery("delete from UserProfileDirectionEntity d where d.userId = :userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
             for (String direction : profile.directions()) {
-                entityManager.createNativeQuery("""
-                        INSERT INTO user_profile_directions(user_id,direction)
-                        VALUES (:userId,:direction)
-                        """)
+                entityManager.createQuery("""
+                                insert into UserProfileDirectionEntity (id, userId, direction)
+                                values (:id, :userId, :direction)
+                                """)
+                        .setParameter("id", UUID.randomUUID())
                         .setParameter("userId", userId)
-                        .setParameter("direction", direction)
+                        .setParameter("direction", ActingDirection.valueOf(direction.toUpperCase(Locale.ROOT)))
                         .executeUpdate();
             }
             return find(userId);
@@ -284,12 +282,14 @@ class PostgresProfileRepository
 
     @Override
     public NotificationSettings notificationSettings(UUID userId) {
-        List<Tuple> rows = list(entityManager.createNativeQuery("""
-                SELECT notify_analysis_done,notify_challenge,notify_evening_reminder
-                FROM user_profiles
-                WHERE user_id=:userId
-                """, Tuple.class)
-                .setParameter("userId", userId));
+        List<Tuple> rows = entityManager.createQuery("""
+                        select p.notifyAnalysisDone as notify_analysis_done, p.notifyChallenge as notify_challenge,
+                               p.notifyEveningReminder as notify_evening_reminder
+                        from UserProfileEntity p
+                        where p.userId = :userId
+                        """, Tuple.class)
+                .setParameter("userId", userId)
+                .getResultList();
         return rows.isEmpty() ? null : settings(rows.getFirst());
     }
 
@@ -494,14 +494,16 @@ class PostgresProfileRepository
 
     @Override
     public PhotoUpload pendingPhotoUpload(UUID userId) {
-        List<Tuple> rows = list(entityManager.createNativeQuery("""
-                SELECT photo_upload_key,photo_upload_mime_type,
-                       photo_upload_size_bytes,photo_upload_expires_at
-                FROM user_profiles
-                WHERE user_id=:userId
-                  AND photo_upload_key IS NOT NULL
-                """, Tuple.class)
-                .setParameter("userId", userId));
+        List<Tuple> rows = entityManager.createQuery("""
+                        select p.photoUploadKey as photo_upload_key, p.photoUploadMimeType as photo_upload_mime_type,
+                               p.photoUploadSizeBytes as photo_upload_size_bytes,
+                               p.photoUploadExpiresAt as photo_upload_expires_at
+                        from UserProfileEntity p
+                        where p.userId = :userId
+                          and p.photoUploadKey is not null
+                        """, Tuple.class)
+                .setParameter("userId", userId)
+                .getResultList();
         if (rows.isEmpty()) {
             return null;
         }

@@ -2,9 +2,13 @@ package com.acttub.actingapi.feature.ads.adapter.db;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.acttub.actingapi.feature.ads.app.AdRepository;
 import com.acttub.actingapi.feature.ads.domain.Ad;
@@ -125,13 +129,18 @@ class PostgresAdRepository implements AdRepository {
                 ad.getImageBanner(), ad.getImageMediumRectangle(), ad.getLinkUrl(), ad.getAppPath(), ad.getStartsAt(),
                 ad.getEndsAt(), ad.getSharePercent());
         return new AdStats.Stored(ad.getId(), draft, ad.getCreatedAt(), ad.getUpdatedAt(), row.impressions(),
-                row.clicks());
+                row.clicks(), excludedUserIds(ad).size());
     }
 
     private static Ad ad(AdEntity row) {
         return new Ad(row.getId(), row.getKind(), List.of(row.getSlots()), row.getAudience(), row.getPriority(),
                 row.getAdvertiserName(), row.getHeadline(), row.getBody(), row.getImageLargeBanner(),
                 row.getImageBanner(), row.getImageMediumRectangle(), row.getLinkUrl(), row.getAppPath(),
-                row.getSharePercent());
+                row.getSharePercent(), excludedUserIds(row));
+    }
+
+    /** 운영자가 SQL 로 넣는 값이라 같은 id 가 두 번 있거나 NULL 원소가 있어도 읽기가 실패하지 않게 거른다. */
+    private static Set<UUID> excludedUserIds(AdEntity row) {
+        return Arrays.stream(row.getExcludedUserIds()).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
     }
 }

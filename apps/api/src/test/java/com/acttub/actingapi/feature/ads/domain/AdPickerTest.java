@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
@@ -20,7 +21,13 @@ class AdPickerTest {
 
     private static Ad direct(String slot, String large, String banner, int priority, int share) {
         return new Ad(UUID.randomUUID(), Ad.DIRECT, List.of(slot), "all", priority, "학원",
-                null, null, large, banner, null, "https://example.com", null, share);
+                null, null, large, banner, null, "https://example.com", null, share, Set.of());
+    }
+
+    private static Ad excluding(Ad ad, UUID... userIds) {
+        return new Ad(ad.id(), ad.kind(), ad.slots(), ad.audience(), ad.priority(), ad.advertiserName(), ad.headline(),
+                ad.body(), ad.imageLargeBanner(), ad.imageBanner(), ad.imageMediumRectangle(), ad.linkUrl(), ad.appPath(),
+                ad.sharePercent(), Set.of(userIds));
     }
 
     private static Ad house(String slot, String audience, String headline, String path) {
@@ -29,7 +36,7 @@ class AdPickerTest {
 
     private static Ad house(String slot, String audience, String headline, String path, int share) {
         return new Ad(UUID.randomUUID(), Ad.HOUSE, List.of(slot), audience, 0, null,
-                headline, null, null, null, null, null, path, share);
+                headline, null, null, null, null, null, path, share, Set.of());
     }
 
     private static AdPicker.Viewer viewer(boolean practiced, boolean pro, boolean practiceOn) {
@@ -99,6 +106,50 @@ class AdPickerTest {
                 .isEqualTo(AdPicker.Kind.NONE);
         assertThat(AdPicker.pick(AdSlot.ANALYZING_WAIT, viewer(true, false, true), List.of(), DAY).kind())
                 .isEqualTo(AdPicker.Kind.NETWORK);
+    }
+
+    @Test
+    @DisplayName("보이지 않을 계정에 든 사람에게는 그 직접 광고가 없는 것처럼 우리 앱 광고 → AdMob 으로 넘어간다. 다른 사람은 그대로 받는다 (SOMA-1069)")
+    void excludedViewerSkipsDirectAd() {
+        Ad play = excluding(direct("home_top", null, "b.png", 9), USER);
+        Ad ours = house("home_top", "all", "이번 주 챌린지", "/challenges");
+
+        var toTeam = AdPicker.pick(AdSlot.HOME_TOP, viewer(true, false, false), List.of(play, ours), DAY, () -> 0);
+        assertThat(toTeam.kind()).isEqualTo(AdPicker.Kind.HOUSE);
+        assertThat(toTeam.ad()).isEqualTo(ours);
+        assertThat(AdPicker.pick(AdSlot.HOME_TOP, viewer(true, false, false), List.of(play), DAY, () -> 0).kind())
+                .isEqualTo(AdPicker.Kind.NETWORK);
+
+        var toOthers = AdPicker.pick(AdSlot.HOME_TOP, new AdPicker.Viewer(UUID.randomUUID(), true, false, false),
+                List.of(play, ours), DAY, () -> 0);
+        assertThat(toOthers.kind()).isEqualTo(AdPicker.Kind.DIRECT);
+        assertThat(toOthers.ad()).isEqualTo(play);
+    }
+
+    @Test
+    @DisplayName("우리 앱 광고도 보이지 않을 계정에 든 사람에게는 고르지 않고 fallback 으로도 주지 않는다 (SOMA-1069)")
+    void excludedViewerSkipsHouseAd() {
+        Ad hidden = excluding(house("home_top", "all", "이번 주 챌린지", "/challenges", 50), USER);
+        var pick = AdPicker.pick(AdSlot.HOME_TOP, viewer(true, false, false), List.of(hidden), DAY, () -> 0);
+        assertThat(pick.kind()).isEqualTo(AdPicker.Kind.NETWORK);
+        assertThat(pick.fallback()).isNull();
+        assertThat(AdPicker.pick(AdSlot.HOME_TOP, viewer(true, false, false), List.of(hidden), DAY, () -> 99).fallback())
+                .isNull();
+
+        Ad other = house("home_top", "all", "Pro 로 더 연습하기", "/pro");
+        var next = AdPicker.pick(AdSlot.HOME_TOP, viewer(true, false, false), List.of(hidden, other), DAY, () -> 0);
+        assertThat(next.kind()).isEqualTo(AdPicker.Kind.HOUSE);
+        assertThat(next.ad()).isEqualTo(other);
+    }
+
+    @Test
+    @DisplayName("excludes 는 목록에 든 id 만 참이고, 사람을 모르면(null) 거짓이다")
+    void excludesNullSafe() {
+        Ad ad = excluding(direct("home_top", null, "b.png", 0), USER);
+        assertThat(ad.excludes(USER)).isTrue();
+        assertThat(ad.excludes(UUID.randomUUID())).isFalse();
+        assertThat(ad.excludes(null)).isFalse();
+        assertThat(direct("home_top", null, "b.png", 0).excludedUserIds()).isEmpty();
     }
 
     @Test

@@ -158,7 +158,7 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
     }
 
     private Video uploadInspected(Path path, String mimeType, boolean hasAudioTrack, String label) {
-        try (var input = Files.newInputStream(path)) {
+        try (var input = UploadFileInput.open(path)) {
             var config = UploadFileConfig.builder().mimeType(mimeType)
                     .httpOptions(HttpOptions.builder().timeout(120000).build());
             if (label != null && !label.isBlank()) config.displayName(label + (hasAudioTrack ? AUDIO : SILENT));

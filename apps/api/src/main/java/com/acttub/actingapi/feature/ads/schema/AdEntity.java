@@ -63,6 +63,12 @@ public class AdEntity extends AppGeneratedUuidEntity {
     @Column(name = "share_percent", nullable = false)
     private int sharePercent;
 
+    /** 이 광고를 보이지 않을 사용자 id(V103). 운영자가 SQL 로만 넣고, 등록·수정 문장은 쓰지 않는다. */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "excluded_user_ids", nullable = false, columnDefinition = "uuid[]", insertable = false,
+            updatable = false)
+    private UUID[] excludedUserIds = new UUID[0];
+
     @Column(name = "starts_at")
     private Instant startsAt;
 
@@ -157,6 +163,10 @@ public class AdEntity extends AppGeneratedUuidEntity {
 
     public int getSharePercent() {
         return sharePercent;
+    }
+
+    public UUID[] getExcludedUserIds() {
+        return excludedUserIds == null ? new UUID[0] : excludedUserIds.clone();
     }
 
     public Instant getStartsAt() {
