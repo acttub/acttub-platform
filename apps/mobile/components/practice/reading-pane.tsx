@@ -7,6 +7,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { sanitizeInput } from '@/lib/practice/readable-text';
 import { AdSlot } from '@/components/ad-slot';
+import CoachingSection from '@/components/practice/coaching-pane';
+import { PracticeSteps, type PracticeStepKey } from '@/components/practice/practice-steps';
+import { startSceneCoaching } from '@/hooks/scene-coaching';
+import { useFocusLoad } from '@/hooks/use-focus-load';
+import { useNextTakes } from '@/hooks/use-next-takes';
+import { useSceneStart } from '@/hooks/use-scene-start';
+import { logEvent } from '@/lib/analytics';
+import { api } from '@/lib/api';
+import { coachingEntry } from '@/lib/practice/coaching-entry';
+import { currentFirstUseOwner } from '@/lib/practice/first-use-graduation';
+import { lastNotePracticeId, sceneTitle } from '@/lib/practice/groups';
+import { coachGroupFor, knownSceneTakes, lastHandledScript, loadSceneTakes, practiceStepOf, type PracticeStep, type SceneTakes } from '@/lib/practice/scene-takes';
+import type { PracticeGroup } from '@/lib/practice/types';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { SplitJobRow } from '@/components/reading/split-job-row';
 import { BandGradient } from '@/components/ui/band-gradient';
@@ -29,8 +42,8 @@ import { TitleEditDialog } from '@/components/title-edit-dialog';
 import { NavHeader, NavIconButton } from '@/components/ui/nav-header';
 import { useFirstTimeUser } from '@/hooks/use-first-time-user';
 import { useTabBarSpace } from '@/components/ui/tab-bar';
-import { CHIP_TONE, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
-import { resumeCandidate, resumeSessionOf } from '@/lib/reading/redesign-748';
+import { myCharactersLabel } from '@/lib/reading/script-cards';
+import { resumeSessionOf } from '@/lib/reading/redesign-748';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { lastRead, rememberRead } from '@/lib/last-reads';
 import { deleteScript, listScripts, listSessions, loadIntoCurrent } from '@/lib/reading/store';
@@ -69,8 +82,30 @@ const ROW_ICON_WIDTH = 24;
 /** 대본 탭에서 처음 한 번 비추는 자리 — 대본을 들이는 버튼 하나뿐이다 (SOMA-550). */
 const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guide.spotReadingNew' }];
 
-/** 연습 탭의 리딩 쪽(예전 리딩 탭). `modeSwitch`(「리딩 | 코칭」)는 머리의 큰 제목 자리에 들어간다(app/(tabs)/practice). */
-export default function ReadingList({ modeSwitch }: { modeSwitch?: ReactNode } = {}) {
+/** 대본 하나의 「다음 할 일」 — 카드 버튼·줄 글자 버튼이 같이 쓴다(practice_next_tap { action }). */
+type NextAction = 'read' | 'shoot' | 'coach' | 'again';
+const ACTION_OF: Record<PracticeStep, NextAction> = { reading: 'read', read: 'shoot', shot: 'coach', coached: 'again' };
+const ROW_GO: Record<PracticeStep, string> = {
+  reading: 'practiceTab.rowGoRead',
+  read: 'practiceTab.rowGoShoot',
+  shot: 'practiceTab.rowGoCoach',
+  coached: 'practiceTab.rowGoAgain',
+};
+/** 「다음 할 일」 카드 — 마지막으로 다룬 대본 하나와 그 단계. 리딩 중이면 진행 중 회차, 리딩 끝이면 끝낸 회차 수를 함께 든다. */
+type NextCard = { script: ScriptCard; step: PracticeStep; session: SessionCard | null; readCount: number };
+
+/**
+ * 연습 탭 한 페이지(시안 B3 + 촬영 단계). 위에서부터:
+ * 제목 「연습」 → 단계 칸 셋(① 대사 익히기 → ② 촬영하기 → ③ 코칭 받기) → 고품질 목소리 띠 → 「다음 할 일」 파란 카드 → 새 대본 →
+ * 광고 칸 → 내 대본(검색·줄마다 다음 할 일) → 코칭 구역(저번 코치 메모·다른 방법·최근 코칭, components/practice/coaching-pane).
+ * 대본이 없으면 카드·목록 자리에 예전 리딩 입구(올리기·예시·만들기)가 그대로 온다.
+ *
+ * 대본별 단계는 lib/practice/scene-takes 가 앱에서 판정한다 — ①은 서버 대본 카드, ②③은 이 기기에 남긴 기록이라
+ * 기기를 바꾸면 ②③ 표시가 빈다(서버에 대본별 단계 값이 없다).
+ *
+ * `focusCoaching`(주소 /practice?mode=coaching)이면 코칭 구역으로 한 번 내려 준다.
+ */
+export default function ReadingList({ focusCoaching = false }: { focusCoaching?: boolean } = {}) {
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const firstTime = useFirstTimeUser();
@@ -88,16 +123,48 @@ export default function ReadingList({ modeSwitch }: { modeSwitch?: ReactNode } =
   const [q, setQ] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ScriptCard | null>(null);
-  /** 「이전에 하던 데부터」 카드 — 연습 중 대본의 진행 중 회차(pen 「새 · 내 대본」). */
+  /** 「다음 할 일」 카드(예전 「이전에 하던 데부터」 카드와 같은 모양) — 마지막으로 다룬 대본의 다음 단계. */
   // 지난번 카드를 먼저 보인다 — 목록을 받고 회차까지 받은 뒤에 카드가 끼어들어 목록이 밀렸다(11/3 폰 QA).
-  const [resume, setResumeState] = useState<{ script: ScriptCard; session: SessionCard } | null>(
-    () => lastRead<{ script: ScriptCard; session: SessionCard } | null>('readingResume') ?? null,
-  );
-  const setResume = useCallback((next: { script: ScriptCard; session: SessionCard } | null) => {
+  const [resume, setResumeState] = useState<NextCard | null>(() => lastRead<NextCard | null>('readingResume') ?? null);
+  const setResume = useCallback((next: NextCard | null) => {
     rememberRead('readingResume', next);
     setResumeState(next);
   }, []);
   const [resuming, setResuming] = useState(false);
+  // 대본별 ②③ 기록(이 기기, 계정별). 이번 실행에서 읽었으면 바로 그린다.
+  const [takes, setTakes] = useState<SceneTakes>(() => knownSceneTakes(currentFirstUseOwner()) ?? {});
+  const sceneStart = useSceneStart();
+  // 코칭 묶음 — 아래 코칭 구역과 카드의 코치 메모가 같이 쓴다. 홈이 받은 것이 있으면 그것으로 먼저 그린다(lib/last-reads).
+  const [groups, setGroups] = useState<PracticeGroup[] | null>(() => lastRead<{ groups: PracticeGroup[] }>('practiceGroups')?.groups ?? null);
+  const [groupsFailed, setGroupsFailed] = useState(false);
+  const [groupsAttempt, setGroupsAttempt] = useState(0);
+  useFocusLoad(
+    (alive) => {
+      api
+        .listPracticeGroups('all')
+        .then(({ groups: list }) => {
+          if (!alive()) return;
+          setGroups(list);
+          setGroupsFailed(false);
+        })
+        .catch(() => {
+          if (alive()) setGroupsFailed(true);
+        });
+    },
+    [groupsAttempt],
+  );
+  const scrollRef = useRef<ScrollView>(null);
+  const coachingY = useRef<number | null>(null);
+  const scrolledToCoaching = useRef(false);
+  const scrollToCoaching = useCallback(() => {
+    if (!focusCoaching || scrolledToCoaching.current || coachingY.current === null) return;
+    scrolledToCoaching.current = true;
+    scrollRef.current?.scrollTo({ y: coachingY.current, animated: false });
+  }, [focusCoaching]);
+  useEffect(() => {
+    if (!focusCoaching) scrolledToCoaching.current = false;
+    else scrollToCoaching();
+  }, [focusCoaching, scrollToCoaching]);
   const [refreshing, setRefreshing] = useState(false);
   const generation = useRef(0);
   // 대본 탭에서 처음 한 번만 — 홈 가이드와 따로 센다 (SOMA-550).
@@ -142,17 +209,26 @@ export default function ReadingList({ modeSwitch }: { modeSwitch?: ReactNode } =
     try {
       const next = await listScripts(keyword);
       if (mine === generation.current) setList(next);
-      // 검색 중이 아닐 때만 이어 읽을 회차를 찾는다. 못 찾으면 카드 없이 목록만 보인다.
-      const candidate = keyword.trim() ? null : resumeCandidate(next.scripts);
+      const sceneTakes = await loadSceneTakes(currentFirstUseOwner());
+      if (mine === generation.current) setTakes(sceneTakes);
+      // 검색 중이 아닐 때만 「다음 할 일」 대본을 고른다 — 마지막으로 다룬 대본(리딩·촬영·코칭 중 가장 늦게 한 것). 없으면 카드 없이 목록만 보인다.
+      const candidate = keyword.trim() ? null : lastHandledScript(next.scripts, sceneTakes);
       if (!candidate) {
         if (!keyword.trim() && mine === generation.current) setResume(null);
       } else {
+        const step = practiceStepOf(candidate, sceneTakes[candidate.id]) as PracticeStep;
+        // 리딩 중이면 이어 읽을 회차가 있어야 카드를 그린다. 리딩 끝이면 끝낸 회차 수를 알약에 적는다.
+        const cardOf = (sessions: readonly SessionCard[]): NextCard | null => {
+          const session = step === 'reading' ? resumeSessionOf(sessions) : null;
+          if (step === 'reading' && !session) return null;
+          return { script: candidate, step, session, readCount: sessions.filter((s) => s.status === 'completed').length };
+        };
         // 그 대본의 회차를 받아 둔 게 있으면 먼저 카드를 그리고, 새로 받은 답으로 맞춘다.
         const known = lastRead<{ sessions: SessionCard[] }>(`readingSessions:${candidate.id}`)?.sessions;
-        const knownSession = known ? resumeSessionOf(known) : null;
-        if (knownSession && mine === generation.current) setResume({ script: candidate, session: knownSession });
-        const session = resumeSessionOf(await listSessions(candidate.id).catch(() => known ?? []));
-        if (mine === generation.current) setResume(session ? { script: candidate, session } : null);
+        const knownCard = known ? cardOf(known) : null;
+        if (knownCard && mine === generation.current) setResume(knownCard);
+        const card = cardOf(await listSessions(candidate.id).catch(() => known ?? []));
+        if (mine === generation.current) setResume(card);
       }
     } catch (e) {
       if (mine === generation.current) setError(scriptErrorMessage(e));
@@ -262,11 +338,18 @@ export default function ReadingList({ modeSwitch }: { modeSwitch?: ReactNode } =
     else if (choice === 'make') router.push({ pathname: '/script-cocreate', params: { mode: 'reading' } });
   };
 
-  const continueReading = async () => {
-    if (!resume || resuming) return;
+  /** 진행 중 회차로 이어 읽는다. 회차를 모르면(줄에서 누름) 받아 둔 회차 → 서버 순으로 찾고, 없으면 대본 상세를 연다. */
+  const continueReading = async (script: ScriptCard, known: SessionCard | null) => {
+    if (resuming) return;
     setResuming(true);
     try {
-      const where = await openResume(resume.script.id, resume.session.id);
+      const cached = lastRead<{ sessions: SessionCard[] }>(`readingSessions:${script.id}`)?.sessions;
+      const session = known ?? resumeSessionOf(cached ?? (await listSessions(script.id).catch(() => [])));
+      if (!session) {
+        await open(script);
+        return;
+      }
+      const where = await openResume(script.id, session.id);
       if (where !== 'play') {
         void load(q);
         return;
@@ -276,6 +359,35 @@ export default function ReadingList({ modeSwitch }: { modeSwitch?: ReactNode } =
       setResuming(false);
     }
   };
+
+  /** 대본의 「다음 할 일」 — 이어서 읽기 / 이 장면 찍기 / 코칭 받기(찍은 영상으로) / 다시 읽기(대본 상세). */
+  const runNext = async (script: ScriptCard, step: PracticeStep, from: 'card' | 'row', session: SessionCard | null = null) => {
+    logEvent('practice_next_tap', { action: ACTION_OF[step] });
+    if (step === 'reading') return continueReading(script, session);
+    if (step === 'coached') return open(script);
+    if (step === 'shot') {
+      return startSceneCoaching(router, currentFirstUseOwner(), { id: script.id, title: script.title, roles: script.my_character_names }, takes[script.id]);
+    }
+    if ((await sceneStart.start(script, from)) === 'failed') {
+      void alert({ title: t('coachScripts.sceneOpenFail'), message: t('settings.retryLater') });
+    }
+  };
+
+  const tapStep = (step: PracticeStepKey) => {
+    logEvent('practice_step_tap', { step });
+    if (step === 'read') router.push('/reading/new');
+    else if (step === 'shoot') router.push({ pathname: '/coach-scripts', params: { purpose: 'scene' } });
+    // 코칭을 한 번도 안 했으면 목적을 묻지 않는 첫 코칭(SOMA-984), 아니면 새 연습 준비.
+    else if (!groups || coachingEntry(groups).kind === 'first') router.push({ pathname: '/upload', params: { first: '1' } });
+    else router.push('/upload');
+  };
+
+  // 카드의 코치 메모 한 줄 — 그 대본으로 받은 코칭 묶음의 마지막 노트 「다음엔 …」. 못 찾으면 줄을 생략한다.
+  const memoGroup = resume?.step === 'coached' && groups ? coachGroupFor(takes[resume.script.id], resume.script.title, groups, sceneTitle) : null;
+  const memoPracticeId = memoGroup ? lastNotePracticeId(memoGroup) : null;
+  const memoTakes = useNextTakes([memoPracticeId]);
+  const memo = memoPracticeId ? (memoTakes[memoPracticeId] ?? null) : null;
+  const cardBusy = resuming || (!!resume && sceneStart.opening === resume.script.id);
 
   const voiceBar = (
     cloudVoice.status?.available ? (
@@ -298,6 +410,7 @@ export default function ReadingList({ modeSwitch }: { modeSwitch?: ReactNode } =
   return (
     <View style={styles.root}>
       <ScrollView
+      ref={scrollRef}
       // 입구 위 띠의 첫 색은 위 여백(당기기 표시 자리)까지 스크롤 배경으로 칠한다 — 내용 안에 두면 당기기 표시를 덮는다.
       style={[styles.root, (showEntry || entrySkeleton) && styles.rootEmpty]}
       contentContainerStyle={[styles.content, { paddingTop: insets.top - iosTopInset, paddingBottom: tabBarSpace + 20 }]}
@@ -312,12 +425,11 @@ export default function ReadingList({ modeSwitch }: { modeSwitch?: ReactNode } =
           style={{ top: insets.top - iosTopInset, bottom: undefined, height: ENTRY_FADE_END - insets.top }}
         />
       )}
-      {/* NavHeader/Large — 제목 자리는 연습 탭의 「리딩 | 코칭」이다. 그것이 없으면 대본이 없을 때 빈 제목, 있으면 「내 대본」. */}
+      {/* NavHeader/Large — 탭 머리 큰 제목 「연습」. */}
       <View style={styles.headWrap}>
         <NavHeader
           large
-          titleSlot={modeSwitch}
-          title={showEntry || entrySkeleton ? '' : t('reading.listTitle')}
+          title={t('practiceTab.title')}
           right={
             <View style={styles.headRight}>
               {/* 첫 사용자에게는 설정(로그아웃·탈퇴) 길을 머리에도 둔다(SOMA-781). */}
@@ -328,6 +440,9 @@ export default function ReadingList({ modeSwitch }: { modeSwitch?: ReactNode } =
           }
         />
       </View>
+
+      {/* 단계 칸 셋 — 고정 칸이라 받기 전에도 그대로 그린다. */}
+      <PracticeSteps onPress={tapStep} />
 
       {/* 고품질 목소리 띠 — 대본이 있어도 머리 아래에 둔다(10/25 사용자 결정, 기본 켜짐). */}
       {!showEntry && !entrySkeleton && voiceBar}
@@ -383,37 +498,35 @@ export default function ReadingList({ modeSwitch }: { modeSwitch?: ReactNode } =
         </View>
       ) : (
         <>
-          {resume && !searching && (
-            // 카드 전체를 누른다 — 카드 안에 따로 버튼을 두지 않는다(UX 가이드 5절, 10/23).
-            <Pressable
-              style={({ pressed }) => [styles.resumeCard, pressed && styles.pressed]}
-              onPress={() => void continueReading()}
-              disabled={resuming}
-              accessibilityRole="button"
-              accessibilityState={{ busy: resuming, disabled: resuming }}
-              accessibilityLabel={resuming ? t('loadingText.preparing') : t('reading.resumeGo')}
-              accessibilityHint={resume.script.title}
-              ph-label="reading_resume_card">
-              {/* 10/29 시안 — 진한 파랑 카드, 위 흰 반투명 알약, 오른쪽 아래 책 위의 액티, 아래 흰 알약 [이어서 읽기 →]. */}
-              <Image source={HERO_ACTY} style={styles.resumeActy} resizeMode="contain" accessibilityElementsHidden />
-              <View style={styles.resumeChip}>
-                <Text style={styles.resumeEyebrow}>{t('reading.resumeEyebrow')}</Text>
-              </View>
-              <Text style={styles.resumeTitle}>
-                {t('reading.resumeHeadline', {
-                  title: resume.script.title,
-                  roles: myCharactersLabel(resume.script),
-                  done: resume.session.progress?.done ?? 0,
-                  total: resume.session.progress?.total ?? 0,
-                })}
-              </Text>
-              <Text style={styles.resumeHint}>{t('reading.resumeHint')}</Text>
-              <View style={styles.resumeBtn}>
-                <Text style={styles.resumeBtnText}>{resuming ? t('loadingText.preparing') : t('reading.resumeGo')}</Text>
-                {!resuming && <Feather name="arrow-right" size={18} color={heroCard.ctaBlue} />}
-              </View>
-            </Pressable>
-          )}
+          {resume && !searching && (() => {
+            const scriptRole = t('practiceTab.scriptRole', { title: resume.script.title, roles: myCharactersLabel(resume.script) });
+            const card = nextCardCopy(resume, scriptRole, memo);
+            return (
+              // 카드 전체를 누른다 — 카드 안에 따로 버튼을 두지 않는다(UX 가이드 5절, 10/23).
+              <Pressable
+                style={({ pressed }) => [styles.resumeCard, pressed && styles.pressed]}
+                onPress={() => void runNext(resume.script, resume.step, 'card', resume.session)}
+                disabled={cardBusy}
+                accessibilityRole="button"
+                accessibilityState={{ busy: cardBusy, disabled: cardBusy }}
+                accessibilityLabel={cardBusy ? t('loadingText.preparing') : card.go}
+                accessibilityHint={resume.script.title}
+                ph-label="reading_resume_card"
+                testID={`practice-next-${resume.step}`}>
+                {/* 10/29 시안 — 진한 파랑 카드, 위 흰 반투명 알약, 오른쪽 아래 책 위의 액티, 아래 흰 알약 [다음 할 일 →]. 글·버튼만 단계에 맞게 바뀐다. */}
+                <Image source={HERO_ACTY} style={styles.resumeActy} resizeMode="contain" accessibilityElementsHidden />
+                <View style={styles.resumeChip}>
+                  <Text style={styles.resumeEyebrow}>{card.chip}</Text>
+                </View>
+                <Text style={styles.resumeTitle}>{card.title}</Text>
+                {card.hint ? <Text style={styles.resumeHint} numberOfLines={3}>{card.hint}</Text> : null}
+                <View style={styles.resumeBtn}>
+                  <Text style={styles.resumeBtnText}>{cardBusy ? t('loadingText.preparing') : card.go}</Text>
+                  {!cardBusy && <Feather name="arrow-right" size={18} color={heroCard.ctaBlue} />}
+                </View>
+              </Pressable>
+            );
+          })()}
 
           {/* 이어 하기 → 새 대본 → 지난 기록(업로드한 대본) 순서(SOMA-1123). 이어 읽을 회차가 없으면 새 대본이 맨 위다. */}
           {!searching && (
@@ -452,8 +565,14 @@ export default function ReadingList({ modeSwitch }: { modeSwitch?: ReactNode } =
             {[
               ...(searching ? [] : splitJobs.rows.map((job) => <SplitJobRow key={`job-${job.importId}`} job={job} onDismiss={splitJobs.dismiss} />)),
               ...scripts.map((s) => {
-                const chip = statusChip(s);
-                const tone = chip ? CHIP_TONE[chip.tone] : null;
+                // 줄 아래 상태 한 줄과 오른쪽 「다음 할 일」 글자 버튼 — 배역을 고른 적도 찍은 적도 없는 새 대본은 둘 다 없다.
+                const step = practiceStepOf(s, takes[s.id]);
+                const status = step
+                  ? step === 'coached' && memo && resume?.script.id === s.id
+                    ? t('practiceTab.memo', { text: memo })
+                    : rowStatus(s, step)
+                  : null;
+                const busy = sceneStart.opening === s.id;
                 return (
                   <Pressable
                     key={s.id}
@@ -466,10 +585,27 @@ export default function ReadingList({ modeSwitch }: { modeSwitch?: ReactNode } =
                     <View style={styles.rowBody}>
                       <Text style={styles.rowTitle} numberOfLines={1}>{s.title}</Text>
                       <Text style={styles.rowMeta} numberOfLines={1}>
-                        {chip && tone ? <Text style={[styles.rowChip, { color: tone.color }]}>{`${chip.label} · `}</Text> : null}
                         {myCharactersLabel(s)} · {t('reading.dialogueCount', { count: s.dialogue_count })}
                       </Text>
+                      {status ? (
+                        <Text style={styles.rowStatus} numberOfLines={1} testID={`practice-row-status-${s.id}`}>
+                          {status}
+                        </Text>
+                      ) : null}
                     </View>
+                    {step ? (
+                      <Pressable
+                        style={({ pressed }) => [styles.rowGo, pressed && styles.pressed]}
+                        hitSlop={8}
+                        disabled={busy || resuming}
+                        accessibilityRole="button"
+                        accessibilityLabel={busy ? t('loadingText.preparing') : t(ROW_GO[step])}
+                        accessibilityHint={s.title}
+                        ph-label={`practice_row_${ACTION_OF[step]}`}
+                        onPress={() => void runNext(s, step, 'row')}>
+                        <Text style={styles.rowGoText}>{busy ? t('loadingText.preparing') : t(ROW_GO[step])}</Text>
+                      </Pressable>
+                    ) : null}
                     <Pressable style={styles.moreBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('reading.more')} ph-label="reading_script_more" onPress={(e) => more(s, e)}>
                       <Feather name="more-horizontal" size={18} color={palette.iconFaint} />
                     </Pressable>
@@ -485,6 +621,23 @@ export default function ReadingList({ modeSwitch }: { modeSwitch?: ReactNode } =
             {scripts.length === 0 && searching && <InlineEmpty title={t('reading.noMatch')} description={t('reading.noMatchSub')} />}
           </View>
         </>
+      )}
+      {/* 코칭 구역 — 내 대본 아래(검색 중에는 숨긴다). 주소가 mode=coaching 이면 여기로 한 번 내려 준다. */}
+      {!searching && (
+        <View
+          onLayout={(e) => {
+            coachingY.current = e.nativeEvent.layout.y;
+            scrollToCoaching();
+          }}>
+          <CoachingSection
+            groups={groups}
+            failed={groupsFailed}
+            onRetry={() => {
+              setGroupsFailed(false);
+              setGroupsAttempt((n) => n + 1);
+            }}
+          />
+        </View>
       )}
       {dialog}
       {cloudVoice.consentSheet}
@@ -511,6 +664,54 @@ export default function ReadingList({ modeSwitch }: { modeSwitch?: ReactNode } =
       <View pointerEvents="none" style={[styles.statusCover, { height: insets.top }, (showEntry || entrySkeleton) && styles.statusCoverEmpty]} />
     </View>
   );
+}
+
+/** 「다음 할 일」 카드의 알약·제목·보조 줄·버튼 글 — 리딩 중은 예전 「이어서 읽기」 카드 그대로다. */
+function nextCardCopy(card: NextCard, scriptRole: string, memo: string | null): { chip: string; title: string; hint: string | null; go: string } {
+  switch (card.step) {
+    case 'reading':
+      return {
+        chip: t('practiceTab.chipReading'),
+        title: t('reading.resumeHeadline', {
+          title: card.script.title,
+          roles: myCharactersLabel(card.script),
+          done: card.session?.progress?.done ?? 0,
+          total: card.session?.progress?.total ?? 0,
+        }),
+        hint: t('reading.resumeHint'),
+        go: t('reading.resumeGo'),
+      };
+    case 'read':
+      return {
+        chip: card.readCount > 0 ? t('practiceTab.chipRead', { count: card.readCount }) : t('practiceTab.chipReadDone'),
+        title: t('practiceTab.headRead'),
+        hint: scriptRole,
+        go: t('practiceTab.goShoot'),
+      };
+    case 'shot':
+      return { chip: t('practiceTab.chipShot'), title: t('practiceTab.headShot'), hint: scriptRole, go: t('practiceTab.goCoach') };
+    case 'coached':
+      return {
+        chip: t('practiceTab.chipCoached'),
+        title: scriptRole,
+        hint: memo ? t('practiceTab.memo', { text: memo }) : null,
+        go: t(memo ? 'practiceTab.goAgainMemo' : 'practiceTab.goAgain'),
+      };
+  }
+}
+
+/** 대본 줄 아래 상태 한 줄. 회차 진행·끝낸 회차 수는 이 기기가 받아 둔 회차가 있을 때만 적는다. */
+function rowStatus(script: ScriptCard, step: PracticeStep): string {
+  const sessions = lastRead<{ sessions: SessionCard[] }>(`readingSessions:${script.id}`)?.sessions;
+  if (step === 'reading') {
+    const progress = sessions ? resumeSessionOf(sessions)?.progress : null;
+    return progress ? t('practiceTab.rowReadingProgress', { done: progress.done, total: progress.total }) : t('practiceTab.rowReading');
+  }
+  if (step === 'read') {
+    const count = sessions?.filter((s) => s.status === 'completed').length ?? 0;
+    return count > 0 ? t('practiceTab.rowRead', { count }) : t('practiceTab.rowReadDone');
+  }
+  return t(step === 'shot' ? 'practiceTab.rowShot' : 'practiceTab.rowCoached');
 }
 
 /** 대본이 없을 때 화면(입구 카드 셋)의 뼈대 — 큰 「리딩」 제목과 액티는 고정이라 그대로, 카드는 같은 틀에 글만 회색. */
@@ -663,6 +864,9 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1, minWidth: 0, gap: space[1] },
   rowTitle: { ...type.body1Bold, color: palette.text },
   rowMeta: { ...type.caption, color: palette.textMeta },
-  rowChip: type.captionBold,
+  rowStatus: { ...type.captionBold, color: palette.blueDeep },
+  // Button/Text — 줄 오른쪽 「다음 할 일」 글자 버튼(알약 바탕 없음).
+  rowGo: { height: 32, paddingHorizontal: space[1], alignItems: 'center', justifyContent: 'center' },
+  rowGoText: { ...type.body2Bold, color: palette.blueDeep },
   moreBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
 });

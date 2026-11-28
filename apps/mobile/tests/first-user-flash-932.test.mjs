@@ -13,7 +13,8 @@ test('대본 탭 — 목록을 받기 전에는 「내 대본」 머리·고품�
   // 목록 모양 뼈대와 함께 미리 보이고, 그 밖에는(첫 사용자·기억 없음) 입구 모양 뼈대라 「내 대본」이 번쩍이지 않는다.
   assert.match(src, /const listSkeleton = listPending && skeletonHints\.reading === 'list';/);
   assert.match(src, /const entrySkeleton = listPending && !listSkeleton && !entryHint;/);
-  assert.match(src, /title=\{showEntry \|\| entrySkeleton \? '' : t\('reading\.listTitle'\)\}/);
+  // 연습 탭 한 페이지 — 큰 제목은 늘 「연습」이라 받기 전후로 바뀌지 않는다.
+  assert.match(src, /title=\{t\('practiceTab\.title'\)\}/);
   // 「새 대본」은 떠 있는 버튼 대신 목록 화면 안 이어 하기 아래에 둔다(SOMA-1123) — 입구·입구 뼈대에는 없다.
   assert.doesNotMatch(src, /<FloatingAdd\b/);
   assert.match(src, /testID="reading-new-entry"/);

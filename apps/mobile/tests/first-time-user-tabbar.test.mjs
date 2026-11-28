@@ -69,9 +69,7 @@ test('첫 사용자도 탭바를 숨기지 않는다(SOMA-1120부터)', () => {
 });
 
 test('첫 사용자는 코칭·대본 첫 화면에서도 설정으로 갈 수 있다 — 로그아웃·탈퇴가 막히면 안 된다', () => {
-  const coaching = read('components/practice/coaching-pane.tsx');
-  assert.match(coaching, /phLabel="coaching_first_settings"/);
-  assert.match(coaching, /router\.push\('\/settings'\)/);
+  // 연습 탭은 한 페이지(components/practice/reading-pane)라 머리의 설정 길도 한 곳이다 — 코칭 구역은 머리를 갖지 않는다.
   const reading = read('components/practice/reading-pane.tsx');
   assert.match(reading, /phLabel="reading_first_settings"/);
   assert.match(reading, /router\.push\('\/settings'\)/);

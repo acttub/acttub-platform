@@ -61,9 +61,9 @@ test('홈·리딩·코칭이 기억한 모양으로 받기 전 화면을 고르�
   assert.match(reading, /listSkeleton \? <ReadingListSkeleton/);
   assert.doesNotMatch(reading, /SkeletonRows/);
   const coaching = read('components/practice/coaching-pane.tsx');
-  assert.match(coaching, /const first = entry \? entry\.kind === 'first' : firstHint;/);
+  // 연습 탭 코칭 구역 — 지난번에 구역을 그렸을 때만 같은 틀의 뼈대, 못 받았으면 기억에 적지 않는다.
   assert.match(coaching, /skeletonHints\.coaching === 'next' \?/);
-  assert.match(coaching, /if \(!entry \|\| entryFailed\) return;/);
+  assert.match(coaching, /if \(!entry \|\| failed\) return;/);
   const wipe = read('lib/local-account-wipe.ts');
   assert.match(wipe, /SKELETON_HINT_KEY,\n\];/);
   assert.match(wipe, /resetSkeletonHints\(\);/);

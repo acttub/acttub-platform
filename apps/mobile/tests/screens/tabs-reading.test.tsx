@@ -1,5 +1,4 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Text } from 'react-native';
 
 import ReadingList from '@/components/practice/reading-pane';
 import { setFirstTimeState } from '@/lib/practice/first-time';
@@ -24,7 +23,10 @@ jest.mock('expo-router', () => {
   };
 });
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
-jest.mock('@/lib/api', () => ({ api: { getScriptImport: jest.fn() } }));
+jest.mock('@/lib/api', () => ({ api: { getScriptImport: jest.fn(), listPracticeGroups: jest.fn(() => new Promise(() => undefined)) } }));
+// 연습 탭 한 페이지의 코칭 구역·단계 동작은 tests/screens/practice-page.test.tsx 가 본다.
+jest.mock('@/components/practice/coaching-pane', () => ({ __esModule: true, default: () => null }));
+jest.mock('@/hooks/scene-coaching', () => ({ startSceneCoaching: jest.fn() }));
 jest.mock('@/lib/reading/store', () => ({
   listScripts: jest.fn(),
   deleteScript: jest.fn(),
@@ -103,35 +105,39 @@ test('대본 카드마다 배역·대사 수·상태를 보여 준다', async ()
   expect(voice.refresh).toHaveBeenCalled();
   expect(screen.getByText('업로드한 대본')).toBeOnTheScreen();
   expect(screen.getByText('전체 3개')).toBeOnTheScreen();
-  expect(screen.getByText('연습 중 · 민지 · 대사 12개')).toBeOnTheScreen();
+  expect(screen.getAllByText('민지 · 대사 12개')).toHaveLength(2);
   expect(screen.getByText('배역 미선택 · 대사 12개')).toBeOnTheScreen();
-  expect(screen.getByText('연습 완료 · 민지 · 대사 12개')).toBeOnTheScreen();
+  // 줄 아래 상태 한 줄 — 연습 중은 「대사 익히는 중」, 끝낸 대본은 「찍을 차례」, 배역을 안 고른 새 대본은 없다.
+  expect(screen.getByTestId('practice-row-status-s1')).toHaveTextContent('대사 익히는 중');
+  expect(screen.getByTestId('practice-row-status-s3')).toHaveTextContent('리딩 끝 · 찍을 차례');
+  expect(screen.queryByTestId('practice-row-status-s2')).not.toBeOnTheScreen();
   expect(screen.queryByText('고품질 AI 목소리로 리딩해요')).not.toBeOnTheScreen();
-  // pen R1.3 — 대본이 있으면 큰 제목은 「내 대본」
-  expect(screen.getByRole('header', { name: '내 대본' })).toBeOnTheScreen();
+  // 연습 탭 한 페이지 — 큰 제목은 「연습」
+  expect(screen.getByRole('header', { name: '연습' })).toBeOnTheScreen();
 });
 
 test('이어 읽을 회차가 있으면 pen R1.3처럼 「이전에 하던 데부터 · K/N줄에서 멈췄어요」 카드와 「이어서 읽기」를 보인다', async () => {
   (listSessions as jest.Mock).mockResolvedValue([{ id: 'r1', status: 'in_progress', progress: { done: 8, total: 15 } }]);
   await render(<ReadingList />);
 
-  expect(await screen.findByText('이전에 하던 대본부터')).toBeOnTheScreen();
+  expect(await screen.findByTestId('practice-next-reading')).toHaveTextContent(/^대사 익히는 중/);
   expect(screen.getByText('옥상 장면 · 민지\n대사 8/15개에서 멈췄어요')).toBeOnTheScreen();
   expect(screen.getByText('「이어서 읽기」를 누르면 멈춘 대목부터 읽어요.')).toBeOnTheScreen();
-  expect(screen.getByText('이어서 읽기')).toBeOnTheScreen();
+  // 카드 버튼 하나와 그 대본 줄의 글자 버튼 하나.
+  expect(screen.getAllByText('이어서 읽기')).toHaveLength(2);
   expect(screen.queryByText('한 번 더 하기')).not.toBeOnTheScreen();
 });
 
 test('순서는 이어 하기 → 새 대본 → 지난 기록(업로드한 대본)이고, 이어 할 회차가 없으면 새 대본이 맨 위다(SOMA-1123)', async () => {
   (listSessions as jest.Mock).mockResolvedValue([{ id: 'r1', status: 'in_progress', progress: { done: 8, total: 15 } }]);
   const view = await render(<ReadingList />);
-  await screen.findByText('이전에 하던 대본부터');
+  await screen.findByTestId('practice-next-reading');
   const indexOf = () => {
     const hosts = screen.container.queryAll((node) => typeof node.type === 'string');
     return (el: unknown) => hosts.indexOf(el as (typeof hosts)[number]);
   };
   let at = indexOf();
-  const resume = at(screen.getByText('이전에 하던 대본부터'));
+  const resume = at(screen.getByTestId('practice-next-reading'));
   const fresh = at(screen.getByTestId('reading-new-entry'));
   const past = at(screen.getByText('업로드한 대본'));
   expect(resume).toBeLessThan(fresh);
@@ -141,7 +147,7 @@ test('순서는 이어 하기 → 새 대본 → 지난 기록(업로드한 대�
   (listSessions as jest.Mock).mockResolvedValue([]);
   await render(<ReadingList />);
   await screen.findByText('업로드한 대본');
-  expect(screen.queryByText('이전에 하던 대본부터')).not.toBeOnTheScreen();
+  await waitFor(() => expect(screen.queryByTestId('practice-next-reading')).not.toBeOnTheScreen());
   at = indexOf();
   expect(at(screen.getByTestId('reading-new-entry'))).toBeLessThan(at(screen.getByText('업로드한 대본')));
 });
@@ -472,13 +478,14 @@ describe('처음 온 사람', () => {
 describe('머리', () => {
   afterEach(() => setFirstTimeState('unknown'));
 
-  test('알림 종은 홈에 있어 두지 않고, 연습 탭이 준 「리딩 | 코칭」이 「내 대본」 제목 자리에 들어간다', async () => {
+  test('알림 종은 홈에 있어 두지 않고, 큰 제목은 「연습」이다 — 예전 「리딩 | 코칭」 전환은 없다', async () => {
     mockUnread.count = 3;
-    await render(<ReadingList modeSwitch={<Text>모드 전환</Text>} />);
+    await render(<ReadingList />);
     await screen.findByText('옥상 장면');
 
     expect(screen.queryByRole('button', { name: '알림함, 안 읽은 알림 있음' })).not.toBeOnTheScreen();
-    expect(screen.getByText('모드 전환')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: '연습' })).toBeOnTheScreen();
+    expect(screen.queryByRole('tab', { name: '코칭' })).not.toBeOnTheScreen();
     expect(screen.queryByText('내 대본')).not.toBeOnTheScreen();
     mockUnread.count = 0;
   });

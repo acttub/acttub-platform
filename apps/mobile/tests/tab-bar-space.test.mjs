@@ -6,8 +6,8 @@ const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 // 연습 탭(app/(tabs)/practice)은 리딩·코칭 쪽 화면을 그대로 그리므로 그 두 화면을 본다.
 const TAB_SCREENS = [
   'app/(tabs)/index.tsx',
+  // 연습 탭 한 페이지 — 코칭 구역(components/practice/coaching-pane)은 이 페이지 안에 들어가 따로 비우지 않는다.
   'components/practice/reading-pane.tsx',
-  'components/practice/coaching-pane.tsx',
   'app/(tabs)/challenges.tsx',
   'app/(tabs)/community.tsx',
   'app/(tabs)/profile.tsx',

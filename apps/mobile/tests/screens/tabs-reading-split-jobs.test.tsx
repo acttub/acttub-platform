@@ -22,7 +22,9 @@ jest.mock('expo-router', () => {
   };
 });
 jest.mock('@/lib/analytics', () => ({ logEvent: jest.fn() }));
-jest.mock('@/lib/api', () => ({ api: { getScriptImport: jest.fn() } }));
+jest.mock('@/lib/api', () => ({ api: { getScriptImport: jest.fn(), listPracticeGroups: jest.fn(() => new Promise(() => undefined)) } }));
+jest.mock('@/components/practice/coaching-pane', () => ({ __esModule: true, default: () => null }));
+jest.mock('@/hooks/scene-coaching', () => ({ startSceneCoaching: jest.fn() }));
 jest.mock('@/lib/reading/store', () => ({
   listScripts: jest.fn(),
   deleteScript: jest.fn(),

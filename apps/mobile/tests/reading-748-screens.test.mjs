@@ -60,7 +60,8 @@ test('대본 탭: 대본이 없으면 리딩 입구(올리기 줄), 있으면 �
   const tab = src('components/practice/reading-pane.tsx');
   // 「새 대본」은 고르기 창 없이 바로 내 대본 올리기로 간다(10/25).
   assert.match(tab, /onPress=\{\(\) => router\.push\('\/reading\/new'\)\}/);
-  assert.match(tab, /resumeCandidate\(/);
+  // 「다음 할 일」 카드는 마지막으로 다룬 대본을 고른다(lib/practice/scene-takes).
+  assert.match(tab, /lastHandledScript\(/);
   assert.doesNotMatch(tab, /entryCreate|대본 같이 만들기/);
   // 스포트라이트(대본이 없을 때만 뜬다)는 입구의 「내 대본 올리기」 카드를 비춘다.
   assert.match(tab, /ref=\{c\.key === 'upload' \? newTarget\.ref : undefined\}/, '스포트라이트 자리는 그대로');
