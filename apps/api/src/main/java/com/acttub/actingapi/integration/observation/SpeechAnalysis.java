@@ -10,7 +10,7 @@ public record SpeechAnalysis(
         @JsonProperty("avg_syllables_per_sec") double avgSyllablesPerSec,
         List<Pause> pauses,
         List<Chunk> chunks,
-        @com.fasterxml.jackson.annotation.JsonIgnore List<SpeechFacts.Word> words) {
+        @com.fasterxml.jackson.annotation.JsonIgnore List<Word> words) {
 
     public SpeechAnalysis {
         pauses = List.copyOf(pauses);
@@ -21,6 +21,16 @@ public record SpeechAnalysis(
 
     public SpeechAnalysis(String transcript, double avgSyllablesPerSec, List<Pause> pauses, List<Chunk> chunks) {
         this(transcript, avgSyllablesPerSec, pauses, chunks, List.of());
+    }
+
+    /** 전사 단어 하나와 그 시작·끝 시각(초). */
+    public record Word(String word, double start, double end) {
+        public Word {
+            if (word == null || !Double.isFinite(start) || !Double.isFinite(end)
+                    || start < 0 || end < start) {
+                throw new IllegalArgumentException("invalid transcription word or timestamp");
+            }
+        }
     }
 
     public record Pause(

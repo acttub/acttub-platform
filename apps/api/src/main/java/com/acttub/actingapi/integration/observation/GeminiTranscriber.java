@@ -157,7 +157,7 @@ public final class GeminiTranscriber implements SpeechAnalyzer {
             throw new IllegalArgumentException("transcription has text without word timestamps");
         }
         return SpeechFacts.calculate(text, words.stream()
-                .map(w -> new SpeechFacts.Word(w.word().orElseThrow(),
+                .map(w -> new SpeechAnalysis.Word(w.word().orElseThrow(),
                         seconds(w.startOffset().orElse(null)), seconds(w.endOffset().orElse(null))))
                 .toList());
     }

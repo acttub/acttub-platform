@@ -7,21 +7,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.acttub.actingapi.integration.observation.SpeechAnalysis.Word;
+
 /** SOMA-518 speech_facts.py의 계산. 파일·모델·시계에 의존하지 않는 순수 함수다. */
 public final class SpeechFacts {
     static final double PAUSE_MIN = 0.5;
     static final double MIN_CHUNK = 2.0;
 
     private SpeechFacts() {
-    }
-
-    public record Word(String word, double start, double end) {
-        public Word {
-            if (word == null || !Double.isFinite(start) || !Double.isFinite(end)
-                    || start < 0 || end < start) {
-                throw new IllegalArgumentException("invalid transcription word or timestamp");
-            }
-        }
     }
 
     public static SpeechAnalysis calculate(String transcript, List<Word> words) {

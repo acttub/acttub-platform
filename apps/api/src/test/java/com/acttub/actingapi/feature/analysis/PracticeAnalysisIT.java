@@ -26,6 +26,7 @@ import com.acttub.actingapi.feature.analysis.app.PracticeAnalysisStore;
 import com.acttub.actingapi.feature.analysis.app.UnsupportedMediaError;
 import com.acttub.actingapi.integration.observation.ObservationItem;
 import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.integration.observation.SpeechAnalysis;
 import com.acttub.actingapi.integration.observation.SpeechFacts;
 import com.acttub.actingapi.integration.observation.SummaryParseError;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
@@ -458,9 +459,9 @@ class PracticeAnalysisIT {
                 "문 앞에서 돌아선다",
                 "0:00 에 돌아선다",
                 SpeechFacts.calculate("지금 놓치면 끝이야", List.of(
-                        new SpeechFacts.Word("지금", 0, .3),
-                        new SpeechFacts.Word("놓치면", .3, .6),
-                        new SpeechFacts.Word("끝이야", .6, 1.2))),
+                        new SpeechAnalysis.Word("지금", 0, .3),
+                        new SpeechAnalysis.Word("놓치면", .3, .6),
+                        new SpeechAnalysis.Word("끝이야", .6, 1.2))),
                 List.of(new ObservationItem(0, 1200, "호흡이 얕다", "지금 놓치면 끝이야", "호흡", 0.8)),
                 uncertainties);
     }
