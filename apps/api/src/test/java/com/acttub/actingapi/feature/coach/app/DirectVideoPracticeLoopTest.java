@@ -164,8 +164,8 @@ class DirectVideoPracticeLoopTest {
         assertThat(DirectVideoPracticeLoop.finished(new DirectVideoPracticeLoop.Parsed("", "할 일: 끝", ""))).isTrue();
         assertThat(DirectVideoPracticeLoop.finished(new DirectVideoPracticeLoop.Parsed("", "할 일: 파고들기", ""))).isFalse();
         assertThat(DirectVideoPracticeLoop.finished(new DirectVideoPracticeLoop.Parsed("", "순간1 · 파고들기", ""))).isFalse();
-        assertThat(DirectVideoPracticeLoop.action("응답 2번째 · 파고들기")).isEqualTo("파고들기");
-        assertThat(DirectVideoPracticeLoop.action("응답 2번째 · 누적 3")).isEmpty();
+        assertThat(PracticeLoopRouter.action("응답 2번째 · 파고들기")).isEqualTo("파고들기");
+        assertThat(PracticeLoopRouter.action("응답 2번째 · 누적 3")).isEmpty();
     }
 
     @Test void theNoteUsesTheActorsOwnLineReasonAndCorrections() {

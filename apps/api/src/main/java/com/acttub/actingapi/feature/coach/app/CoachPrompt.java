@@ -29,7 +29,7 @@ public final class CoachPrompt {
      *
      * <p>매 요청에 남은 횟수를 전달한다. 마지막 응답의 complete 상태는 서버도 검증한다.
      */
-    static final int TURN_BUDGET = ConversationService.LEGACY_REPLY_LIMIT;
+    static final int TURN_BUDGET = 8;
     /**
      * 구간 경계 — 앞 두 구간의 마지막 응답 번호.
      */
