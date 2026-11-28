@@ -87,7 +87,9 @@ final class AdAdminDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant createdAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant updatedAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long impressions,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long clicks) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long clicks,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "이 광고를 보이지 않을 계정 수. 읽기 전용이고 "
+                    + "목록은 운영자가 SQL 로 넣는다(SOMA-1069).") int excludedUserCount) {
 
         static AdminAd of(AdStats.Stored stored, java.util.function.Function<String, String> viewUrl) {
             AdDraft d = stored.draft();
@@ -95,7 +97,8 @@ final class AdAdminDtos {
                     d.sharePercent(), d.advertiserName(), d.headline(), d.body(), d.imageLargeBanner(), d.imageBanner(),
                     d.imageMediumRectangle(), viewUrl.apply(d.imageLargeBanner()), viewUrl.apply(d.imageBanner()),
                     viewUrl.apply(d.imageMediumRectangle()), d.linkUrl(), d.appPath(), d.startsAt(), d.endsAt(),
-                    stored.createdAt(), stored.updatedAt(), stored.impressions(), stored.clicks());
+                    stored.createdAt(), stored.updatedAt(), stored.impressions(), stored.clicks(),
+                    stored.excludedUserCount());
         }
     }
 

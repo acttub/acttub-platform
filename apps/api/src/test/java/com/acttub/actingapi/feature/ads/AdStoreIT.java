@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -214,7 +215,7 @@ class AdStoreIT {
         assertThat(ads.activeFor("settings_top", now)).isEmpty();
         assertThat(ads.activeFor("home_top", now).getFirst()).isEqualTo(new Ad(id(2), "direct",
                 List.of("profile_top", "home_top"), "all", 5, "광고주", null, null, null, null, null,
-                "https://example.com", null, 50));
+                "https://example.com", null, 50, Set.of()));
     }
 
     @Test
@@ -237,7 +238,7 @@ class AdStoreIT {
 
         assertThat(ads.find(stored.id())).contains(new Ad(stored.id(), "house", List.of("upload_wait", "home_top"),
                 "pro", 7, "광고주", "제목", "본문", "https://example.com/l.png", "https://example.com/b.png",
-                "https://example.com/m.png", "https://example.com/go", "/reading", 30));
+                "https://example.com/m.png", "https://example.com/go", "/reading", 30, Set.of()));
         ad(id(1), "direct", "paused", "{}", 0, null, null, now);
         assertThat(ads.find(id(1))).map(Ad::slots).contains(List.of());
         assertThat(ads.find(UUID.randomUUID())).isEmpty();
@@ -250,7 +251,7 @@ class AdStoreIT {
         AdStats.Stored stored = ads.insert(full("active"), at);
 
         Instant rounded = now.plus(123_457, ChronoUnit.MICROS);
-        assertThat(stored).isEqualTo(new AdStats.Stored(stored.id(), roundedFull("active"), rounded, rounded, 0, 0));
+        assertThat(stored).isEqualTo(new AdStats.Stored(stored.id(), roundedFull("active"), rounded, rounded, 0, 0, 0));
         assertThat(ads.findStored(stored.id())).contains(stored);
         assertThat(jdbc.queryForObject("SELECT array_to_string(slots, '|') FROM ads", String.class))
                 .isEqualTo("upload_wait|home_top");
@@ -283,11 +284,30 @@ class AdStoreIT {
 
         Optional<AdStats.Stored> changed = ads.update(before.id(), full("paused"), now.plusNanos(999_999));
         assertThat(changed).contains(new AdStats.Stored(before.id(), roundedFull("paused"), now.minusSeconds(60),
-                now.plus(1, ChronoUnit.MILLIS), 1, 1));
+                now.plus(1, ChronoUnit.MILLIS), 1, 1, 0));
         assertThat(ads.findStored(before.id())).isEqualTo(changed);
 
         assertThat(ads.update(UUID.randomUUID(), full("active"), now)).isEmpty();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ads", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("보이지 않을 계정은 운영자 SQL 로만 들어간다 — 읽으면 Ad 에 실리고 운영 화면엔 수만 나가며, 등록은 빈 배열·수정은 그대로 둔다 (SOMA-1069)")
+    void excludedUserIdsAreReadAndSurviveUpdate() {
+        AdStats.Stored stored = ads.insert(full("active"), now);
+        assertThat(stored.excludedUserCount()).isZero();
+        assertThat(jdbc.queryForObject("SELECT cardinality(excluded_user_ids) FROM ads WHERE id=?", Integer.class,
+                stored.id())).isZero();
+
+        // 운영자가 같은 id 를 두 번 넣거나 NULL 을 섞어도 읽기는 실패하지 않고 서로 다른 계정만 센다
+        jdbc.update("UPDATE ads SET excluded_user_ids = ARRAY[?::uuid, ?::uuid, ?::uuid, NULL] WHERE id=?", user, other,
+                user, stored.id());
+        assertThat(ads.find(stored.id())).map(Ad::excludedUserIds).contains(Set.of(user, other));
+        assertThat(ads.findStored(stored.id())).map(AdStats.Stored::excludedUserCount).contains(2);
+
+        Optional<AdStats.Stored> changed = ads.update(stored.id(), full("paused"), now.plusSeconds(1));
+        assertThat(changed).map(AdStats.Stored::excludedUserCount).contains(2);
+        assertThat(ads.find(stored.id())).map(Ad::excludedUserIds).contains(Set.of(user, other));
     }
 
     @Test
