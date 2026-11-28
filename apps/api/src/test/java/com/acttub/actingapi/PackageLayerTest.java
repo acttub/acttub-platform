@@ -110,8 +110,9 @@ class PackageLayerTest {
             // 오디션 공고 모아보기(SOMA-564). 열림·마감 표시·연락처 모양·정렬 규칙이 domain 에 산다. 쓰기가 전부
             // ON CONFLICT upsert 와 조건 삭제라 Schema Entity 없이 native SQL 로만 읽고 쓴다(EntityMappingIT 의 대기 목록).
             Map.entry("audition", Set.of("domain", "app", "adapter", "schema")),
-            // PG 심사 전용 테스트 결제(SOMA-620). 메모리 세션과 토스 호출뿐이라 DB·Schema Entity·Domain Model 이 없다.
-            Map.entry("billing", Set.of("app", "adapter", "schema")),
+            // 앱 Pro 정기결제(SOMA-818)와 PG 심사 전용 테스트 결제(SOMA-620). 구독과 카드 등록 창의 상태가 넘어가는 길이 domain 에
+            // 산다(SOMA-1184).
+            Map.entry("billing", FOUR_LAYERS),
             // 앱 광고 칸(SOMA-876). 칸 목록·고르는 순서·A/B 배정이 domain 에 산다. 표는 JPA 로 읽고 쓴다(SOMA-1172).
             Map.entry("ads", FOUR_LAYERS),
             // 앱 설정(SOMA-939). 운영 값 묶음과 칸 검사만 있어 저장소·규칙 층이 없다 — 파일을 읽어 내려준다.
