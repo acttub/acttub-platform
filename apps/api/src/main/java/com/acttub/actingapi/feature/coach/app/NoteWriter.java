@@ -6,9 +6,12 @@ import java.util.List;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.Loaded;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.NewNote;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.NoteView;
+import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.feature.report.app.PracticeNote;
 import com.acttub.actingapi.feature.report.app.ReportEngine;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
@@ -28,6 +31,8 @@ import com.acttub.actingapi.platform.json.LenientJson;
  * 생성기가 낸 <b>원문 전체</b>를 함께 둔다 — 옛 공개 필드를 그대로 내는 호환 응답이 그것을 읽는다.
  */
 public class NoteWriter {
+
+    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
 
     /** 기존 갈래에서 노트를 만들기 위한 최소 유효 답 수. */
     static final int LEGACY_MIN_ACTOR_ANSWERS = 2;
@@ -88,7 +93,7 @@ public class NoteWriter {
                     return reports.generatePracticeNote(result.reply().handoff(), loaded.practiceId(), result.session().userId());
                 }
                 JsonNode report = reports.generateReport(
-                        ConversationService.branchOf(result.session()),
+                        branchOf(result.session()),
                         observationPack(result.session()),
                         result.reply().handoff(),
                         !threeLayers,
@@ -111,7 +116,7 @@ public class NoteWriter {
     private NewNote note(JsonNode report, CoachSessionSnapshot session, boolean threeLayers, long sourceRevision, boolean fallback) {
         if (!threeLayers || !PracticeNote.isNote(report)) {
             // 기존 갈래: 종류와 응답 모양을 현행 그대로 두고 원문을 보존한다.
-            return NewNote.legacy(ConversationService.branchOf(session), text(report.path("title")), sourceRevision, report);
+            return NewNote.legacy(branchOf(session), text(report.path("title")), sourceRevision, report);
         }
         String mode = LenientJson.asText(report.path("mode"), "record_only");
         JsonNode focus = report.path("focus");
@@ -154,9 +159,9 @@ public class NoteWriter {
         if (session.observationPack() != null) {
             return session.observationPack();
         }
-        ObjectNode empty = ConversationService.json().createObjectNode();
-        empty.set("observations", ConversationService.json().createArrayNode());
-        empty.set("uncertainties", ConversationService.json().createArrayNode());
+        ObjectNode empty = JSON.createObjectNode();
+        empty.set("observations", JSON.createArrayNode());
+        empty.set("uncertainties", JSON.createArrayNode());
         return empty;
     }
 
@@ -175,7 +180,7 @@ public class NoteWriter {
      * @return 요약이 없으면 빈 배열
      */
     static JsonNode summaryQuotes(JsonNode report) {
-        ArrayNode quotes = ConversationService.json().createArrayNode();
+        ArrayNode quotes = JSON.createArrayNode();
         JsonNode summary = report.path("copy").path("summary");
         if (summary.isMissingNode() || summary.isNull()) {
             return quotes;
@@ -205,7 +210,7 @@ public class NoteWriter {
                 return source;
             }
         }
-        return ConversationService.json().missingNode();
+        return JSON.missingNode();
     }
 
     /** 요약에 실을 수 있는 출처는 배우의 말과 영상 관찰뿐이다 — 코치 해석은 사실이 되지 않는다. */
@@ -243,7 +248,12 @@ public class NoteWriter {
     }
 
     private static JsonNode empty() {
-        return ConversationService.json().createArrayNode();
+        return JSON.createArrayNode();
+    }
+
+    /** 코치 갈래 이름 — 노트의 기존 종류(analysis·expression)가 여기서 나온다. */
+    private static String branchOf(CoachSessionSnapshot session) {
+        return session.threeLayers() ? "coaching" : CoachBranch.of(session.blockageKind());
     }
 
     private static String text(JsonNode value) {

@@ -240,7 +240,7 @@ class DirectVideoCoachPathsTest {
                 .contains(" 배우가 정리에 다른 해석을 냈다.");
         assertThat(result.reply().message()).isEqualTo("그 해석이면 소리 지르며 따져 봐도 좋아요.");
         String status = LenientJson.asText(result.session().coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("statuses").get(2));
-        assertThat(DirectVideoPracticeLoop.statusField(status, "다음 테이크")).isEqualTo("소리 지르며 따져 봐도 좋아요");
+        assertThat(PracticeLoopRouter.statusField(status, "다음 테이크")).isEqualTo("소리 지르며 따져 봐도 좋아요");
     }
 
     @Test void theTurnInstructionCarriesWhatTheActorAskedAndWanted() {

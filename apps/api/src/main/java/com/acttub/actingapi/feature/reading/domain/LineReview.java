@@ -123,8 +123,6 @@ public final class LineReview {
     private static final int TAIL_CHARS = 12;
     /** 앞뒤를 줄표·물결로 꾸민 끝 표시(「- 막 -」·「= 끝 =」). 꾸밈 없는 「암전.」은 지문이다. */
     private static final Pattern END_MARK = Pattern.compile("[-‐‑‒–—―=~*]+\\s*[^-‐‑‒–—―=~*\\s][^-‐‑‒–—―=~*]*?\\s*[-‐‑‒–—―=~*]+");
-    /** 문장이 끝난 줄 끝 — 마침·물음·느낌표, 말줄임, 닫는 따옴표·괄호, 줄표(끊긴 말), 물결·음표. */
-    private static final Pattern ENDED = Pattern.compile("[.!?…。」』”\"'’)\\]\\-—~♪]$");
     /** 함께 말하기 화자(「아메드, 하딜」·「모두」). 보기는 한 사람씩이라 Jev 가 한 명으로 줄인다(재생 047·003·008). */
     private static final Pattern GROUP = Pattern.compile("[,/·•∙・&]|모두|다\\s*같이|둘\\s*다|전원|일동|합창|코러스");
     /** 블록 근거(SOMA-663 C2): 화자 머리를 찾아 올라가는 줄 수와, 장면 배역을 모으는 앞뒤 줄 수(장면 표제를 넘지 않는다). */
@@ -236,7 +234,7 @@ public final class LineReview {
         int first = -1;
         int last = -1;
         Map<String, Integer> seen = new LinkedHashMap<>();
-        int width = width(lines);
+        int width = SplitDraft.width(lines);
         for (int at = 0; at < lines.size(); at++) {
             Row row = rows.get(lines.get(at).no());
             if (row != null && row.kind() == Kind.DIALOGUE) {
@@ -347,7 +345,7 @@ public final class LineReview {
             // 위 화자 머리 줄이 바로 앞 줄이고 문서의 줄 너비만큼 차서 문장 끝 부호 없이 끊겼으면 이 줄이 그 말을 잇는다(재생 055 「…저 사람은 」⏎「나한테
             // 와서…」). 너비를 보지 않으면 끝 부호 없는 노래 가사 줄마다 걸렸다(재생 007)
             String headText = head == null ? "" : ScriptText.visible(head.line().text()).strip();
-            boolean unfinished = context && head != null && head.line() == lines.get(at - 1) && cut(headText, width);
+            boolean unfinished = context && head != null && head.line() == lines.get(at - 1) && SplitDraft.cut(headText, width);
             if (unfinished) {
                 reasons.add("unfinished");
             }
@@ -483,8 +481,8 @@ public final class LineReview {
         }
         // 바꾼 화자는 옛 화자의 이름 머리를 잇지 않는다 — 조립이 그 머리 이름으로 화자를 되돌렸다(재생 126 「아비게일  윌리엄즈가……」의 엘리자베스)
         String header = question.own() != null && speaker.equals(question.own().strip()) ? question.own()
-                : was == Kind.DIALOGUE ? (sameKey(SplitDraft.nameOf(current.header()), current.speaker())
-                        && !sameKey(SplitDraft.nameOf(current.header()), speaker) ? "" : current.header())
+                : was == Kind.DIALOGUE ? (sameKey(SplitResponse.nameOf(current.header()), current.speaker())
+                        && !sameKey(SplitResponse.nameOf(current.header()), speaker) ? "" : current.header())
                 : question.talk() == null ? "" : question.talk().header();
         return new Row(question.no(), Kind.DIALOGUE, speaker, header);
     }
@@ -508,7 +506,7 @@ public final class LineReview {
         Map<Integer, Question> asked = new LinkedHashMap<>();
         questions.forEach(question -> asked.put(question.no(), question));
         Map<Integer, Row> more = new LinkedHashMap<>();
-        int width = width(lines);
+        int width = SplitDraft.width(lines);
         for (int at = 1; at < lines.size(); at++) {
             NumberedLine line = lines.get(at);
             Question question = asked.get(line.no());
@@ -529,7 +527,7 @@ public final class LineReview {
             // 두 줄 모두 위쪽 가장 가까운 화자 머리로 돌아가는 답만 잇는다 — Jev 가 괄호 속 청자(「(정배) 너는」)나 다른 사람으로 바꾼 오답을 잇지 않는다
             boolean chained = before != null && before.current() != null && before.current().kind() == Kind.DIALOGUE
                     && before.current().speaker().equals(current.speaker()) && carried != null && carried.kind() == Kind.DIALOGUE
-                    && carried.speaker().equals(named) && cut(above.text(), width) && question.head() != null && sameKey(named, question.head())
+                    && carried.speaker().equals(named) && SplitDraft.cut(above.text(), width) && question.head() != null && sameKey(named, question.head())
                     && before.head() != null && sameKey(named, before.head());
             NumberedLine prior = written(lines, at, -1);
             NumberedLine next = written(lines, at, 1);
@@ -538,7 +536,7 @@ public final class LineReview {
             // 앞뒤 머리는 같은 이름이어야 한다 — 「웹 부 인」과 「웹」은 다른 사람이다(재생 064)
             boolean between = headName(line.text(), characters) == null && priorHead != null && nextHead != null
                     && CharacterNames.sameSpeakerKey(priorHead).equals(CharacterNames.sameSpeakerKey(current.speaker()))
-                    && CharacterNames.sameSpeakerKey(nextHead).equals(CharacterNames.sameSpeakerKey(current.speaker())) && !cut(prior.text(), width);
+                    && CharacterNames.sameSpeakerKey(nextHead).equals(CharacterNames.sameSpeakerKey(current.speaker())) && !SplitDraft.cut(prior.text(), width);
             if (chained || between) {
                 more.put(line.no(), new Row(line.no(), Kind.DIALOGUE, named, ""));
             }
@@ -958,19 +956,6 @@ public final class LineReview {
 
     private static String clip(String text) {
         return clip(text, MAX_CHARS);
-    }
-
-    /** 줄이 문서의 줄 너비만큼 차서 문장 끝 부호 없이 끊겼는가 — 다음 줄이 그 말을 잇는다. */
-    static boolean cut(String text, int width) {
-        String visible = ScriptText.visible(text).strip();
-        return !ENDED.matcher(visible).find() && visible.codePointCount(0, visible.length()) * 10 >= width * 9;
-    }
-
-    /** 문서의 줄 너비 — 빈 줄을 뺀 줄 글자 수의 90번째 백분위. 이만큼 찬 줄은 PDF·문서 폭에서 끊긴 줄일 수 있다. */
-    static int width(List<NumberedLine> lines) {
-        int[] lengths = lines.stream().map(line -> ScriptText.visible(line.text()).strip())
-                .mapToInt(text -> text.codePointCount(0, text.length())).sorted().toArray();
-        return lengths.length == 0 ? 0 : lengths[lengths.length * 9 / 10];
     }
 
     /** 줄 끝 12자(앞을 줄였으면 「…」로 시작). */

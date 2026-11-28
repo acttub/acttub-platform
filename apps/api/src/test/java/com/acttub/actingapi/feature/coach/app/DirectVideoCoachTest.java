@@ -306,7 +306,7 @@ class DirectVideoCoachTest {
         var result = freeLoopEngine(userId -> 7).reply(loopSessionAfter(6), "배우 답 6", UUID.randomUUID());
         assertThat(result.reply().status()).isEqualTo("continue");
         var statuses = result.session().coachingState().path("practice_loop").path("statuses");
-        assertThat(DirectVideoPracticeLoop.action(LenientJson.asText(statuses.get(statuses.size() - 1), "")))
+        assertThat(PracticeLoopRouter.action(LenientJson.asText(statuses.get(statuses.size() - 1), "")))
                 .as("배우 6번째 답(코치 응답 7번째)은 정리").startsWith(PracticeLoopRouter.WRAP_UP);
     }
 
@@ -346,7 +346,7 @@ class DirectVideoCoachTest {
                 "좋아요 다음에 해볼게요", UUID.randomUUID());
         assertThat(result.session().closeReason()).isEqualTo("turn_budget");
         var statuses = result.session().coachingState().path("practice_loop").path("statuses");
-        assertThat(DirectVideoPracticeLoop.action(LenientJson.asText(statuses.get(statuses.size() - 1), "")))
+        assertThat(PracticeLoopRouter.action(LenientJson.asText(statuses.get(statuses.size() - 1), "")))
                 .as("정리를 되풀이하지 않는다").isEqualTo("답하기");
         var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(model, atLeastOnce()).reply(eq(file), anyList(), prompts.capture());
@@ -617,15 +617,15 @@ class DirectVideoCoachTest {
                 .isEqualTo(60);
         assertThat(DirectVideoPrompts.persona("actor-profile", Locale.ENGLISH, PROFILE)).isEmpty();
         assertThat(DirectVideoPrompts.persona("actor-profile", null, null)).isEmpty();
-        assertThat(DirectVideoPrompts.personaReplyLimit("actor-profile", null, null)).isEqualTo(DirectVideoPracticeLoop.LONG_REPLY);
+        assertThat(DirectVideoPrompts.personaReplyLimit("actor-profile", null, null)).isEqualTo(DirectVideoPrompts.LONG_REPLY);
         assertThat(DirectVideoPrompts.personaShortenNote("actor-profile", null, PROFILE)).contains("공백 포함 90자");
     }
 
     @Test void advisorPromptsLoadByLanguageAndUnknownIdsGetNothing() {
         assertThat(DirectVideoPrompts.personaReplyLimit("park-seunga", null, null)).isEqualTo(100);
         assertThat(DirectVideoPrompts.personaReplyLimit("cho-taemin", null, null)).isEqualTo(90);
-        assertThat(DirectVideoPrompts.personaReplyLimit("a", null, null)).isEqualTo(DirectVideoPracticeLoop.LONG_REPLY);
-        assertThat(DirectVideoPrompts.personaReplyLimit("b1", null, null)).isEqualTo(DirectVideoPracticeLoop.LONG_REPLY);
+        assertThat(DirectVideoPrompts.personaReplyLimit("a", null, null)).isEqualTo(DirectVideoPrompts.LONG_REPLY);
+        assertThat(DirectVideoPrompts.personaReplyLimit("b1", null, null)).isEqualTo(DirectVideoPrompts.LONG_REPLY);
         assertThat(DirectVideoPrompts.persona("kwon-ohryong", Locale.ENGLISH, null)).startsWith("[Coaching tailored to this actor]").doesNotContain("[length]");
         assertThat(DirectVideoPrompts.personaReplyLimit("kwon-ohryong", Locale.ENGLISH, null)).isEqualTo(160);
         assertThat(DirectVideoPrompts.persona("cha-jeonghun", Locale.ENGLISH, null)).as("영어 글이 없으면 붙이지 않는다").isEmpty();
@@ -1275,7 +1275,7 @@ class DirectVideoCoachTest {
         when(model.replyLight(isNull(), anyList(), anyString())).thenReturn("\"다 뒤져 있더라\"에서 목소리가 잦아들어요.\n위를 본 건 습관인가요?");
         var first = loopEngine.start(session(), UUID.randomUUID());
         var second = loopEngine.reply(first.session(), "붙잡길 바랐던 것 같아요", UUID.randomUUID());
-        assertThat(DirectVideoPracticeLoop.displayLength(longReply)).isGreaterThan(DirectVideoPracticeLoop.LONG_REPLY);
+        assertThat(DirectVideoPracticeLoop.displayLength(longReply)).isGreaterThan(DirectVideoPrompts.LONG_REPLY);
         assertThat(second.reply().message()).isEqualTo("\"다 뒤져 있더라\"에서 목소리가 잦아들어요.\n위를 본 건 습관인가요?");
         assertThat(second.session().turns()).extracting(CoachTurnSnapshot::text).noneMatch(text -> text.contains("생각"));
         var shortenCalls = org.mockito.ArgumentCaptor.forClass(List.class);

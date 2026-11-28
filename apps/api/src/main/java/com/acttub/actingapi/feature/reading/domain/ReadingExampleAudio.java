@@ -1,6 +1,5 @@
 package com.acttub.actingapi.feature.reading.domain;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,33 +47,5 @@ public record ReadingExampleAudio(String prefix, Map<String, String> voices, Lis
 
     /** @param objectKey 버킷 안의 전체 키 */
     public record Matched(UUID lineId, String objectKey, int durationMs) {
-    }
-
-    /**
-     * 음성 줄을 복사한 대본의 줄에 잇는다. 같은 자리의 줄이 예시 그 줄과 같은 대사(종류·배역 이름·글)이고 다른 읽을 글이 없을 때만
-     * 잇고, 아니면 뺀다. 순서는 음성 줄 순서다.
-     */
-    public List<Matched> match(ReadingExample example, List<CopiedLine> copied) {
-        Map<Integer, CopiedLine> byOrdinal = new LinkedHashMap<>();
-        for (CopiedLine line : copied) {
-            byOrdinal.put(line.ordinal(), line);
-        }
-        List<Matched> out = new ArrayList<>();
-        for (Line line : lines) {
-            if (line.seq() > example.lines().size()) {
-                continue;
-            }
-            ReadingExample.Line source = example.lines().get(line.seq() - 1);
-            CopiedLine target = byOrdinal.get(line.seq());
-            if (target == null || !"dialogue".equals(source.kind()) || source.character() == null) {
-                continue;
-            }
-            String speaker = example.characters().get(source.character());
-            if ("dialogue".equals(target.kind()) && speaker.equals(target.characterName())
-                    && source.text().equals(target.text()) && target.speech() == null) {
-                out.add(new Matched(target.id(), prefix + line.key(), line.durationMs()));
-            }
-        }
-        return out;
     }
 }

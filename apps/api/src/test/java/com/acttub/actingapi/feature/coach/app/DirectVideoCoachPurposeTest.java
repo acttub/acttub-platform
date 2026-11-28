@@ -98,7 +98,7 @@ class DirectVideoCoachPurposeTest {
         var result = coach().turn(fresh("stuck"), null, UUID.randomUUID());
         assertThat(result.reply().message()).isEqualTo("어떤 게 막혔어요?");
         assertThat(lastPrompt()).contains("[이번 첫 응답: 막힌 곳 풀기]", "[답 버튼]");
-        var view = PurposeView.from("stuck", result.session().coachingState());
+        var view = PurposeLoop.view("stuck", result.session().coachingState());
         assertThat(view.step()).isEqualTo("reason");
         assertThat(view.choices()).extracting(PurposeView.Choice::label)
                 .containsExactly("감정이 안 따라와요", "대사가 입에 안 붙어요", "뭘 원하는지 모르겠어요", "잘 모르겠어요");
@@ -117,7 +117,7 @@ class DirectVideoCoachPurposeTest {
         assertThat(result.reply().message()).isEqualTo("어느 대사에서 그랬어요?");
         assertThat(lastPrompt()).contains("이번 응답이 하는 단계: 어느 대사인지", "할 일: 어느 대사인지 묻기",
                 "배우가 「어떻게 막혔는지」 질문에 한 답: 감정이 안 따라와요");
-        var view = PurposeView.from("stuck", result.session().coachingState());
+        var view = PurposeLoop.view("stuck", result.session().coachingState());
         assertThat(view.step()).isEqualTo("line");
         assertThat(view.choices().getFirst()).isEqualTo(new PurposeView.Choice("\"취소해\"", 12));
         assertThat(result.reply().status()).isNotEqualTo("complete");
@@ -137,7 +137,7 @@ class DirectVideoCoachPurposeTest {
         var statuses = result.session().coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("statuses");
         assertThat(LenientJson.asText(statuses.get(statuses.size() - 1))).contains("할 일: " + PracticeLoopRouter.WRAP_UP,
                 "다음 테이크: \"취소해\"에서 매달리듯 붙잡아 봐도 좋아요");
-        assertThat(PurposeView.from("stuck", result.session().coachingState()).choices()).isEmpty();
+        assertThat(PurposeLoop.view("stuck", result.session().coachingState()).choices()).isEmpty();
     }
 
     @Test void anEvaluateOpeningKeepsItsSummaryAndTheResultCard() {
@@ -161,7 +161,7 @@ class DirectVideoCoachPurposeTest {
                 </카드>""");
         var result = coach().turn(fresh("evaluate"), null, UUID.randomUUID());
         assertThat(result.reply().message()).isEqualTo("\"가르쳐 줘\"까지는 붙잡는 게 보였어요.\n끝에서 화내는 쪽으로 가요.");
-        var view = PurposeView.from("evaluate", result.session().coachingState());
+        var view = PurposeLoop.view("evaluate", result.session().coachingState());
         assertThat(view.card().issue()).isEqualTo(new PurposeView.CardItem(12, "\"취소해\"에서 화내는 쪽으로 들려요"));
         assertThat(view.choices()).extracting(PurposeView.Choice::label).containsExactly("코치와 같이 고치기", "다른 것도 봐 주세요");
     }
@@ -174,7 +174,7 @@ class DirectVideoCoachPurposeTest {
         var result = coach().turn(after(opened), "제가 어디서 이상했어요?", UUID.randomUUID());
         verify(model).classify(anyList(), anyString(), anyList());
         assertThat(lastPrompt()).contains("할 일: 물음에 답하기", "이번 응답이 하는 단계: 어떻게 막혔는지");
-        assertThat(PurposeView.from("stuck", result.session().coachingState()).step()).isEqualTo("reason");
+        assertThat(PurposeLoop.view("stuck", result.session().coachingState()).step()).isEqualTo("reason");
         var turns = new ArrayList<CoachTurnSnapshot>(result.session().turns());
         assertThat(turns).hasSize(3);
     }
