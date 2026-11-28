@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import tools.jackson.databind.JsonNode;
 import com.acttub.actingapi.platform.json.LenientJson;
@@ -308,6 +310,40 @@ final class PracticeLoopRouter {
         return before(loop, coachTurns, LAST_REPLY);
     }
 
+    // ---- 상태 칸 읽기 ----
+
+    /**
+     * 여러 줄 상태 칸의 {@code 키: 값} 줄에서 값을 읽는다. 모델이 양식의 대괄호를 남겨도 벗긴다. 없으면 빈 문자열.
+     * 한 줄 상태("파고들기 · 응답 2번째")에는 이 줄이 없으므로 호출하는 쪽이 기존 해석으로 돌아간다.
+     * 첫 응답의 설계 칸도 같은 꼴이라 이것으로 읽는다.
+     */
+    static String statusField(String status, String key) {
+        if (status == null || status.isBlank()) return "";
+        Matcher line = Pattern.compile("(?m)^\\s*" + Pattern.quote(key) + "\\s*:\\s*(.*?)\\s*$").matcher(status);
+        if (!line.find()) return "";
+        return line.group(1).replaceAll("^\\[|\\]$", "").strip();
+    }
+
+    /** 상태 줄에서 이번 응답이 한 일. 첫 턴(상태 없음)은 비추기다. */
+    static String action(String status) {
+        if (status.isBlank()) return SHOW;
+        String doing = statusField(status, "할 일");
+        if (!doing.isEmpty()) return doing;
+        for (String part : status.split("·")) {
+            String value = part.strip();
+            if (!value.startsWith("응답") && !value.startsWith("순간") && !value.startsWith("장면")
+                    && !value.startsWith("누적")) return value;
+        }
+        return "";
+    }
+
+    private static final Pattern VAGUE = Pattern.compile("(?:잘\\s*)?(?:모르겠(?:어|어요|다|음)?|몰라(?:요)?|ㅇㅇ|ㅇㅋ|네|넵|응|아 네)[.!?~\\s]*");
+
+    /** 「모르겠어요」「네」처럼 내용 없는 짧은 답인가. */
+    static boolean isVague(String text) {
+        return VAGUE.matcher(text).matches();
+    }
+
     /** @param last 이 대화의 응답 상한({@link CoachFreeReplies#within}으로 무료 상한을 씌운 값) */
     static Before before(JsonNode loop, int coachTurns, int last) {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
@@ -324,7 +360,7 @@ final class PracticeLoopRouter {
         int stage = coachTurns >= 1 ? 2 : 1;
         for (int i = 0; i < coachTurns; i++) {
             String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
-            String doing = DirectVideoPracticeLoop.action(status);
+            String doing = action(status);
             tally = tally.after(doing);
             lastDoing = doing;
             if (doing.startsWith(WRAP_UP)) wrapped = true;
@@ -334,19 +370,19 @@ final class PracticeLoopRouter {
                     && (doing.startsWith(END) || doing.startsWith(OLD_CLOSING))) {
                 lastDoing = WRAP_UP;
             }
-            Kind kind = Kind.ofLabel(DirectVideoPracticeLoop.statusField(status, "배우의 말"));
+            Kind kind = Kind.ofLabel(statusField(status, "배우의 말"));
             lastKind = kind;
             if (kind == Kind.CORRECTION || kind == Kind.PUSHBACK) dropped = true;
             if (kind == Kind.CHOICE) choice = true;
-            if (DirectVideoPracticeLoop.statusField(status, "지키기").startsWith("예")) keep = true;
-            closeNext = DirectVideoPracticeLoop.statusField(status, "다음에 닫기").startsWith("예");
-            String stageText = DirectVideoPracticeLoop.statusField(status, "단계");
+            if (statusField(status, "지키기").startsWith("예")) keep = true;
+            closeNext = statusField(status, "다음에 닫기").startsWith("예");
+            String stageText = statusField(status, "단계");
             if (!stageText.isEmpty()) {
                 try { stage = Math.max(stage, Integer.parseInt(stageText.replaceAll("\\D.*", ""))); } catch (NumberFormatException ignored) { }
             } else if (doing.startsWith(OLD_PROBE) || doing.startsWith(OLD_CONNECT)) {
                 stage = Math.min(4, stage + 1); // 단계 칸이 없던 예전 대화는 질문 횟수로 짐작한다
             }
-            String avoided = DirectVideoPracticeLoop.statusField(status, "피할 것");
+            String avoided = statusField(status, "피할 것");
             if (!avoided.isEmpty() && !avoided.startsWith("없음")) {
                 for (String part : avoided.split("\\s*[,·/]\\s*")) if (!part.isBlank()) avoid.add(part.strip());
             }
@@ -355,8 +391,8 @@ final class PracticeLoopRouter {
                 wrapped || closeNext || lastDoing.startsWith(WRAP_UP));
     }
 
-    /** 응답 상한. {@link ConversationService#THREE_LAYERS_REPLY_LIMIT}과 같다. */
-    static final int LAST_REPLY = ConversationService.THREE_LAYERS_REPLY_LIMIT;
+    /** 응답 상한(시작 응답 포함). 서비스가 화면에 내는 상한도 이 값이다. */
+    static final int LAST_REPLY = 24;
 
     /** 단계 질문에 답한 말(정리 뒤 다시 정리할 재료가 되는 말). */
     private static boolean answeredStep(Kind kind) {
@@ -370,7 +406,7 @@ final class PracticeLoopRouter {
         int stayed = 0;
         for (int i = 1; i < coachTurns; i++) {
             String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
-            stayed = STAYS.contains(DirectVideoPracticeLoop.action(status)) ? stayed + 1 : 0;
+            stayed = STAYS.contains(action(status)) ? stayed + 1 : 0;
         }
         return stayed;
     }
@@ -414,7 +450,7 @@ final class PracticeLoopRouter {
     static boolean lastWasDone(JsonNode loop, int coachTurns) {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         if (statuses == null || !statuses.isArray() || coachTurns <= 0) return false;
-        return !DirectVideoPracticeLoop.statusField(LenientJson.asText(statuses.path(coachTurns - 1), ""), DONE_FIELD).isBlank();
+        return !statusField(LenientJson.asText(statuses.path(coachTurns - 1), ""), DONE_FIELD).isBlank();
     }
 
     /** 배우가 이미 했다고 한 제안을 남기는 상태 칸(SOMA-855). 이 대화가 끝날 때까지 다시 제안하지 않는다. */
@@ -426,7 +462,7 @@ final class PracticeLoopRouter {
     static String lastProposal(JsonNode loop, int coachTurns, String lastCoachText) {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         if (statuses != null && statuses.isArray() && coachTurns > 0) {
-            String take = DirectVideoPracticeLoop.statusField(LenientJson.asText(statuses.path(coachTurns - 1), ""), "다음 테이크");
+            String take = statusField(LenientJson.asText(statuses.path(coachTurns - 1), ""), "다음 테이크");
             if (!take.isBlank() && !take.startsWith("없음")) return clip(take);
         }
         return clip(lastCoachText == null ? "" : lastCoachText);
@@ -443,7 +479,7 @@ final class PracticeLoopRouter {
         var done = new LinkedHashSet<String>();
         for (int i = 0; i < coachTurns; i++) {
             String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
-            String value = DirectVideoPracticeLoop.statusField(status, DONE_FIELD);
+            String value = statusField(status, DONE_FIELD);
             if (!value.isBlank()) done.add(value.strip());
         }
         return List.copyOf(done);
@@ -464,7 +500,7 @@ final class PracticeLoopRouter {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         for (int i = 0; i < coachTurns; i++) {
             String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
-            if (ASK_DONE.equals(DirectVideoPracticeLoop.action(status))) return true;
+            if (ASK_DONE.equals(action(status))) return true;
         }
         return false;
     }
@@ -476,7 +512,7 @@ final class PracticeLoopRouter {
         int asked = 1;
         for (int i = 1; i < coachTurns; i++) {
             String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
-            if (ASKING.contains(DirectVideoPracticeLoop.action(status))) asked++;
+            if (ASKING.contains(action(status))) asked++;
         }
         return asked;
     }
@@ -624,7 +660,7 @@ final class PracticeLoopRouter {
         for (int i = 0; i < coachTurns; i++) {
             String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
             for (String field : ANSWER_FIELDS.values()) {
-                String value = DirectVideoPracticeLoop.statusField(status, field);
+                String value = statusField(status, field);
                 if (!value.isEmpty()) found.put(field, value);
             }
         }
@@ -642,7 +678,7 @@ final class PracticeLoopRouter {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         for (int i = 0; i < coachTurns; i++) {
             String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
-            String value = DirectVideoPracticeLoop.statusField(status, WANT_FIELD);
+            String value = statusField(status, WANT_FIELD);
             if (!value.isEmpty()) found = value;
         }
         return found;
@@ -653,7 +689,7 @@ final class PracticeLoopRouter {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
         for (int i = 0; i < coachTurns; i++) {
             String status = statuses == null || !statuses.isArray() ? "" : LenientJson.asText(statuses.path(i), "");
-            if (DirectVideoPracticeLoop.statusField(status, LINE_FIX_FIELD).startsWith("예")) return true;
+            if (statusField(status, LINE_FIX_FIELD).startsWith("예")) return true;
         }
         return false;
     }

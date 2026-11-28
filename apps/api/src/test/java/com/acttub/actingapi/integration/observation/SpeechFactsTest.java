@@ -19,9 +19,9 @@ class SpeechFactsTest {
         var recordings = MAPPER.readTree(getClass().getResourceAsStream("/speech/results_tr_raw.json"));
         for (String id : recordings.propertyNames()) {
             var recording = recordings.get(id);
-            List<SpeechFacts.Word> words = new ArrayList<>();
+            List<SpeechAnalysis.Word> words = new ArrayList<>();
             for (var word : recording.path("words")) {
-                words.add(new SpeechFacts.Word(LenientJson.asText(word.path("word")),
+                words.add(new SpeechAnalysis.Word(LenientJson.asText(word.path("word")),
                         seconds(LenientJson.asText(word.path("start_offset"))),
                         seconds(LenientJson.asText(word.path("end_offset")))));
             }
@@ -111,7 +111,7 @@ class SpeechFactsTest {
         assertThat(outside.chunks()).extracting(SpeechAnalysis.Chunk::mark).containsExactly("빠름", "느림");
     }
 
-    private static String render(SpeechAnalysis result, List<SpeechFacts.Word> words) {
+    private static String render(SpeechAnalysis result, List<SpeechAnalysis.Word> words) {
         StringBuilder out = new StringBuilder(String.format(Locale.ROOT,
                 "- 전체 길이 %s · 발화 단어 %d개 · 평균 말 속도 초당 %.1f음절%n",
                 mmss(Math.round(words.getLast().end() * 1000)), words.size(), result.avgSyllablesPerSec()));
@@ -139,7 +139,7 @@ class SpeechFactsTest {
         return offset.equals("null") ? 0 : Double.parseDouble(offset.replaceFirst("s$", ""));
     }
 
-    private static SpeechFacts.Word word(String text, double start, double end) {
-        return new SpeechFacts.Word(text, start, end);
+    private static SpeechAnalysis.Word word(String text, double start, double end) {
+        return new SpeechAnalysis.Word(text, start, end);
     }
 }

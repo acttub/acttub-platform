@@ -111,7 +111,7 @@ public class JournalService {
 
     /** 자동 칸을 만들어 저장한다. 두 번 다 실패하면 failed 로 남기고 배우의 답은 그대로 둔다. */
     private void generateInto(UUID id, UUID userId, UUID practiceId, CoachSessionSnapshot session, Answers answers) {
-        ObjectNode input = ActorJournal.modelInput(json, session, PurposeView.from(session.sessionPurpose(), session.coachingState()), answers);
+        ObjectNode input = ActorJournal.modelInput(json, session, PurposeLoop.view(session.sessionPurpose(), session.coachingState()), answers);
         String userPrompt = input.toString();
         String systemPrompt = OutputLanguage.apply(PROMPT);
         for (int attempt = 0; attempt < ATTEMPTS; attempt++) {

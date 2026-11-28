@@ -10,7 +10,6 @@ import com.acttub.actingapi.feature.coach.app.ConversationRepository.Loaded;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.NoteView;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.Replay;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.Saved;
-import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
@@ -20,10 +19,8 @@ import com.acttub.actingapi.platform.text.InputCharset;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.Hashing;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.platform.json.LenientJson;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 0.1.0 회차의 코치 대화 (practice.coach, practice.note).
@@ -43,14 +40,13 @@ public class ConversationService {
     /** 배우 답의 상한(자). */
     public static final int ACTOR_TEXT_MAX_CHARS = 300;
 
-    /** 코치 응답 수의 상한 — 시작 응답을 포함한다(§7-1, §8-5). */
-    public static final int LEGACY_REPLY_LIMIT = 8;
-    public static final int THREE_LAYERS_REPLY_LIMIT = 24;
+    /** 코치 응답 수의 상한 — 시작 응답을 포함한다(§7-1, §8-5). 값은 그 상한으로 대화를 닫는 쪽이 갖는다. */
+    public static final int LEGACY_REPLY_LIMIT = CoachPrompt.TURN_BUDGET;
+    public static final int THREE_LAYERS_REPLY_LIMIT = PracticeLoopRouter.LAST_REPLY;
 
     /** 무료 상한(SOMA-1131)으로 닫힌 마지막 코치 말 끝에 서버가 붙이는 한 줄. 모델이 쓰지 않는다. */
     static final String FREE_LIMIT_NOTE = "무료 코칭은 여기까지예요. Pro는 끝까지 이어서 코칭받을 수 있어요.";
 
-    private static final ObjectMapper JSON = JsonMapper.builderWithJackson2Defaults().build();
     private static final String COMPLETE = "complete";
 
     private final ConversationRepository conversations;
@@ -280,7 +276,7 @@ public class ConversationService {
                     CoachFreeReplies.within(replyLimit(loaded.session()), freeCap(loaded.session())),
                     originalTurns,
                     "closed".equals(replayed.status()) ? conversations.note(userId, loaded.practiceId()) : null,
-                    PurposeView.from(loaded.session().sessionPurpose(), loaded.session().coachingState()),
+                    PurposeLoop.view(loaded.session().sessionPurpose(), loaded.session().coachingState()),
                     AnswerExamples.from(loaded.session().sessionPurpose(), loaded.session().coachingState()));
         }
         if ("closed".equals(loaded.session().status())) {
@@ -336,7 +332,7 @@ public class ConversationService {
                 displayLimit(result.session(), saved.coachReplyCount(), freeCap),
                 turns(after.session()).stream().limit(result.session().turns().size()).toList(),
                 note,
-                PurposeView.from(result.session().sessionPurpose(), result.session().coachingState()),
+                PurposeLoop.view(result.session().sessionPurpose(), result.session().coachingState()),
                 AnswerExamples.from(result.session().sessionPurpose(), result.session().coachingState()));
     }
 
@@ -462,7 +458,7 @@ public class ConversationService {
                 displayLimit(session, coachReplies(session), freeCap(session)),
                 turns,
                 note,
-                PurposeView.from(session.sessionPurpose(), session.coachingState()),
+                PurposeLoop.view(session.sessionPurpose(), session.coachingState()),
                 AnswerExamples.from(session.sessionPurpose(), session.coachingState()));
     }
 
@@ -501,8 +497,8 @@ public class ConversationService {
         var statuses = session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("statuses");
         if (!statuses.isArray() || statuses.isEmpty()) return limit;
         String last = LenientJson.asText(statuses.get(statuses.size() - 1), "");
-        boolean closesNext = DirectVideoPracticeLoop.action(last).startsWith(PracticeLoopRouter.WRAP_UP)
-                || DirectVideoPracticeLoop.statusField(last, "다음에 닫기").startsWith("예");
+        boolean closesNext = PracticeLoopRouter.action(last).startsWith(PracticeLoopRouter.WRAP_UP)
+                || PracticeLoopRouter.statusField(last, "다음에 닫기").startsWith("예");
         return closesNext ? Math.min(limit, coachReplies + 1) : limit;
     }
 
@@ -582,14 +578,5 @@ public class ConversationService {
 
     static String fingerprint(String payload) {
         return Hashing.sha256Hex(payload);
-    }
-
-    /** 코치 갈래 이름 — 노트의 기존 종류(analysis·expression)가 여기서 나온다. */
-    static String branchOf(CoachSessionSnapshot session) {
-        return session.threeLayers() ? "coaching" : CoachBranch.of(session.blockageKind());
-    }
-
-    static ObjectMapper json() {
-        return JSON;
     }
 }

@@ -115,11 +115,6 @@ final class DirectVideoPracticeLoop {
             Pattern.compile("(?i:(?:at|around)\\s+)" + CLOCK + "\\s*"),
             Pattern.compile(CLOCK + "\\s*(?:쯤|경)?\\s*(?:의|에서도|에서|에도|에)?\\s*"));
 
-    /** 코치 말이 길다고 보는 글자 수(공백 포함). 목표는 50자 안쪽이고 이보다 길면 줄이기 호출을 한다. */
-    static final int LONG_REPLY = 60;
-    /** 배우가 이유·방법·예시·설명·피드백을 달라고 했을 때의 길이. 이때는 50자에 맞추려고 답을 줄이지 않는다. */
-    static final int EXPLAIN_REPLY = 120;
-
     /** 화면에 보이는 글자 수. 줄바꿈과 이어진 공백은 한 칸으로 센다. */
     static int displayLength(String text) {
         if (text == null) return 0;
@@ -473,7 +468,7 @@ final class DirectVideoPracticeLoop {
      * 끊는 것은 서버가 한다. 검은 화면 자체는 차단 근거가 아니며, 실제 들리는 음성 연기는 허용한다.
      */
     static boolean notActing(Parsed parsed) {
-        return statusField(parsed.design(), "영상").startsWith("연기 아님");
+        return PracticeLoopRouter.statusField(parsed.design(), "영상").startsWith("연기 아님");
     }
 
     /** 연기 영상이 아니어서 끊을 때 배우에게 보이는 고정 문구. */
@@ -645,7 +640,7 @@ final class DirectVideoPracticeLoop {
      * 여러 줄 상태 칸("배우의 말: …" · "할 일: 마무리2")은 {@code 할 일} 줄만 본다.
      */
     static boolean finished(Parsed parsed) {
-        String doing = statusField(parsed.status(), "할 일");
+        String doing = PracticeLoopRouter.statusField(parsed.status(), "할 일");
         if (!doing.isEmpty()) return doing.startsWith(PracticeLoopRouter.OLD_CLOSE) || doing.startsWith(PracticeLoopRouter.END);
         for (String part : parsed.status().split("·")) {
             String action = part.strip();
@@ -656,13 +651,7 @@ final class DirectVideoPracticeLoop {
 
     private static final Pattern DESIGN_HABIT = Pattern.compile("(?m)^\\s*버릇\\s*:\\s*\\[?([^|\\]\\n]+)");
     private static final Pattern DESIGN_NEXT = Pattern.compile("(?m)^\\s*다음 테이크\\s*:\\s*\\[?([^\\]\\n]+)");
-    private static final Pattern VAGUE = Pattern.compile("(?:잘\\s*)?(?:모르겠(?:어|어요|다|음)?|몰라(?:요)?|ㅇㅇ|ㅇㅋ|네|넵|응|아 네)[.!?~\\s]*");
     private static final int TITLE_MAX = 40;
-
-    /** 「모르겠어요」「네」처럼 내용 없는 짧은 답인가. */
-    static boolean isVague(String text) {
-        return VAGUE.matcher(text).matches();
-    }
 
     /**
      * 연습 루프 세션의 노트(3층). 코치가 이미 정리해 둔 것으로 채운다 — 영상 직접 코칭은 구조화된
@@ -735,20 +724,20 @@ final class DirectVideoPracticeLoop {
         for (int i = 0; i < turns.size(); i++) {
             CoachTurnSnapshot turn = turns.get(i);
             if ("ai".equals(turn.role())) {
-                lastAction = action(LenientJson.asText(statuses.path(coachIndex++), ""));
+                lastAction = PracticeLoopRouter.action(LenientJson.asText(statuses.path(coachIndex++), ""));
                 continue;
             }
             String text = turn.text() == null ? "" : turn.text().strip();
-            if (text.isEmpty() || isVague(text)
+            if (text.isEmpty() || PracticeLoopRouter.isVague(text)
                     || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
             // 이 답을 받은 다음 코치 턴의 상태 칸이 배우의 말을 분류해 두었다.
             String status = LenientJson.asText(statuses.path(coachIndex), "");
-            String kind = statusField(status, "배우의 말");
+            String kind = PracticeLoopRouter.statusField(status, "배우의 말");
             if (kind.startsWith(PracticeLoopRouter.Kind.SELF_LINE.label)) {
                 selfLine = text;
                 selfIndex = i;
             } else if (kind.startsWith(PracticeLoopRouter.Kind.CORRECTION.label) || kind.startsWith(PracticeLoopRouter.Kind.PUSHBACK.label)) {
-                String topic = statusField(status, "피할 것");
+                String topic = PracticeLoopRouter.statusField(status, "피할 것");
                 if (topic.isEmpty() || topic.startsWith("없음")) topic = habit;
                 if (seen.add(text.replaceAll("[\\s!?.~…ㅠㅜ]+", ""))) {
                     corrections.add((topic.isBlank() ? "" : shorten(topic, 30) + ": ") + "\"" + shorten(text, 80) + "\"");
@@ -781,11 +770,11 @@ final class DirectVideoPracticeLoop {
     static String goal(JsonNode statuses, String design) {
         if (statuses != null && statuses.isArray()) {
             for (int i = statuses.size() - 1; i >= 0; i--) {
-                String value = statusField(LenientJson.asText(statuses.get(i), ""), "이번 목표");
+                String value = PracticeLoopRouter.statusField(LenientJson.asText(statuses.get(i), ""), "이번 목표");
                 if (!value.isEmpty() && !value.startsWith("없음")) return value;
             }
         }
-        String designed = statusField(design, "이번 목표");
+        String designed = PracticeLoopRouter.statusField(design, "이번 목표");
         return designed.isEmpty() || designed.startsWith("없음") ? null : designed;
     }
 
@@ -806,7 +795,7 @@ final class DirectVideoPracticeLoop {
     static String closingNextTake(JsonNode statuses) {
         if (statuses == null || !statuses.isArray()) return "";
         for (int i = statuses.size() - 1; i >= 0; i--) {
-            String value = statusField(LenientJson.asText(statuses.get(i), ""), "다음 테이크");
+            String value = PracticeLoopRouter.statusField(LenientJson.asText(statuses.get(i), ""), "다음 테이크");
             if (value.isEmpty() || value.startsWith("없음")) continue;
             return NEXT_TAKE_PREFIX.matcher(value).replaceFirst("").strip();
         }
@@ -823,19 +812,6 @@ final class DirectVideoPracticeLoop {
     /** 설계의 다음 테이크(버릇의 반대쪽). 없으면 빈 문자열. */
     static String designNextTake(String design) {
         return first(DESIGN_NEXT, design == null ? "" : design);
-    }
-
-    /** 상태 줄에서 이번 응답이 한 일. 첫 턴(상태 없음)은 비추기다. */
-    static String action(String status) {
-        if (status.isBlank()) return PracticeLoopRouter.SHOW;
-        String doing = statusField(status, "할 일");
-        if (!doing.isEmpty()) return doing;
-        for (String part : status.split("·")) {
-            String value = part.strip();
-            if (!value.startsWith("응답") && !value.startsWith("순간") && !value.startsWith("장면")
-                    && !value.startsWith("누적")) return value;
-        }
-        return "";
     }
 
     private static String shorten(String text, int max) {
@@ -856,17 +832,6 @@ final class DirectVideoPracticeLoop {
         if (!line.find()) return habit;
         String described = line.group(1).split("[.\"“]", 2)[0].strip();
         return described.isBlank() || described.equals("없음") ? habit : described;
-    }
-
-    /**
-     * 여러 줄 상태 칸의 {@code 키: 값} 줄에서 값을 읽는다. 모델이 양식의 대괄호를 남겨도 벗긴다. 없으면 빈 문자열.
-     * 한 줄 상태("파고들기 · 응답 2번째")에는 이 줄이 없으므로 호출하는 쪽이 기존 해석으로 돌아간다.
-     */
-    static String statusField(String status, String key) {
-        if (status == null || status.isBlank()) return "";
-        Matcher line = Pattern.compile("(?m)^\\s*" + Pattern.quote(key) + "\\s*:\\s*(.*?)\\s*$").matcher(status);
-        if (!line.find()) return "";
-        return line.group(1).replaceAll("^\\[|\\]$", "").strip();
     }
 
     private static String first(Pattern pattern, String text) {
