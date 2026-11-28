@@ -517,16 +517,9 @@ class SpecValueTest {
                 }
             }
         }
-        // 표에 아직 없는 것. 탈퇴해도 지우지 않는다 — users 행은 만 14세 미만 계정 닫기에서만 지워지므로 ON DELETE CASCADE 가
-        // 일하지 않는다. 지울지 사람이 정한 뒤 표에 줄을 더하고 여기서 뺀다.
-        Set<String> undecided = Set.of("script_cocreations");
-        assertThat(hanging).as("undecided 는 사람에 매달린 리딩 테이블이다").containsAll(undecided);
-        assertThat(listed).as("정했으면 undecided 에서 뺀다").doesNotContainAnyElementsOf(undecided);
-        Set<String> expected = new TreeSet<>(hanging);
-        expected.removeAll(undecided);
         assertThat(listed)
                 .as("docs/specs/reading/README.md 「리딩 자료의 이관·삭제·탈퇴」 ↔ 리딩이 주인이고 사람에 매달린 테이블")
-                .isEqualTo(expected);
+                .isEqualTo(hanging);
     }
 
     /** 파일의 절({@code heading}) 안 첫 표의 본문 줄. 칸은 앞뒤 공백을 걷는다. */
