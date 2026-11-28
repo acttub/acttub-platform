@@ -131,6 +131,9 @@ tasks.withType<Test>().configureEach {
     // TableOwnerTest 가 구조 문서의 「테이블 주인」 표와 main 소스 파일을 읽는다. 둘만 고쳐도 다시 돌게 입력으로 둔다.
     inputs.file("../../docs/ARCHITECTURE.md").withPropertyName("architecture").withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.files(fileTree("src/main/java")).withPropertyName("mainSources").withPathSensitivity(PathSensitivity.RELATIVE)
+    // EnvExampleTest 가 서버 .env 견본과 compose 를 읽는다. 둘만 고쳐도 다시 돌게 입력으로 둔다.
+    inputs.file("../../deploy/home/.env.example").withPropertyName("envExample").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file("../../deploy/home/compose.yml").withPropertyName("compose").withPathSensitivity(PathSensitivity.RELATIVE)
 
     // 로컬 .env 를 테스트가 읽지 못하게 막는다(DotenvEnvironmentPostProcessor). 이 가드가
     // 없으면 실 API 키가 흘러들어, 스텁을 쓰는 줄 알았던 테스트가 진짜 호출을 하게 된다.

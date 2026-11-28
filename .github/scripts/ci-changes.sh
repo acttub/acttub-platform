@@ -30,8 +30,8 @@ while IFS= read -r f; do
   case "$f" in
     .github/workflows/ci.yml|.github/scripts/ci-changes.sh|.github/actions/*) api=true; monitoring=true; restore=true ;;
     # ReadingExampleEnglishDraftTest 가 앱의 예시 대본을, ValueCheckCatalogIT 가 기능 스펙의 「상태」 표를,
-    # TableOwnerTest 가 구조 문서의 「테이블 주인」 표를 읽는다.
-    apps/api/*|apps/mobile/lib/reading/sample.ts|docs/specs/*|docs/ARCHITECTURE.md) api=true ;;
+    # TableOwnerTest 가 구조 문서의 「테이블 주인」 표를, EnvExampleTest 가 서버 .env 견본과 compose 를 읽는다.
+    apps/api/*|apps/mobile/lib/reading/sample.ts|docs/specs/*|docs/ARCHITECTURE.md|deploy/home/.env.example|deploy/home/compose.yml) api=true ;;
   esac
   case "$f" in
     deploy/monitoring/*|deploy/home/compose.yml|deploy/home/deploy.sh) monitoring=true ;;
